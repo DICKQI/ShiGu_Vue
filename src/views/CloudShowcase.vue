@@ -29,6 +29,7 @@
           :goods="goods"
           @click="handleCardClick"
           @location-click="handleLocationClick"
+          @context-menu="handleCardContextMenu"
         />
       </div>
 
@@ -46,24 +47,52 @@
 
     <!-- 详情抽屉 -->
     <GoodsDrawer v-model="drawerVisible" :goods-id="selectedGoodsId" />
+
+    <!-- 右键菜单 -->
+    <div
+      v-if="contextMenuVisible"
+      class="context-menu-overlay"
+      @click="closeContextMenu"
+      @contextmenu.prevent
+    >
+      <div
+        class="context-menu"
+        :style="{ top: contextMenuY + 'px', left: contextMenuX + 'px' }"
+        @click.stop
+      >
+        <div class="context-menu-item" @click="handleEditGoods">
+          编辑
+        </div>
+        <div class="context-menu-item context-menu-item-danger" @click="handleDeleteGoods">
+          删除
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useGuziStore } from '@/stores/guzi'
 import SearchBar from '@/components/SearchBar.vue'
 import FilterPanel from '@/components/FilterPanel.vue'
 import GoodsCard from '@/components/GoodsCard.vue'
 import GoodsDrawer from '@/components/GoodsDrawer.vue'
 import type { GoodsListItem } from '@/api/types'
+import { deleteGoods } from '@/api/goods'
 
 const router = useRouter()
 const guziStore = useGuziStore()
 
 const drawerVisible = ref(false)
 const selectedGoodsId = ref<string>('')
+
+const contextMenuVisible = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const contextMenuGoods = ref<GoodsListItem | null>(null)
 
 const currentPage = computed({
   get: () => guziStore.pagination.page,
@@ -75,6 +104,13 @@ const handleCardClick = (goods: GoodsListItem) => {
   drawerVisible.value = true
 }
 
+const handleCardContextMenu = (payload: { goods: GoodsListItem; x: number; y: number }) => {
+  contextMenuGoods.value = payload.goods
+  contextMenuX.value = payload.x
+  contextMenuY.value = payload.y
+  contextMenuVisible.value = true
+}
+
 const handleLocationClick = (path: string) => {
   // 跳转到位置管理页
   router.push({ name: 'Location', query: { highlight: path } })
@@ -83,6 +119,41 @@ const handleLocationClick = (path: string) => {
 const handlePageChange = (page: number) => {
   guziStore.setPage(page)
   window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+const closeContextMenu = () => {
+  contextMenuVisible.value = false
+}
+
+const handleEditGoods = () => {
+  if (!contextMenuGoods.value) return
+  const id = contextMenuGoods.value.id
+  closeContextMenu()
+  router.push({ name: 'GoodsEdit', params: { id } })
+}
+
+const handleDeleteGoods = async () => {
+  if (!contextMenuGoods.value) return
+  const goods = contextMenuGoods.value
+  closeContextMenu()
+  try {
+    await ElMessageBox.confirm(
+      `确认删除「${goods.name}」吗？此操作不可恢复。`,
+      '删除确认',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+    await deleteGoods(goods.id)
+    ElMessage.success('删除成功')
+    guziStore.searchGuziImmediate()
+  } catch (error: any) {
+    // 用户取消
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error('删除失败')
+  }
 }
 
 onMounted(() => {
@@ -132,6 +203,45 @@ onMounted(() => {
   justify-content: center;
   margin-top: 40px;
   padding-bottom: 40px;
+}
+
+.context-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+}
+
+.context-menu {
+  position: fixed;
+  min-width: 140px;
+  background-color: var(--bg-white);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
+  padding: 6px 0;
+  z-index: 2100;
+}
+
+.context-menu-item {
+  padding: 8px 16px;
+  font-size: 14px;
+  color: var(--text-dark);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.context-menu-item:hover {
+  background-color: var(--primary-gold-light);
+  color: var(--primary-gold-dark);
+}
+
+.context-menu-item-danger {
+  color: #F56C6C;
+}
+
+.context-menu-item-danger:hover {
+  background-color: rgba(245, 108, 108, 0.1);
+  color: #F56C6C;
 }
 
 :deep(.el-pagination) {

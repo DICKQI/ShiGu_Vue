@@ -67,15 +67,18 @@
           </el-select>
         </div>
 
-        <!-- 状态筛选 -->
+        <!-- 状态筛选（支持多选） -->
         <div class="filter-item">
           <label>状态</label>
-          <el-radio-group v-model="localFilters.status" @change="handleFilterChange">
-            <el-radio-button label="">全部</el-radio-button>
-            <el-radio-button label="in_cabinet">在馆</el-radio-button>
-            <el-radio-button label="outdoor">出街中</el-radio-button>
-            <el-radio-button label="sold">已售出</el-radio-button>
-          </el-radio-group>
+          <el-checkbox-group
+            v-model="selectedStatuses"
+            class="status-group"
+            @change="handleStatusChange"
+          >
+            <el-checkbox-button label="in_cabinet">在馆</el-checkbox-button>
+            <el-checkbox-button label="outdoor">出街中</el-checkbox-button>
+            <el-checkbox-button label="sold">已售出</el-checkbox-button>
+          </el-checkbox-group>
         </div>
 
         <!-- 位置筛选 -->
@@ -102,7 +105,7 @@ import { ElMessage } from 'element-plus'
 import { useGuziStore } from '@/stores/guzi'
 import { useLocationStore } from '@/stores/location'
 import { getIPList, getCharacterList, getCategoryList } from '@/api/metadata'
-import type { GoodsSearchParams, IP, Character, Category } from '@/api/types'
+import type { GoodsSearchParams, IP, Character, Category, GoodsStatus } from '@/api/types'
 
 // 从API获取的数据
 const ipOptions = ref<IP[]>([])
@@ -117,8 +120,12 @@ const localFilters = ref<GoodsSearchParams>({
   character: undefined,
   category: undefined,
   status: undefined,
+  status__in: undefined,
   location: undefined,
 })
+
+// 本地状态多选
+const selectedStatuses = ref<GoodsStatus[]>([])
 
 const locationTreeData = computed(() => locationStore.treeData)
 
@@ -127,21 +134,40 @@ const filteredCharacters = computed(() => {
   return characters.value.filter((char) => char.ip.id === localFilters.value.ip)
 })
 
+const applyStatusToFilters = (filters: GoodsSearchParams) => {
+  // 先清空状态相关字段
+  filters.status = undefined
+  filters.status__in = undefined
+
+  // 根据选中的状态构造单状态或多状态参数
+  if (selectedStatuses.value.length === 1) {
+    filters.status = selectedStatuses.value[0]
+  } else if (selectedStatuses.value.length > 1) {
+    filters.status__in = selectedStatuses.value.join(',')
+  }
+}
+
 const handleFilterChange = () => {
   // 如果IP改变，清空角色选择
   if (localFilters.value.ip !== guziStore.filters.ip) {
     localFilters.value.character = undefined
   }
-  
+
   const filters: GoodsSearchParams = {
     ip: localFilters.value.ip || undefined,
     character: localFilters.value.character || undefined,
     category: localFilters.value.category || undefined,
-    status: (localFilters.value.status as any) || undefined,
     location: localFilters.value.location || undefined,
   }
-  
+
+  applyStatusToFilters(filters)
+
   guziStore.searchGuzi(filters)
+}
+
+// 状态多选变更时，同步到统一的处理函数
+const handleStatusChange = () => {
+  handleFilterChange()
 }
 
 const handleReset = () => {
@@ -150,21 +176,37 @@ const handleReset = () => {
     character: undefined,
     category: undefined,
     status: undefined,
+    status__in: undefined,
     location: undefined,
   }
+  selectedStatuses.value = []
   guziStore.resetFilters()
 }
 
 // 同步外部筛选条件
-watch(() => guziStore.filters, (newFilters) => {
-  localFilters.value = {
-    ip: newFilters.ip,
-    character: newFilters.character,
-    category: newFilters.category,
-    status: newFilters.status,
-    location: newFilters.location,
-  }
-}, { deep: true })
+watch(
+  () => guziStore.filters,
+  (newFilters) => {
+    localFilters.value = {
+      ip: newFilters.ip,
+      character: newFilters.character,
+      category: newFilters.category,
+      status: newFilters.status,
+      status__in: newFilters.status__in,
+      location: newFilters.location,
+    }
+
+    // 同步 store 中的状态到本地多选
+    if (newFilters.status__in) {
+      selectedStatuses.value = newFilters.status__in.split(',') as GoodsStatus[]
+    } else if (newFilters.status) {
+      selectedStatuses.value = [newFilters.status]
+    } else {
+      selectedStatuses.value = []
+    }
+  },
+  { deep: true },
+)
 
 onMounted(async () => {
   // 加载基础数据
@@ -220,19 +262,22 @@ onMounted(async () => {
   font-weight: 500;
 }
 
-:deep(.el-radio-group) {
+.status-group {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
 }
 
-:deep(.el-radio-button__inner) {
+/* 状态按钮样式，保持与之前单选按钮风格一致 */
+::deep(.el-checkbox-button__inner) {
   border-color: var(--border-color);
 }
 
-:deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+::deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
   background-color: var(--accent-purple);
   border-color: var(--accent-purple);
+  color: #fff;
 }
 </style>
+
 

@@ -1,5 +1,13 @@
 <template>
-  <div class="goods-card" @click="handleClick">
+  <div
+    class="goods-card"
+    @click="handleClick"
+    @contextmenu.prevent="handleContextMenu"
+    @touchstart.stop="handleTouchStart"
+    @touchend="handleTouchEnd"
+    @touchcancel="handleTouchEnd"
+    @touchmove="handleTouchMove"
+  >
     <!-- 状态标签 -->
     <div v-if="goods.status !== 'in_cabinet'" class="status-tag" :class="statusClass">
       {{ statusText }}
@@ -47,7 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { Picture, Location } from '@element-plus/icons-vue'
 import type { GoodsListItem } from '@/api/types'
 
@@ -60,7 +68,11 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   click: [goods: GoodsListItem]
   locationClick: [path: string]
+  contextMenu: [{ goods: GoodsListItem; x: number; y: number }]
 }>()
+
+const isLongPress = ref(false)
+let longPressTimer: number | null = null
 
 const statusText = computed(() => {
   const map: Record<string, string> = {
@@ -79,12 +91,62 @@ const statusClass = computed(() => {
 })
 
 const handleClick = () => {
+  // 长按已经触发菜单时，不再触发点击打开详情
+  if (isLongPress.value) {
+    isLongPress.value = false
+    return
+  }
   emit('click', props.goods)
 }
 
 const handleLocationClick = () => {
   emit('locationClick', props.goods.location_path)
 }
+
+const handleContextMenu = (event: MouseEvent) => {
+  event.preventDefault()
+  emit('contextMenu', {
+    goods: props.goods,
+    x: event.clientX,
+    y: event.clientY,
+  })
+}
+
+const clearLongPressTimer = () => {
+  if (longPressTimer !== null) {
+    window.clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+}
+
+const handleTouchStart = (event: TouchEvent) => {
+  clearLongPressTimer()
+  const touch = event.touches[0]
+  if (!touch) return
+  longPressTimer = window.setTimeout(() => {
+    isLongPress.value = true
+    // 再次安全获取最新的触点坐标
+    const currentTouch = event.touches[0] || touch
+    emit('contextMenu', {
+      goods: props.goods,
+      x: currentTouch.clientX,
+      y: currentTouch.clientY,
+    })
+  }, 600)
+}
+
+const handleTouchEnd = () => {
+  clearLongPressTimer()
+}
+
+const handleTouchMove = () => {
+  // 手指移动则认为取消长按
+  clearLongPressTimer()
+}
+
+onBeforeUnmount(() => {
+  clearLongPressTimer()
+})
 </script>
 
 <style scoped>

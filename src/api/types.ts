@@ -88,6 +88,8 @@ export interface GoodsSearchParams {
   character?: number
   category?: number
   status?: GoodsStatus
+  // 支持后端的多状态过滤：status__in=in_cabinet,sold
+  status__in?: string
   location?: number
   search?: string
   page?: number

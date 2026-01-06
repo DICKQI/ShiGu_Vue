@@ -88,5 +88,8 @@ src/
 - `QUICKSTART.md`：更详细的启动与常见问题
 - `PROJECT_SUMMARY.md`：阶段性总结与建议
 
-## 12. License
+## 11. 后端代码
+https://github.com/DICKQI/ShiGu_backend
+
+## 13. License
 MIT

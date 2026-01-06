@@ -9,8 +9,13 @@
     @touchmove="handleTouchMove"
   >
     <!-- 状态标签 -->
-    <div v-if="goods.status !== 'in_cabinet'" class="status-tag" :class="statusClass">
-      {{ statusText }}
+    <div class="status-tag" :class="statusClass">
+      <el-icon class="status-icon">
+        <Box v-if="goods.status === 'in_cabinet'" />
+        <Location v-else-if="goods.status === 'outdoor'" />
+        <CircleCheck v-else-if="goods.status === 'sold'" />
+      </el-icon>
+      <span class="status-text">{{ statusText }}</span>
     </div>
 
     <!-- 主图 -->
@@ -56,7 +61,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { Picture, Location } from '@element-plus/icons-vue'
+import { Picture, Location, Box, CircleCheck } from '@element-plus/icons-vue'
 import type { GoodsListItem } from '@/api/types'
 
 interface Props {
@@ -85,6 +90,7 @@ const statusText = computed(() => {
 
 const statusClass = computed(() => {
   return {
+    'status-in-cabinet': props.goods.status === 'in_cabinet',
     'status-outdoor': props.goods.status === 'outdoor',
     'status-sold': props.goods.status === 'sold',
   }
@@ -169,23 +175,126 @@ onBeforeUnmount(() => {
 
 .status-tag {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  padding: 4px 10px;
-  border-radius: 12px;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 16px;
   font-size: 12px;
-  font-weight: bold;
+  font-weight: 600;
   color: white;
   z-index: 10;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(4px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.3px;
 }
 
+.status-tag:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.status-icon {
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.95;
+  transition: transform 0.3s ease;
+}
+
+.status-tag:hover .status-icon {
+  transform: scale(1.1);
+}
+
+.status-text {
+  line-height: 1;
+}
+
+/* 在馆 - 绿色渐变，表示可用 */
+.status-in-cabinet {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.status-in-cabinet:hover {
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.status-in-cabinet::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  bottom: -2px;
+  left: -2px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-radius: 18px;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.status-in-cabinet:hover::before {
+  opacity: 0.2;
+}
+
+/* 出街中 - 橙色渐变，表示临时外出 */
 .status-outdoor {
-  background: linear-gradient(135deg, #FF9F43, #FDBE77);
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
 }
 
+.status-outdoor:hover {
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+}
+
+.status-outdoor::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  bottom: -2px;
+  left: -2px;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  border-radius: 18px;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.status-outdoor:hover::before {
+  opacity: 0.2;
+}
+
+/* 已售出 - 灰色渐变，表示已售出 */
 .status-sold {
-  background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+  box-shadow: 0 2px 8px rgba(107, 114, 128, 0.3);
+}
+
+.status-sold:hover {
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.4);
+}
+
+.status-sold::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  bottom: -2px;
+  left: -2px;
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+  border-radius: 18px;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.status-sold:hover::before {
+  opacity: 0.2;
 }
 
 .card-image {
@@ -262,6 +371,20 @@ onBeforeUnmount(() => {
   color: var(--primary-gold);
   margin-top: 8px;
   font-weight: 500;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .status-tag {
+    top: 8px;
+    right: 8px;
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  .status-icon {
+    font-size: 12px;
+  }
 }
 </style>
 

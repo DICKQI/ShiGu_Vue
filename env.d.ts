@@ -12,8 +12,3 @@ declare module 'lodash-es' {
     options?: any
   ): T & { cancel: () => void; flush: () => void }
 }
-
-declare module 'vue-cropper' {
-  import { Component } from 'vue'
-  export const VueCropper: Component
-}

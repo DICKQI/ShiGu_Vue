@@ -97,8 +97,11 @@ export interface GoodsSearchParams {
 export interface GoodsInput {
   name?: string
   ip?: number | IP
+  ip_id?: number
   character?: number | Character
+  character_id?: number
   category?: number | Category
+  category_id?: number
   status?: GoodsStatus
   location?: number | null
   quantity?: number

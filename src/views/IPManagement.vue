@@ -75,12 +75,7 @@
             <div class="card-header-section">
               <div class="card-title-row">
                 <h3 class="card-name">{{ item.name }}</h3>
-              </div>
-            </div>
-            <div class="card-content-section">
-              <div class="card-field">
-                <label class="field-label">关键词</label>
-                <div class="keywords-display">
+                <div class="card-keywords-inline">
                   <el-tag
                     v-for="keyword in item.keywords || []"
                     :key="keyword.id"
@@ -437,15 +432,13 @@ onMounted(() => {
 }
 
 .card-header-section {
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-color, #e4e7ed);
+  margin-bottom: 8px;
 }
 
 .card-title-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .card-name {
@@ -453,27 +446,23 @@ onMounted(() => {
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
+  flex: 0 1 45%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-keywords-inline {
   flex: 1;
-}
-
-.card-content-section {
-  margin-bottom: 12px;
-}
-
-.card-field {
-  margin-bottom: 12px;
-}
-
-.card-field:last-child {
-  margin-bottom: 0;
-}
-
-.field-label {
-  display: block;
-  font-size: 12px;
-  color: var(--text-light);
-  margin-bottom: 6px;
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  flex-wrap: nowrap;
 }
 
 .card-actions {

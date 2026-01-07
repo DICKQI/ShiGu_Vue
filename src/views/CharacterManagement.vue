@@ -103,6 +103,9 @@
                 <div class="card-title-content">
                   <div class="card-title-row">
                     <h3 class="card-name">{{ item.name }}</h3>
+                    <div class="card-ip-inline">
+                      <span class="field-value">{{ item.ip.name }}</span>
+                    </div>
                   </div>
                   <div class="card-subtitle">
                     <el-tag :type="getGenderTagType(item.gender)" size="small">
@@ -110,12 +113,6 @@
                     </el-tag>
                   </div>
                 </div>
-              </div>
-            </div>
-            <div class="card-content-section">
-              <div class="card-field">
-                <label class="field-label">所属IP</label>
-                <div class="field-value">{{ item.ip.name }}</div>
               </div>
             </div>
             <div class="card-actions">
@@ -540,9 +537,7 @@ onMounted(async () => {
 }
 
 .card-header-section {
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-color, #e4e7ed);
+  margin-bottom: 8px;
 }
 
 .card-title-row {
@@ -566,43 +561,40 @@ onMounted(async () => {
 
 .card-name {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
   margin: 0;
-  flex: 1;
+  flex: 0 1 45%;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.card-ip-inline {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+}
+
+.card-ip-inline .field-value {
+  max-width: 100%;
+  padding: 2px 8px;
+  font-size: 13px;
+  color: var(--text-light);
+  background: var(--bg-light, #f5f7fa);
+  border-radius: 999px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
 .card-subtitle {
   margin-top: 4px;
-}
-
-.card-content-section {
-  margin-bottom: 12px;
-}
-
-.card-field {
-  margin-bottom: 12px;
-}
-
-.card-field:last-child {
-  margin-bottom: 0;
-}
-
-.field-label {
-  display: block;
-  font-size: 12px;
-  color: var(--text-light);
-  margin-bottom: 6px;
-  font-weight: 500;
-}
-
-.field-value {
-  font-size: 14px;
-  color: var(--text-primary);
-  word-break: break-word;
 }
 
 .card-actions {

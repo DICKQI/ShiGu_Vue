@@ -42,11 +42,11 @@
           </el-table-column>
           <el-table-column label="操作" width="150" align="right">
             <template #default="{ row }">
-              <el-button-group>
+              <div class="action-inline">
                 <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-                <el-divider direction="vertical" />
+                <span class="action-divider" />
                 <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
-              </el-button-group>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -163,4 +163,7 @@ onMounted(fetchCategoryList)
   .add-btn span { display: none; }
   .add-btn { width: 40px; height: 40px; border-radius: 50%; padding: 0; }
 }
+
+.action-inline { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.action-divider { display: inline-block; width: 1px; height: 16px; background: #e4e7ed; }
 </style>

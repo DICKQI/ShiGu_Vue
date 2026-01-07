@@ -59,11 +59,11 @@
           </el-table-column>
           <el-table-column label="操作" width="150" align="right" fixed="right">
             <template #default="{ row }">
-              <el-button-group class="action-btns">
+              <div class="action-inline">
                 <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-                <el-divider direction="vertical" />
+                <span class="action-divider" />
                 <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
-              </el-button-group>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -350,6 +350,14 @@ onMounted(() => fetchIPList())
   box-shadow: 0 6px 12px rgba(90, 75, 255, 0.08);
 }
 
+/* PC端关键词标签分隔 */
+.tag-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  align-items: center;
+}
+
 /* 移动端现代化卡片设计 */
 .mobile-view {
   display: none;
@@ -440,6 +448,20 @@ onMounted(() => fetchIPList())
 
 .footer-action.delete {
   color: #f56c6c;
+}
+
+.action-inline {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.action-divider {
+  display: inline-block;
+  width: 1px;
+  height: 16px;
+  background: #e4e7ed;
 }
 
 /* 响应式适配 */

@@ -41,11 +41,12 @@
           </el-col>
 
           <el-col :xs="24" :sm="12">
-            <el-form-item label="角色" prop="character">
+            <el-form-item label="角色" prop="characters">
               <el-select
-                v-model="formData.character"
-                placeholder="选择角色"
+                v-model="formData.characters"
+                placeholder="选择角色（可多选）"
                 filterable
+                multiple
                 :disabled="!formData.ip"
                 style="width: 100%"
               >
@@ -205,7 +206,7 @@ const categoryOptions = ref<Category[]>([])
 const formData = ref({
   name: '',
   ip: undefined as number | undefined,
-  character: undefined as number | undefined,
+  characters: [] as number[],
   category: undefined as number | undefined,
   status: 'in_cabinet' as 'in_cabinet' | 'outdoor' | 'sold',
   location: undefined as number | undefined,
@@ -231,13 +232,16 @@ const filteredCharacters = computed(() => {
 const rules: FormRules = {
   name: [{ required: true, message: '请输入谷子名称', trigger: 'blur' }],
   ip: [{ required: true, message: '请选择IP', trigger: 'change' }],
-  character: [{ required: true, message: '请选择角色', trigger: 'change' }],
+  characters: [
+    { required: true, message: '请至少选择一个角色', trigger: 'change' },
+    { type: 'array', min: 1, message: '请至少选择一个角色', trigger: 'change' },
+  ],
   category: [{ required: true, message: '请选择品类', trigger: 'change' }],
   status: [{ required: true, message: '请选择状态', trigger: 'change' }],
 }
 
 const handleIpChange = () => {
-  formData.value.character = undefined
+  formData.value.characters = []
 }
 
 const dummyUpload = () => Promise.resolve()
@@ -270,7 +274,7 @@ const handleSubmit = async () => {
         ...restForm,
         price: restForm.price?.toString(),
         ip_id: restForm.ip,
-        character_id: restForm.character,
+        character_ids: restForm.characters,
         category_id: restForm.category,
       }
       // purchase_date 为空字符串时不上传该字段
@@ -341,7 +345,7 @@ onMounted(async () => {
       formData.value = {
         name: data.name,
         ip: data.ip.id,
-        character: data.character.id,
+        characters: data.characters.map(c => c.id),
         category: data.category.id,
         status: data.status as 'in_cabinet' | 'outdoor' | 'sold',
         location: data.location || undefined,

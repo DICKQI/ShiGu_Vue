@@ -44,7 +44,7 @@
       <div class="card-meta">
         <span class="meta-item">{{ goods.ip.short_name || goods.ip.name }}</span>
         <span class="meta-separator">·</span>
-        <span class="meta-item">{{ goods.character.name }}</span>
+        <span class="meta-item">{{ goods.characters.map(c => c.name).join('、') }}</span>
         <span class="meta-separator">·</span>
         <span class="meta-item">{{ goods.category.name }}</span>
       </div>

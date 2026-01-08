@@ -62,7 +62,7 @@ export interface GoodsListItem {
   id: string
   name: string
   ip: IP
-  character: Character
+  characters: Character[]
   category: Category
   location_path: string
   main_photo?: string | null
@@ -94,6 +94,8 @@ export interface PaginatedResponse<T> {
 export interface GoodsSearchParams {
   ip?: number
   character?: number
+  // 支持后端的多角色过滤：characters__in=5,6
+  characters__in?: string
   category?: number
   status?: GoodsStatus
   // 支持后端的多状态过滤：status__in=in_cabinet,sold
@@ -110,6 +112,8 @@ export interface GoodsInput {
   ip_id?: number
   character?: number | Character
   character_id?: number
+  // 多角色关联（用于创建/更新）
+  character_ids?: number[]
   category?: number | Category
   category_id?: number
   status?: GoodsStatus

@@ -51,7 +51,16 @@
           </div>
           <div class="info-row">
             <span class="info-label">角色</span>
-            <span class="info-value">{{ detail.character.name }}</span>
+            <div class="info-value">
+              <el-tag
+                v-for="char in detail.characters"
+                :key="char.id"
+                class="character-tag"
+                :type="char.gender === 'male' ? 'primary' : char.gender === 'female' ? 'danger' : 'info'"
+              >
+                {{ char.name }}
+              </el-tag>
+            </div>
           </div>
           <div class="info-row">
             <span class="info-label">品类</span>
@@ -263,6 +272,14 @@ function handleClose() {
   flex: 1;
   font-size: 14px;
   color: var(--text-dark);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.character-tag {
+  margin: 0;
 }
 
 .location-path {

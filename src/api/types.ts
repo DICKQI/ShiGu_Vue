@@ -126,3 +126,39 @@ export interface GoodsInput {
   main_photo?: string | null
 }
 
+// BGM角色搜索结果
+export interface BGMCharacter {
+  name: string
+  relation: string
+  avatar: string
+}
+
+// BGM搜索响应
+export interface BGMSearchResponse {
+  ip_name: string
+  characters: BGMCharacter[]
+}
+
+// BGM创建角色请求项
+export interface BGMCreateCharacterItem {
+  ip_name: string
+  character_name: string
+}
+
+// BGM创建角色响应项
+export interface BGMCreateCharacterResult {
+  ip_name: string
+  character_name: string
+  status: 'created' | 'already_exists' | 'error'
+  ip_id?: number
+  character_id?: number
+  error?: string
+}
+
+// BGM批量创建角色响应
+export interface BGMCreateCharactersResponse {
+  created: number
+  skipped: number
+  details: BGMCreateCharacterResult[]
+}
+

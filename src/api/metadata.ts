@@ -107,3 +107,21 @@ export function deleteCategory(id: number) {
   return request.delete(`/api/categories/${id}/`)
 }
 
+// ==================== BGM角色导入 ====================
+
+import type { BGMSearchResponse, BGMCreateCharactersResponse, BGMCreateCharacterItem } from './types'
+
+// 搜索BGM IP作品并获取角色列表
+export function searchBGMCharacters(ipName: string) {
+  return request.post<BGMSearchResponse>('/api/bgm/search-characters/', {
+    ip_name: ipName,
+  })
+}
+
+// 批量创建IP和角色
+export function createBGMCharacters(characters: BGMCreateCharacterItem[]) {
+  return request.post<BGMCreateCharactersResponse>('/api/bgm/create-characters/', {
+    characters,
+  })
+}
+

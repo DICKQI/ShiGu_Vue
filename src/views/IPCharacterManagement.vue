@@ -7,6 +7,10 @@
         <span class="sub-title">管理您的作品分类及其角色</span>
       </div>
       <div class="header-actions">
+        <el-button class="add-btn" type="info" @click="handleOpenBGMImport">
+          <el-icon><Search /></el-icon>
+          <span>从BGM导入</span>
+        </el-button>
         <el-button class="add-btn" type="primary" @click="handleAddIP">
           <el-icon><Plus /></el-icon>
           <span>新增作品</span>
@@ -233,7 +237,7 @@
     <el-dialog
       v-model="ipDialogVisible"
       :title="ipDialogTitle"
-      width="90%"
+      :width="dialogWidth"
       class="custom-dialog"
       align-center
     >
@@ -278,11 +282,189 @@
       </template>
     </el-dialog>
 
+    <!-- BGM导入弹窗 -->
+    <el-dialog
+      v-model="bgmDialogVisible"
+      title="从Bangumi导入角色"
+      :width="bgmDialogWidth"
+      class="custom-dialog bgm-dialog"
+      align-center
+      :close-on-click-modal="false"
+    >
+      <div class="bgm-import-container">
+        <!-- 搜索阶段 -->
+        <div v-if="bgmStep === 'search'" class="bgm-step-search">
+          <el-form @submit.prevent="handleBGMSearch">
+            <el-form-item label="IP作品名称">
+              <el-input
+                v-model="bgmSearchInput"
+                placeholder="例如：崩坏：星穹铁道"
+                clearable
+                @keyup.enter="handleBGMSearch"
+                :disabled="bgmSearching"
+              >
+                <template #prefix>
+                  <el-icon><Search /></el-icon>
+                </template>
+              </el-input>
+            </el-form-item>
+            <div class="bgm-search-actions">
+              <el-button type="primary" @click="handleBGMSearch" :loading="bgmSearching" :disabled="!bgmSearchInput.trim()">
+                搜索BGM
+              </el-button>
+            </div>
+          </el-form>
+        </div>
+
+        <!-- 搜索中等待页面 -->
+        <div v-if="bgmStep === 'searching'" class="bgm-step-searching">
+          <div class="searching-content">
+            <el-icon class="searching-icon"><Loading /></el-icon>
+            <h3>正在搜索Bangumi...</h3>
+            <p>请耐心等待，正在从Bangumi API获取角色信息</p>
+            <div class="searching-progress">
+              <el-progress :percentage="50" :indeterminate="true" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 搜索结果展示 -->
+        <div v-if="bgmStep === 'results'" class="bgm-step-results">
+          <div class="results-header">
+            <h3>搜索结果：{{ bgmSearchResult?.ip_name }}</h3>
+            <p class="results-subtitle">找到 {{ bgmSearchResult?.characters.length || 0 }} 个角色，请勾选需要导入的角色</p>
+          </div>
+          <div class="results-actions-top">
+            <el-button size="small" @click="handleBGMSelectAll">全选</el-button>
+            <el-button size="small" @click="handleBGMSelectNone">取消全选</el-button>
+            <span class="selected-count">已选择 {{ bgmSelectedCharacters.length }} 个角色</span>
+          </div>
+          <div class="results-filter">
+            <el-input
+              v-model="bgmCharacterKeyword"
+              size="small"
+              placeholder="按角色名搜索"
+              clearable
+              class="results-filter-input"
+            >
+              <template #prefix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
+          </div>
+          <div class="character-list-container">
+            <div
+              v-for="(char, index) in bgmSearchResult?.characters || []"
+              :key="index"
+              class="bgm-character-item"
+              :class="{ selected: bgmSelectedCharacters.includes(index) }"
+              v-show="
+                !bgmCharacterKeyword.trim() ||
+                char.name.toLowerCase().includes(bgmCharacterKeyword.trim().toLowerCase())
+              "
+              @click="handleBGMToggleCharacter(index)"
+            >
+              <el-checkbox
+                :model-value="bgmSelectedCharacters.includes(index)"
+                @change="handleBGMToggleCharacter(index)"
+                @click.stop
+              />
+              <el-avatar :size="50" :src="char.avatar || undefined" shape="square" class="char-avatar">
+                <el-icon><UserFilled /></el-icon>
+              </el-avatar>
+              <div class="char-info">
+                <div class="char-name">{{ char.name }}</div>
+                <div class="char-relation">{{ char.relation }}</div>
+              </div>
+            </div>
+          </div>
+          <div v-if="!bgmSearchResult?.characters.length" class="empty-results">
+            <el-empty description="未找到角色信息" />
+          </div>
+        </div>
+
+        <!-- 导入中 -->
+        <div v-if="bgmStep === 'importing'" class="bgm-step-importing">
+          <div class="importing-content">
+            <el-icon class="importing-icon"><Loading /></el-icon>
+            <h3>正在导入角色...</h3>
+            <p>请稍候，正在将选中的角色添加到数据库</p>
+            <div class="importing-progress">
+              <el-progress :percentage="50" :indeterminate="true" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 导入结果 -->
+        <div v-if="bgmStep === 'imported'" class="bgm-step-imported">
+          <div class="imported-content">
+            <el-icon class="success-icon"><CircleCheck /></el-icon>
+            <h3>导入完成！</h3>
+            <div class="import-summary">
+              <p>成功创建：<strong>{{ bgmImportResult?.created || 0 }}</strong> 个角色</p>
+              <p>已存在跳过：<strong>{{ bgmImportResult?.skipped || 0 }}</strong> 个角色</p>
+            </div>
+            <div class="import-details" v-if="bgmImportResult?.details.length">
+              <el-collapse>
+                <el-collapse-item title="查看详情" name="details">
+                  <div
+                    v-for="(detail, idx) in bgmImportResult.details"
+                    :key="idx"
+                    class="detail-item"
+                    :class="detail.status"
+                  >
+                    <el-icon>
+                      <CircleCheck v-if="detail.status === 'created'" />
+                      <Warning v-else-if="detail.status === 'already_exists'" />
+                      <CircleClose v-else />
+                    </el-icon>
+                    <span class="detail-text">
+                      {{ detail.ip_name }} - {{ detail.character_name }}
+                      <span class="detail-status">
+                        ({{ detail.status === 'created' ? '已创建' : detail.status === 'already_exists' ? '已存在' : '错误' }})
+                      </span>
+                    </span>
+                  </div>
+                </el-collapse-item>
+              </el-collapse>
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button v-if="bgmStep === 'search'" @click="bgmDialogVisible = false">取消</el-button>
+          <el-button
+            v-if="bgmStep === 'results'"
+            @click="handleBGMReset"
+          >
+            重新搜索
+          </el-button>
+          <el-button
+            v-if="bgmStep === 'results'"
+            type="primary"
+            @click="handleBGMConfirmImport"
+            :disabled="bgmSelectedCharacters.length === 0"
+            :loading="bgmImporting"
+          >
+            确认导入 ({{ bgmSelectedCharacters.length }})
+          </el-button>
+          <el-button
+            v-if="bgmStep === 'imported'"
+            type="primary"
+            @click="handleBGMClose"
+          >
+            完成
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
     <!-- 角色编辑弹窗 -->
     <el-dialog
       v-model="characterDialogVisible"
       :title="characterDialogTitle"
-      width="90%"
+      :width="dialogWidth"
       class="custom-dialog"
       align-center
     >
@@ -345,7 +527,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   Plus,
   Edit,
@@ -353,6 +535,10 @@ import {
   Search,
   ArrowRight,
   UserFilled,
+  Loading,
+  CircleCheck,
+  Warning,
+  CircleClose,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules, UploadFile } from 'element-plus'
@@ -366,8 +552,48 @@ import {
   createCharacter,
   updateCharacter,
   deleteCharacter,
+  searchBGMCharacters,
+  createBGMCharacters,
 } from '@/api/metadata'
-import type { IP, Character, CharacterGender } from '@/api/types'
+import type {
+  IP,
+  Character,
+  CharacterGender,
+  BGMSearchResponse,
+  BGMCreateCharactersResponse,
+} from '@/api/types'
+
+// 窗口宽度响应式
+const windowWidth = ref(window.innerWidth)
+
+const updateWindowWidth = () => {
+  windowWidth.value = window.innerWidth
+}
+
+onMounted(() => {
+  window.addEventListener('resize', updateWindowWidth)
+  fetchIPList()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateWindowWidth)
+})
+
+// 弹窗宽度计算
+const dialogWidth = computed(() => {
+  if (windowWidth.value <= 768) {
+    return '90%'
+  }
+  return '600px'
+})
+
+// BGM导入弹窗需要更宽
+const bgmDialogWidth = computed(() => {
+  if (windowWidth.value <= 768) {
+    return '90%'
+  }
+  return '800px'
+})
 
 // 状态管理
 const loading = ref(false)
@@ -407,12 +633,24 @@ const avatarFile = ref<File | null>(null)
 const characterFormData = ref({
   name: '',
   ip_id: null as number | null,
-  gender: 'female' as CharacterGender,
+  gender: 'other' as CharacterGender,
 })
 const characterFormRules: FormRules = {
   name: [{ required: true, message: '请输入角色名', trigger: 'blur' }],
   ip_id: [{ required: true, message: '请选择所属IP', trigger: 'change' }],
 }
+
+// BGM导入相关
+const bgmDialogVisible = ref(false)
+type BGMStep = 'search' | 'searching' | 'results' | 'importing' | 'imported'
+const bgmStep = ref<BGMStep>('search')
+const bgmSearchInput = ref('')
+const bgmSearching = ref(false)
+const bgmCharacterKeyword = ref('')
+const bgmSearchResult = ref<BGMSearchResponse | null>(null)
+const bgmSelectedCharacters = ref<number[]>([])
+const bgmImporting = ref(false)
+const bgmImportResult = ref<BGMCreateCharactersResponse | null>(null)
 
 const getGenderLabel = (g: CharacterGender) =>
   ({ male: '男', female: '女', other: '其他' }[g] || '未知')
@@ -580,7 +818,7 @@ const handleAddCharacter = () => {
   isEditCharacter.value = false
   editingCharacterId.value = null
   editingCharacterOriginalIpId.value = null
-  characterFormData.value = { name: '', ip_id: null, gender: 'female' }
+  characterFormData.value = { name: '', ip_id: null, gender: 'other' }
   avatarPreview.value = ''
   avatarFile.value = null
   characterDialogVisible.value = true
@@ -590,7 +828,7 @@ const handleAddCharacterForIP = (ip: IP) => {
   isEditCharacter.value = false
   editingCharacterId.value = null
   editingCharacterOriginalIpId.value = null
-  characterFormData.value = { name: '', ip_id: ip.id, gender: 'female' }
+  characterFormData.value = { name: '', ip_id: ip.id, gender: 'other' }
   avatarPreview.value = ''
   avatarFile.value = null
   characterDialogVisible.value = true
@@ -712,7 +950,109 @@ const handleSubmitCharacter = async () => {
   })
 }
 
-onMounted(() => fetchIPList())
+// BGM导入相关操作
+const handleOpenBGMImport = () => {
+  bgmDialogVisible.value = true
+  handleBGMReset()
+}
+
+const handleBGMReset = () => {
+  bgmStep.value = 'search'
+  bgmSearchInput.value = ''
+   bgmCharacterKeyword.value = ''
+  bgmSearchResult.value = null
+  bgmSelectedCharacters.value = []
+  bgmImportResult.value = null
+}
+
+const handleBGMSearch = async () => {
+  const ipName = bgmSearchInput.value.trim()
+  if (!ipName) {
+    ElMessage.warning('请输入IP作品名称')
+    return
+  }
+
+  bgmSearching.value = true
+  bgmStep.value = 'searching'
+
+  try {
+    const result = await searchBGMCharacters(ipName)
+    bgmSearchResult.value = result
+    bgmCharacterKeyword.value = ''
+    bgmSelectedCharacters.value = [] // 重置选择
+    bgmStep.value = 'results'
+  } catch (err: any) {
+    // 404错误特殊处理
+    if (err.response?.status === 404) {
+      ElMessage.error(err.response?.data?.detail || '未找到相关作品')
+    } else {
+      ElMessage.error(err.message || '搜索失败')
+    }
+    bgmStep.value = 'search'
+  } finally {
+    bgmSearching.value = false
+  }
+}
+
+const handleBGMSelectAll = () => {
+  if (!bgmSearchResult.value) return
+  bgmSelectedCharacters.value = bgmSearchResult.value.characters.map((_, index) => index)
+}
+
+const handleBGMSelectNone = () => {
+  bgmSelectedCharacters.value = []
+}
+
+const handleBGMToggleCharacter = (index: number) => {
+  const idx = bgmSelectedCharacters.value.indexOf(index)
+  if (idx > -1) {
+    bgmSelectedCharacters.value.splice(idx, 1)
+  } else {
+    bgmSelectedCharacters.value.push(index)
+  }
+}
+
+const handleBGMConfirmImport = async () => {
+  const result = bgmSearchResult.value
+  if (!result || bgmSelectedCharacters.value.length === 0) {
+    ElMessage.warning('请至少选择一个角色')
+    return
+  }
+
+  bgmImporting.value = true
+  bgmStep.value = 'importing'
+
+  try {
+    const charactersToImport = bgmSelectedCharacters.value
+      .map((index) => result.characters[index])
+      .filter((char): char is (typeof result.characters)[number] => !!char)
+      .map((char) => ({
+        ip_name: result.ip_name,
+        character_name: char.name,
+      }))
+
+    const createResult = await createBGMCharacters(charactersToImport)
+    bgmImportResult.value = createResult
+    bgmStep.value = 'imported'
+
+    // 刷新IP列表
+    await fetchIPList()
+
+    ElMessage.success(`成功导入 ${createResult.created} 个角色`)
+  } catch (err: any) {
+    ElMessage.error(err.message || '导入失败')
+    bgmStep.value = 'results'
+  } finally {
+    bgmImporting.value = false
+  }
+}
+
+const handleBGMClose = () => {
+  bgmDialogVisible.value = false
+  handleBGMReset()
+  // 刷新IP列表以显示新导入的数据
+  fetchIPList()
+}
 </script>
 
 <style scoped>
@@ -781,6 +1121,10 @@ onMounted(() => fetchIPList())
 
 .add-btn[type='success'] {
   background: linear-gradient(135deg, #67c23a 0%, #85ce61 100%);
+}
+
+.add-btn[type='info'] {
+  background: linear-gradient(135deg, #909399 0%, #a6a9ad 100%);
 }
 
 /* PC端表格样式 */
@@ -1189,6 +1533,308 @@ onMounted(() => fetchIPList())
   .form-layout {
     flex-direction: column;
     align-items: center;
+  }
+}
+
+/* BGM导入对话框样式 */
+.bgm-dialog :deep(.el-dialog__body) {
+  padding: 24px;
+  min-height: 400px;
+}
+
+.bgm-import-container {
+  width: 100%;
+}
+
+/* 搜索阶段 */
+.bgm-step-search {
+  padding: 20px 0;
+}
+
+.bgm-search-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+/* 搜索中等待页面 */
+.bgm-step-searching {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 40px 20px;
+}
+
+.searching-content {
+  text-align: center;
+  max-width: 400px;
+}
+
+.searching-icon {
+  font-size: 64px;
+  color: #a396ff;
+  animation: rotate 2s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.searching-content h3 {
+  margin: 16px 0 8px;
+  font-size: 18px;
+  color: #303133;
+}
+
+.searching-content p {
+  color: #909399;
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.searching-progress {
+  width: 100%;
+}
+
+/* 搜索结果展示 */
+.bgm-step-results {
+  padding: 20px 0;
+}
+
+.results-header {
+  margin-bottom: 20px;
+}
+
+.results-header h3 {
+  font-size: 18px;
+  color: #303133;
+  margin: 0 0 8px;
+}
+
+.results-subtitle {
+  color: #909399;
+  font-size: 14px;
+  margin: 0;
+}
+
+.results-actions-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f2f6fc;
+}
+
+.results-filter {
+  margin-bottom: 12px;
+}
+
+.results-filter-input :deep(.el-input__wrapper) {
+  border-radius: 999px;
+}
+
+.selected-count {
+  margin-left: auto;
+  color: #606266;
+  font-size: 14px;
+}
+
+.character-list-container {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.bgm-character-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #f2f6fc;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fff;
+}
+
+.bgm-character-item:hover {
+  border-color: #a396ff;
+  background: #f6f4ff;
+}
+
+.bgm-character-item.selected {
+  border-color: #a396ff;
+  background: linear-gradient(135deg, #f6f4ff 0%, #ebe7ff 100%);
+  box-shadow: 0 2px 8px rgba(163, 150, 255, 0.2);
+}
+
+.bgm-character-item .char-info {
+  flex: 1;
+}
+
+.bgm-character-item .char-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: #303133;
+  margin-bottom: 4px;
+}
+
+.bgm-character-item .char-relation {
+  font-size: 12px;
+  color: #909399;
+}
+
+.empty-results {
+  padding: 40px 0;
+}
+
+/* 导入中 */
+.bgm-step-importing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 40px 20px;
+}
+
+.importing-content {
+  text-align: center;
+  max-width: 400px;
+}
+
+.importing-icon {
+  font-size: 64px;
+  color: #a396ff;
+  animation: rotate 2s linear infinite;
+  margin-bottom: 20px;
+}
+
+.importing-content h3 {
+  margin: 16px 0 8px;
+  font-size: 18px;
+  color: #303133;
+}
+
+.importing-content p {
+  color: #909399;
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.importing-progress {
+  width: 100%;
+}
+
+/* 导入完成 */
+.bgm-step-imported {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 40px 20px;
+}
+
+.imported-content {
+  text-align: center;
+  max-width: 500px;
+  width: 100%;
+}
+
+.success-icon {
+  font-size: 64px;
+  color: #67c23a;
+  margin-bottom: 20px;
+}
+
+.imported-content h3 {
+  margin: 16px 0 24px;
+  font-size: 20px;
+  color: #303133;
+}
+
+.import-summary {
+  background: #f8f9fc;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.import-summary p {
+  margin: 8px 0;
+  font-size: 15px;
+  color: #606266;
+}
+
+.import-summary strong {
+  color: #a396ff;
+  font-size: 18px;
+}
+
+.import-details {
+  text-align: left;
+  margin-top: 20px;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.detail-item .el-icon {
+  font-size: 16px;
+}
+
+.detail-item.created .el-icon {
+  color: #67c23a;
+}
+
+.detail-item.already_exists .el-icon {
+  color: #e6a23c;
+}
+
+.detail-item.error .el-icon {
+  color: #f56c6c;
+}
+
+.detail-text {
+  flex: 1;
+  color: #606266;
+}
+
+.detail-status {
+  color: #909399;
+  font-size: 12px;
+}
+
+/* 响应式适配 */
+@media (max-width: 768px) {
+  .bgm-dialog :deep(.el-dialog) {
+    width: 95% !important;
+  }
+
+  .results-actions-top {
+    flex-wrap: wrap;
+  }
+
+  .selected-count {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .character-list-container {
+    max-height: 300px;
   }
 }
 </style>

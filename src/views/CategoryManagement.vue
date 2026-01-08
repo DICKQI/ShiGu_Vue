@@ -5,10 +5,12 @@
         <h2 class="page-title">品类管理</h2>
         <span class="sub-title">配置谷子的种类（如：立牌、马口铁徽章等）</span>
       </div>
-      <el-button class="add-btn" type="primary" @click="handleAdd">
-        <el-icon><Plus /></el-icon>
-        <span>新增品类</span>
-      </el-button>
+      <div class="header-actions">
+        <el-button class="add-btn" type="primary" @click="handleAdd">
+          <el-icon><Plus /></el-icon>
+          <span>新增品类</span>
+        </el-button>
+      </div>
     </div>
 
     <el-card class="search-card" shadow="never">
@@ -55,6 +57,12 @@
       <el-empty v-if="!loading && categoryList.length === 0" />
     </div>
 
+    <!-- 刷新按钮 - 右下角悬浮 -->
+    <div class="refresh-fab" @click="handleRefresh" :class="{ loading: loading }">
+      <el-icon v-if="!loading"><Refresh /></el-icon>
+      <el-icon v-else class="is-loading"><Loading /></el-icon>
+    </div>
+
     <!-- 弹窗 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="400px" class="custom-dialog" align-center>
       <el-form :model="formData" :rules="formRules" ref="formRef" label-position="top">
@@ -72,7 +80,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Plus, Search, CollectionTag } from '@element-plus/icons-vue'
+import { Plus, Search, CollectionTag, Refresh, Loading } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { getCategoryList, createCategory, updateCategory, deleteCategory } from '@/api/metadata'
@@ -105,6 +113,7 @@ const fetchCategoryList = async () => {
 }
 
 const handleSearch = () => fetchCategoryList()
+const handleRefresh = () => fetchCategoryList()
 const handleAdd = () => { isEdit.value = false; formData.value.name = ''; dialogVisible.value = true; }
 const handleEdit = (row: Category) => { isEdit.value = true; editingId.value = row.id; formData.value.name = row.name; dialogVisible.value = true; }
 
@@ -159,7 +168,57 @@ onMounted(fetchCategoryList)
   border: none; border-radius: 8px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .category-list-wrapper { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.04); }
+
+/* 刷新按钮 - 右下角悬浮 */
+.refresh-fab {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #a396ff 0%, #8e7dff 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 30px;
+  box-shadow: 0 4px 16px rgba(163, 150, 255, 0.4);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  z-index: 999;
+}
+
+.refresh-fab:hover {
+  transform: scale(1.1) rotate(180deg);
+  box-shadow: 0 6px 20px rgba(163, 150, 255, 0.6);
+}
+
+.refresh-fab.loading {
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.refresh-fab .is-loading {
+  animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .category-item-name { display: flex; align-items: center; gap: 10px; font-weight: 500; color: #444; }
 .folder-icon { color: #8e7dff; font-size: 18px; }
 :deep(.id-column) { color: #c0c4cc; font-family: monospace; }
@@ -167,6 +226,14 @@ onMounted(fetchCategoryList)
 @media (max-width: 768px) {
   .add-btn span { display: none; }
   .add-btn { width: 40px; height: 40px; border-radius: 50%; padding: 0; }
+
+  .refresh-fab {
+    bottom: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    font-size: 24px;
+  }
 }
 
 .action-inline { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }

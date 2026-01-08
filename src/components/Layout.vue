@@ -70,9 +70,15 @@
       <router-view />
     </main>
 
-    <!-- 悬浮按钮（仅云展柜页面展示） -->
-    <div v-if="showFab" class="fab-btn" @click="goToAdd">
-      <el-icon><Plus /></el-icon>
+    <!-- 悬浮按钮组（仅云展柜页面展示） -->
+    <div v-if="showFab" class="fab-group">
+      <div class="fab-btn refresh-fab" @click="handleRefresh" :class="{ loading: refreshLoading }">
+        <el-icon v-if="!refreshLoading"><Refresh /></el-icon>
+        <el-icon v-else class="is-loading"><Loading /></el-icon>
+      </div>
+      <div class="fab-btn" @click="goToAdd">
+        <el-icon><Plus /></el-icon>
+      </div>
     </div>
   </div>
 </template>
@@ -80,12 +86,15 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Grid, FolderOpened, Plus, Collection, User, Box, MoreFilled } from '@element-plus/icons-vue'
+import { Grid, FolderOpened, Plus, Collection, User, Box, MoreFilled, Refresh, Loading } from '@element-plus/icons-vue'
+import { useGuziStore } from '@/stores/guzi'
 
 const router = useRouter()
 const route = useRoute()
+const guziStore = useGuziStore()
 
 const isMobile = ref(window.innerWidth < 768)
+const refreshLoading = ref(false)
 
 const activeMenu = computed(() => {
   const path = route.path
@@ -109,6 +118,16 @@ const showFab = computed(() => route.path.startsWith('/showcase'))
 
 const goToAdd = () => {
   router.push('/goods/new')
+}
+
+const handleRefresh = async () => {
+  if (refreshLoading.value) return
+  refreshLoading.value = true
+  try {
+    await guziStore.searchGuziImmediate()
+  } finally {
+    refreshLoading.value = false
+  }
 }
 
 const handleResize = () => {
@@ -203,10 +222,17 @@ onUnmounted(() => {
   min-height: calc(100vh - 64px);
 }
 
-.fab-btn {
+.fab-group {
   position: fixed;
   bottom: 30px;
   right: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  z-index: 999;
+}
+
+.fab-btn {
   width: 60px;
   height: 60px;
   background: linear-gradient(135deg, var(--primary-gold), var(--primary-gold-light));
@@ -219,12 +245,38 @@ onUnmounted(() => {
   box-shadow: var(--shadow-purple);
   cursor: pointer;
   transition: all var(--transition-normal);
-  z-index: 999;
 }
 
 .fab-btn:hover {
-  transform: scale(1.1) rotate(90deg);
+  transform: scale(1.1);
   box-shadow: 0 6px 20px rgba(212, 175, 55, 0.6);
+}
+
+.refresh-fab {
+  background: linear-gradient(135deg, #a396ff 0%, #8e7dff 100%);
+}
+
+.refresh-fab:hover {
+  background: linear-gradient(135deg, #8e7dff 0%, #7a6aff 100%);
+  transform: scale(1.1) rotate(180deg);
+}
+
+.refresh-fab.loading {
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.refresh-fab .is-loading {
+  animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 768px) {
@@ -263,6 +315,17 @@ onUnmounted(() => {
 
   .more-text {
     font-size: 14px;
+  }
+
+  .fab-group {
+    bottom: 20px;
+    right: 20px;
+  }
+
+  .fab-btn {
+    width: 50px;
+    height: 50px;
+    font-size: 24px;
   }
 }
 </style>

@@ -6,19 +6,39 @@
         <h2 class="page-title">IP作品与角色管理</h2>
         <span class="sub-title">管理您的作品分类及其角色</span>
       </div>
+      
+      <!-- 修改处：合并后的操作按钮 -->
       <div class="header-actions">
-        <el-button class="add-btn" type="info" @click="handleOpenBGMImport">
-          <el-icon><Search /></el-icon>
-          <span>从BGM导入</span>
-        </el-button>
-        <el-button class="add-btn" type="primary" @click="handleAddIP">
-          <el-icon><Plus /></el-icon>
-          <span>新增作品</span>
-        </el-button>
-        <el-button class="add-btn" type="success" @click="handleAddCharacter">
-          <el-icon><Plus /></el-icon>
-          <span>新增角色</span>
-        </el-button>
+        <el-dropdown trigger="click" @command="handleActionCommand">
+          <el-button type="primary" class="action-dropdown-btn">
+            <el-icon class="icon-left"><Plus /></el-icon>
+            <span>新增 / 导入</span>
+            <el-icon class="icon-right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu class="custom-dropdown-menu">
+              <el-dropdown-item command="bgm">
+                <div class="menu-item-content">
+                  <el-icon><Search /></el-icon>
+                  <span>从 Bangumi 导入</span>
+                  <el-tag size="small" type="info" effect="plain" class="menu-tag">推荐</el-tag>
+                </div>
+              </el-dropdown-item>
+              <el-dropdown-item divided command="ip">
+                <div class="menu-item-content">
+                  <el-icon><Collection /></el-icon>
+                  <span>新增作品 (IP)</span>
+                </div>
+              </el-dropdown-item>
+              <el-dropdown-item command="character">
+                <div class="menu-item-content">
+                  <el-icon><UserFilled /></el-icon>
+                  <span>新增角色</span>
+                </div>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
 
@@ -231,6 +251,12 @@
       </div>
 
       <el-empty v-if="!loading && ipList.length === 0" description="没有找到相关的作品" />
+    </div>
+
+    <!-- 刷新按钮 - 右下角悬浮 -->
+    <div class="refresh-fab" @click="handleRefresh" :class="{ loading: loading }">
+      <el-icon v-if="!loading"><Refresh /></el-icon>
+      <el-icon v-else class="is-loading"><Loading /></el-icon>
     </div>
 
     <!-- IP编辑弹窗 -->
@@ -539,6 +565,9 @@ import {
   CircleCheck,
   Warning,
   CircleClose,
+  Refresh,
+  ArrowDown, // 新增
+  Collection, // 新增
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules, UploadFile } from 'element-plus'
@@ -667,6 +696,21 @@ const syncIPCharacterCountFromMap = (ipId: number) => {
   setIPCharacterCount(ipId, list.length)
 }
 
+// 顶部下拉菜单指令处理
+const handleActionCommand = (command: string) => {
+  switch (command) {
+    case 'bgm':
+      handleOpenBGMImport()
+      break
+    case 'ip':
+      handleAddIP()
+      break
+    case 'character':
+      handleAddCharacter()
+      break
+  }
+}
+
 // 获取IP列表
 const fetchIPList = async () => {
   loading.value = true
@@ -724,6 +768,10 @@ const handleTableExpandChange = async (row: IP, expandedRows: IP[]) => {
 }
 
 const handleSearch = () => fetchIPList()
+
+const handleRefresh = () => {
+  fetchIPList()
+}
 
 // IP相关操作
 const handleAddIP = () => {
@@ -1074,11 +1122,6 @@ const handleBGMClose = () => {
   gap: 12px;
 }
 
-.header-actions {
-  display: flex;
-  gap: 8px;
-}
-
 .page-title {
   font-size: 22px;
   font-weight: 600;
@@ -1089,6 +1132,52 @@ const handleBGMClose = () => {
 .sub-title {
   font-size: 13px;
   color: #909399;
+}
+
+/* 聚合操作按钮 */
+.action-dropdown-btn {
+  background: linear-gradient(135deg, #a396ff 0%, #8e7dff 100%);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  height: auto;
+  font-size: 14px;
+  transition: all 0.3s;
+  box-shadow: 0 4px 12px rgba(142, 125, 255, 0.3);
+}
+
+.action-dropdown-btn:hover,
+.action-dropdown-btn:focus {
+  background: linear-gradient(135deg, #b0a4ff 0%, #9d8eff 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(142, 125, 255, 0.4);
+}
+
+.action-dropdown-btn .icon-left {
+  margin-right: 6px;
+}
+
+.action-dropdown-btn .icon-right {
+  margin-left: 8px;
+  font-size: 12px;
+}
+
+/* 下拉菜单内容样式 */
+.menu-item-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 140px;
+}
+
+.menu-item-content .el-icon {
+  font-size: 16px;
+  color: #606266;
+}
+
+.menu-tag {
+  margin-left: auto;
+  transform: scale(0.9);
 }
 
 /* 搜索框美化 */
@@ -1110,7 +1199,6 @@ const handleBGMClose = () => {
 }
 
 /* 品牌色按钮 */
-.add-btn,
 .search-btn,
 .submit-btn {
   background: linear-gradient(135deg, #a396ff 0%, #8e7dff 100%);
@@ -1119,13 +1207,6 @@ const handleBGMClose = () => {
   padding: 10px 20px;
 }
 
-.add-btn[type='success'] {
-  background: linear-gradient(135deg, #67c23a 0%, #85ce61 100%);
-}
-
-.add-btn[type='info'] {
-  background: linear-gradient(135deg, #909399 0%, #a6a9ad 100%);
-}
 
 /* PC端表格样式 */
 .desktop-view {
@@ -1133,6 +1214,49 @@ const handleBGMClose = () => {
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+/* 刷新按钮 - 右下角悬浮 */
+.refresh-fab {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #a396ff 0%, #8e7dff 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 30px;
+  box-shadow: 0 4px 16px rgba(163, 150, 255, 0.4);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  z-index: 999;
+}
+
+.refresh-fab:hover {
+  transform: scale(1.1) rotate(180deg);
+  box-shadow: 0 6px 20px rgba(163, 150, 255, 0.6);
+}
+
+.refresh-fab.loading {
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.refresh-fab .is-loading {
+  animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .table-name {
@@ -1431,14 +1555,18 @@ const handleBGMClose = () => {
   .header-actions {
     width: 100%;
   }
-  .header-actions .add-btn {
-    flex: 1;
+  /* 让下拉组件宽度占满 */
+  .header-actions :deep(.el-dropdown) {
+    width: 100%;
   }
+  
+  .action-dropdown-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
   .page-title {
     font-size: 18px;
-  }
-  .add-btn span {
-    display: inline;
   }
 }
 
@@ -1835,6 +1963,14 @@ const handleBGMClose = () => {
 
   .character-list-container {
     max-height: 300px;
+  }
+
+  .refresh-fab {
+    bottom: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    font-size: 24px;
   }
 }
 </style>

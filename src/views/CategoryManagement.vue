@@ -194,11 +194,19 @@ onMounted(fetchCategoryList)
   cursor: pointer;
   transition: all var(--transition-normal);
   z-index: 999;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  border: none;
 }
 
 .refresh-fab:hover {
   transform: scale(1.1) rotate(180deg);
   box-shadow: 0 6px 20px rgba(163, 150, 255, 0.6);
+}
+
+.refresh-fab:focus,
+.refresh-fab:active {
+  outline: none;
 }
 
 .refresh-fab.loading {

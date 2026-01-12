@@ -165,6 +165,13 @@ onBeforeUnmount(() => {
   transition: all var(--transition-normal);
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-sm);
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.goods-card:focus,
+.goods-card:active {
+  outline: none;
 }
 
 .goods-card:hover {
@@ -359,6 +366,13 @@ onBeforeUnmount(() => {
   background-color: var(--secondary-gray);
   border-radius: 4px;
   transition: all var(--transition-fast);
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.card-location:focus,
+.card-location:active {
+  outline: none;
 }
 
 .card-location:hover {

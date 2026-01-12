@@ -274,6 +274,13 @@ onMounted(() => {
   color: var(--text-dark);
   cursor: pointer;
   transition: background-color var(--transition-fast), color var(--transition-fast);
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.context-menu-item:focus,
+.context-menu-item:active {
+  outline: none;
 }
 
 .context-menu-item:hover {

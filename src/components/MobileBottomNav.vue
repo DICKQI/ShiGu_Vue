@@ -110,11 +110,14 @@ const handleNavClick = (path: string) => {
   transition: all 0.2s ease;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  outline: none;
 }
 
-.nav-item:active {
+.nav-item:active,
+.nav-item:focus {
   transform: scale(0.95);
   opacity: 0.8;
+  outline: none;
 }
 
 .nav-icon {

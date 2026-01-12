@@ -83,3 +83,66 @@ a {
   opacity: 0.5;
 }
 
+/* 移除所有按钮和可点击元素的焦点框 */
+button,
+.el-button,
+.el-button:focus,
+.el-button:active,
+.el-button:focus-visible,
+.el-radio-button,
+.el-radio-button:focus,
+.el-radio-button:active,
+.el-radio-button:focus-visible,
+.el-checkbox-button,
+.el-checkbox-button:focus,
+.el-checkbox-button:active,
+.el-checkbox-button:focus-visible,
+.el-menu-item,
+.el-menu-item:focus,
+.el-menu-item:active,
+.el-menu-item:focus-visible,
+.el-pagination .btn-prev,
+.el-pagination .btn-next,
+.el-pagination .el-pager li,
+.el-pagination .btn-prev:focus,
+.el-pagination .btn-next:focus,
+.el-pagination .el-pager li:focus,
+.el-pagination .btn-prev:active,
+.el-pagination .btn-next:active,
+.el-pagination .el-pager li:active,
+.el-tree-node__content,
+.el-tree-node__content:focus,
+.el-tree-node__content:active,
+[role="button"],
+[role="button"]:focus,
+[role="button"]:active,
+[role="button"]:focus-visible {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 移除所有可点击div元素的焦点框 */
+div[cursor="pointer"],
+div[class*="btn"],
+div[class*="button"],
+div[class*="click"],
+div[class*="fab"],
+div[class*="card"][onclick],
+div[class*="item"][onclick] {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+div[cursor="pointer"]:focus,
+div[cursor="pointer"]:active,
+div[class*="btn"]:focus,
+div[class*="btn"]:active,
+div[class*="button"]:focus,
+div[class*="button"]:active,
+div[class*="click"]:focus,
+div[class*="click"]:active,
+div[class*="fab"]:focus,
+div[class*="fab"]:active {
+  outline: none !important;
+}
+

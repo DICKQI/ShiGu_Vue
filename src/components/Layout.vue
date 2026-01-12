@@ -205,6 +205,13 @@ onUnmounted(() => {
   cursor: pointer;
   user-select: none;
   justify-self: start;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.brand:focus,
+.brand:active {
+  outline: none;
 }
 
 .brand-text {
@@ -254,14 +261,28 @@ onUnmounted(() => {
   color: var(--text-dark);
   padding: 8px;
   transition: color 0.2s ease;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .settings-btn:hover {
   color: var(--primary-gold);
 }
 
+.settings-btn:focus,
+.settings-btn:active {
+  outline: none;
+}
+
 .settings-btn.settings-active {
   color: var(--primary-gold);
+}
+
+:deep(.settings-btn:focus),
+:deep(.settings-btn:active),
+:deep(.settings-btn:focus-visible) {
+  outline: none;
+  border: none;
 }
 
 .main-content {
@@ -303,11 +324,19 @@ onUnmounted(() => {
   box-shadow: var(--shadow-purple);
   cursor: pointer;
   transition: all var(--transition-normal);
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  border: none;
 }
 
 .fab-btn:hover {
   transform: scale(1.1);
   box-shadow: 0 6px 20px rgba(212, 175, 55, 0.6);
+}
+
+.fab-btn:focus,
+.fab-btn:active {
+  outline: none;
 }
 
 .refresh-fab {
@@ -317,6 +346,11 @@ onUnmounted(() => {
 .refresh-fab:hover {
   background: linear-gradient(135deg, #8e7dff 0%, #7a6aff 100%);
   transform: scale(1.1) rotate(180deg);
+}
+
+.refresh-fab:focus,
+.refresh-fab:active {
+  outline: none;
 }
 
 .refresh-fab.loading {

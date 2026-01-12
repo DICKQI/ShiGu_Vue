@@ -319,11 +319,14 @@ onMounted(() => {
   }
 
   .form-actions {
-    flex-direction: column;
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
   }
 
-  .form-actions .el-button {
-    width: 100%;
+  .form-actions :deep(.el-button) {
+    flex: 1;
+    margin: 0;
   }
 
   .info-item {

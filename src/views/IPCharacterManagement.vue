@@ -1451,11 +1451,19 @@ const handleBGMClose = () => {
   cursor: pointer;
   transition: all var(--transition-normal);
   z-index: 999;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  border: none;
 }
 
 .refresh-fab:hover {
   transform: scale(1.1) rotate(180deg);
   box-shadow: 0 6px 20px rgba(163, 150, 255, 0.6);
+}
+
+.refresh-fab:focus,
+.refresh-fab:active {
+  outline: none;
 }
 
 .refresh-fab.loading {
@@ -1632,6 +1640,13 @@ const handleBGMClose = () => {
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.card-main:focus,
+.card-main:active {
+  outline: none;
 }
 
 .name-row {
@@ -1756,6 +1771,14 @@ const handleBGMClose = () => {
   align-items: center;
   justify-content: center;
   gap: 4px;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.footer-action:focus,
+.footer-action:active {
+  outline: none;
 }
 
 .footer-action:not(:last-child) {

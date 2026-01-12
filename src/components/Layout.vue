@@ -48,7 +48,11 @@
 
     <!-- 主要内容区 -->
     <main class="main-content" :class="{ 'has-bottom-nav': isMobile }">
-      <router-view />
+      <router-view v-slot="{ Component, route }">
+        <Transition :name="pageTransitionName" mode="out-in">
+          <component :is="Component" :key="route.fullPath" />
+        </Transition>
+      </router-view>
     </main>
 
     <!-- 移动端底部导航栏 -->
@@ -113,6 +117,9 @@ const showFab = computed(() => route.path.startsWith('/showcase'))
 const goToAdd = () => {
   router.push('/goods/new')
 }
+
+// 移动端为页面切换添加向上滑入动画，PC 端使用轻量淡入
+const pageTransitionName = computed(() => (isMobile.value ? 'page-slide-up' : 'page-fade'))
 
 const handleRefresh = async () => {
   if (refreshLoading.value) return
@@ -299,6 +306,29 @@ onUnmounted(() => {
   .main-content.has-bottom-nav {
     padding-bottom: 64px;
   }
+}
+
+/* 页面过渡动画 */
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.page-fade-enter-from,
+.page-fade-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-slide-up-enter-active,
+.page-slide-up-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.page-slide-up-enter-from,
+.page-slide-up-leave-to {
+  transform: translateY(24px);
+  opacity: 0;
 }
 
 .fab-group {

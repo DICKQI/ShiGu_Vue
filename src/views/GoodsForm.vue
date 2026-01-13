@@ -100,13 +100,13 @@
             </el-form-item>
           </el-col>
 
-          <el-col :xs="24" :sm="12">
+          <el-col :xs="12" :sm="12">
             <el-form-item label="数量" prop="quantity">
               <el-input-number v-model="formData.quantity" :min="1" style="width: 100%" />
             </el-form-item>
           </el-col>
 
-          <el-col :xs="24" :sm="12">
+          <el-col :xs="12" :sm="12">
             <el-form-item label="购入价格">
               <el-input-number
                 v-model="formData.price"
@@ -118,7 +118,7 @@
             </el-form-item>
           </el-col>
 
-          <el-col :xs="24" :sm="12">
+          <el-col :xs="12" :sm="12">
             <el-form-item label="入手日期">
               <el-date-picker
                 v-model="formData.purchase_date"
@@ -130,9 +130,9 @@
             </el-form-item>
           </el-col>
 
-          <el-col :xs="24" :sm="12">
+          <el-col :xs="12" :sm="12">
             <el-form-item label="是否官谷">
-              <el-switch v-model="formData.is_official" />
+              <el-switch v-model="formData.is_official" active-text="是" inactive-text="否" inline-prompt />
             </el-form-item>
           </el-col>
 

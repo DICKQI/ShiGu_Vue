@@ -7,12 +7,27 @@
   box-sizing: border-box;
 }
 
+html {
+  /* 禁用移动端弹性滚动（果冻效果） */
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+  height: 100%;
+  position: relative;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background-color: var(--bg-gray);
   color: var(--text-dark);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* 禁用移动端弹性滚动（果冻效果） */
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+  height: 100%;
+  position: relative;
+  touch-action: pan-y;
 }
 
 a {

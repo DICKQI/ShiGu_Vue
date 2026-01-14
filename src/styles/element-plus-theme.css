@@ -102,17 +102,103 @@
   background-color: rgba(212, 175, 55, 0.1);
 }
 
-/* Toast 消息提示位置调整 - 移动端适配 */
-/* 默认 PC 端保持原有位置 */
+/* ========================================= */
+/* Toast (ElMessage) 美化与适配 - 精致胶囊风 */
+/* ========================================= */
+
 .el-message {
-  top: 20px;
+  /* 核心改动：宽度自适应，不再强制撑满 */
+  min-width: unset !important;
+  width: fit-content !important;
+  max-width: 85vw !important; /* 移动端防止过宽 */
+  
+  /* 布局调整：内容居中 */
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  
+  /* 间距与形状：更紧凑的胶囊形 */
+  padding: 10px 24px !important;
+  border-radius: 50px !important; /* 全圆角/胶囊状 */
+  border-width: 1px !important;
+  
+  /* 阴影与背景：保持高级感，但更轻盈 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 
+              0 0 10px rgba(212, 175, 55, 0.1) !important;
+  
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  
+  /* 字体优化 */
+  font-weight: 500;
+  font-size: 14px;
 }
 
-/* 移动端：增加 top 值，避免被状态栏遮挡 */
+/* 确保文字不换行（短语时），长文自动换行 */
+.el-message .el-message__content {
+  text-align: center;
+  word-break: break-word;
+}
+
+/* 图标大小与间距微调 */
+.el-message .el-message__icon {
+  font-size: 16px !important;
+  margin-right: 8px !important;
+}
+
+/* 关闭按钮（如果有） */
+.el-message .el-message__closeBtn {
+  margin-left: 12px !important;
+}
+
+/* --- 针对不同类型的配色优化 (保持香槟风格) --- */
+
+/* 1. 普通信息 (Info) */
+.el-message--info {
+  border-color: rgba(212, 175, 55, 0.3) !important;
+  color: #303133 !important;
+}
+.el-message--info .el-message__icon {
+  color: var(--el-color-primary) !important;
+}
+
+/* 2. 成功 (Success) - 保持淡雅 */
+.el-message--success {
+  background: linear-gradient(to bottom, #f0f9eb, #ffffff) !important;
+  border-color: #e1f3d8 !important;
+  color: #67c23a !important;
+}
+
+/* 3. 警告 (Warning) */
+.el-message--warning {
+  background: linear-gradient(to bottom, #fdf6ec, #ffffff) !important;
+  border-color: #faecd8 !important;
+  color: #e6a23c !important;
+}
+
+/* 4. 错误 (Error) */
+.el-message--error {
+  background: linear-gradient(to bottom, #fef0f0, #ffffff) !important;
+  border-color: #fde2e2 !important;
+  color: #f56c6c !important;
+}
+
+/* --- 位置与响应式适配 --- */
+
+/* 默认 PC 端 */
+.el-message {
+  top: 30px !important;
+}
+
+/* 移动端适配 */
 @media screen and (max-width: 768px) {
   .el-message {
-    /* 基础间距 60px，加上安全区域顶部间距（适用于刘海屏等） */
-    top: calc(60px + env(safe-area-inset-top, 0px)) !important;
+    /* 移动端顶部避让 */
+    top: calc(70px + env(safe-area-inset-top, 0px)) !important;
+    
+    /* 移动端稍微调小一点内边距，显得更精致 */
+    padding: 8px 20px !important;
   }
 }
 

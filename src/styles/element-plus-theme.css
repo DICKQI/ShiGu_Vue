@@ -102,3 +102,17 @@
   background-color: rgba(212, 175, 55, 0.1);
 }
 
+/* Toast 消息提示位置调整 - 移动端适配 */
+/* 默认 PC 端保持原有位置 */
+.el-message {
+  top: 20px;
+}
+
+/* 移动端：增加 top 值，避免被状态栏遮挡 */
+@media screen and (max-width: 768px) {
+  .el-message {
+    /* 基础间距 60px，加上安全区域顶部间距（适用于刘海屏等） */
+    top: calc(60px + env(safe-area-inset-top, 0px)) !important;
+  }
+}
+

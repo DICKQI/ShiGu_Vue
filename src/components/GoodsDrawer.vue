@@ -41,7 +41,12 @@
       </div>
 
       <!-- 可滚动的内容区域 -->
-      <div class="scrollable-content">
+      <div 
+        class="scrollable-content"
+        @touchstart="handleContentTouchStart"
+        @touchmove="handleContentTouchMove"
+        @touchend="handleContentTouchEnd"
+      >
         <!-- 图片画廊区域 -->
         <div class="detail-images">
           <div class="main-image-wrapper">
@@ -178,6 +183,13 @@ const currentDrawerHeight = ref<number | string>('65%') // 实时高度
 let startY = 0
 let startHeight = 0
 let windowHeight = 0
+
+// 内容区域触摸相关变量
+let contentStartY = 0
+let contentScrollTop = 0
+let contentScrollHeight = 0
+let contentClientHeight = 0
+let isContentScrolling = false
 
 const visible = computed({
   get: () => props.modelValue,
@@ -390,6 +402,94 @@ function snapTo(state: 'half' | 'full') {
   currentDrawerHeight.value = state === 'half' ? '65%' : '100%'
 }
 
+// ---------------- 内容区域触摸事件处理（实现任意位置上滑展开） ----------------
+
+function handleContentTouchStart(e: TouchEvent) {
+  if (!isMobile.value || sheetState.value !== 'half') return
+  
+  if (!e.touches || e.touches.length === 0) return
+  
+  const touch = e.touches[0]
+  if (!touch) return
+  
+  contentStartY = touch.clientY
+  
+  // 获取滚动容器的状态
+  const scrollContainer = e.currentTarget as HTMLElement
+  if (scrollContainer) {
+    contentScrollTop = scrollContainer.scrollTop
+    contentScrollHeight = scrollContainer.scrollHeight
+    contentClientHeight = scrollContainer.clientHeight
+    isContentScrolling = false
+  }
+}
+
+function handleContentTouchMove(e: TouchEvent) {
+  if (!isMobile.value || sheetState.value !== 'half') return
+  
+  if (!e.touches || e.touches.length === 0) return
+  
+  const touch = e.touches[0]
+  if (!touch) return
+  
+  const currentY = touch.clientY
+  const deltaY = contentStartY - currentY // 向上滑动为正
+  
+  // 判断是否在滚动内容
+  const scrollContainer = e.currentTarget as HTMLElement
+  if (scrollContainer) {
+    const currentScrollTop = scrollContainer.scrollTop
+    const canScrollUp = currentScrollTop > 0
+    const canScrollDown = currentScrollTop < contentScrollHeight - contentClientHeight
+    
+    // 如果内容可以滚动，且用户是在滚动内容，则不触发展开
+    if (deltaY > 0 && canScrollUp) {
+      // 向上滚动内容
+      isContentScrolling = true
+      return
+    }
+    if (deltaY < 0 && canScrollDown) {
+      // 向下滚动内容
+      isContentScrolling = true
+      return
+    }
+    
+    // 如果内容已经滚动到顶部，且向上滑动，则触发展开
+    if (deltaY > 0 && currentScrollTop === 0 && !isContentScrolling) {
+      // 阻止默认滚动行为，准备展开
+      e.preventDefault()
+      isContentScrolling = false
+    }
+  }
+}
+
+function handleContentTouchEnd(e: TouchEvent) {
+  if (!isMobile.value || sheetState.value !== 'half') return
+  
+  if (!e.changedTouches || e.changedTouches.length === 0) return
+  
+  // 如果正在滚动内容，不触发展开
+  if (isContentScrolling) {
+    isContentScrolling = false
+    return
+  }
+  
+  const touch = e.changedTouches[0]
+  if (!touch) return
+  
+  const endY = touch.clientY
+  const deltaY = contentStartY - endY // 向上滑动为正
+  
+  // 如果向上滑动超过 50px，展开到全屏
+  if (deltaY > 50) {
+    snapTo('full')
+  }
+  
+  // 重置状态
+  contentStartY = 0
+  isContentScrolling = false
+}
+
 onMounted(() => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
@@ -412,7 +512,9 @@ onUnmounted(() => {
 .scrollable-content {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 40px; 
+  padding-bottom: 40px;
+  /* 在半屏状态下，允许触摸事件响应 */
+  touch-action: pan-y;
 }
 
 /* ---------------- 头部与图片区域 ---------------- */

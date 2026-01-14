@@ -196,7 +196,6 @@
         @touchend="handleTouchEnd"
       >
         <!-- 下拉加载提示区 -->
-        <!-- 修复：移除 absolute，使用相对定位挤压下方内容，配合 transition 动态控制 -->
         <div 
           class="pull-indicator" 
           :style="{ 
@@ -215,7 +214,6 @@
         </div>
 
         <!-- 内容区域 -->
-        <!-- 修复：移除 transform，让 flex 布局自然流动 -->
         <div class="mobile-view-inner">
           <div v-for="item in ipList" :key="item.id" class="ip-card-item">
             <div class="card-main" @click="toggleExpand(item.id)">
@@ -317,7 +315,7 @@
       <el-icon v-else class="is-loading"><Loading /></el-icon>
     </div>
 
-    <!-- IP编辑弹窗 -->
+    <!-- IP编辑弹窗 (保持不变) -->
     <el-dialog
       v-model="ipDialogVisible"
       :title="ipDialogTitle"
@@ -380,7 +378,7 @@
       </template>
     </el-dialog>
 
-    <!-- BGM导入弹窗 -->
+    <!-- BGM导入弹窗 (保持不变) -->
     <el-dialog
       v-model="bgmDialogVisible"
       title="从Bangumi导入角色"
@@ -574,7 +572,7 @@
       </template>
     </el-dialog>
 
-    <!-- 角色编辑弹窗 -->
+    <!-- 角色编辑弹窗 (保持不变) -->
     <el-dialog
       v-model="characterDialogVisible"
       :title="characterDialogTitle"
@@ -728,32 +726,42 @@ const scrollContainerRef = ref<HTMLElement | null>(null)
 const startY = ref(0)
 const pullDistance = ref(0)
 const isRefreshing = ref(false)
-const isDragging = ref(false) // 修复：新增拖拽状态，用于控制动画
+const isDragging = ref(false)
 const MAX_PULL = 80
 const TRIGGER_DIST = 50
+
+// 修复：获取页面滚动高度的辅助函数
+const getScrollTop = () => {
+  return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
+}
 
 // 下拉刷新逻辑
 const handleTouchStart = (e: TouchEvent) => {
   if (!isMobile.value || isRefreshing.value) return
-  if (scrollContainerRef.value && scrollContainerRef.value.scrollTop > 0) return
+  
+  // 核心修复：检查 window 的滚动高度，只有在页面最顶端时才记录触摸点
+  if (getScrollTop() > 0) {
+    startY.value = 0 // 确保非顶端时不记录有效起始点
+    return
+  }
 
   const firstTouch = e.touches?.[0]
   if (!firstTouch) return
   
-  isDragging.value = true // 修复：开始拖拽
+  isDragging.value = true
   startY.value = firstTouch.clientY
 }
 
 const handleTouchMove = (e: TouchEvent) => {
-  // 修复：增加 isDragging 检查
   if (!isMobile.value || isRefreshing.value || startY.value === 0 || !isDragging.value) return
   
+  // 双重保险：移动过程中如果页面被卷下去了，也不处理
+  if (getScrollTop() > 0) return
+
   const firstTouch = e.touches?.[0]
   if (!firstTouch) return
   const currentY = firstTouch.clientY
   const distance = currentY - startY.value
-  
-  if (scrollContainerRef.value && scrollContainerRef.value.scrollTop > 0) return
 
   if (distance > 0) {
     if (e.cancelable) e.preventDefault()
@@ -764,7 +772,7 @@ const handleTouchMove = (e: TouchEvent) => {
 }
 
 const handleTouchEnd = async () => {
-  isDragging.value = false // 修复：结束拖拽
+  isDragging.value = false
   if (!isMobile.value || isRefreshing.value) return
   
   if (pullDistance.value >= TRIGGER_DIST) {
@@ -1670,17 +1678,14 @@ const handleBGMClose = () => {
 
 /* 移动端现代化卡片设计 */
 .mobile-view {
+  /* 修复：移除内部滚动限制，让页面自然滚动 */
   display: none;
   flex-direction: column;
   position: relative;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  max-height: calc(100vh - 200px);
+  /* 移除 overflow-y 和 max-height */
 }
 
 .mobile-view-inner {
-  /* 修复：移除 transform，让 flex 自然排版 */
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1688,14 +1693,12 @@ const handleBGMClose = () => {
 
 /* 下拉刷新相关样式 */
 .pull-indicator {
-  /* 修复：改为相对定位，不使用 absolute */
   position: relative; 
   width: 100%;
   overflow: hidden;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  /* 移除 top, left, z-index */
 }
 
 .indicator-content {
@@ -1724,7 +1727,6 @@ const handleBGMClose = () => {
   background: #fff;
   border-radius: 16px;
   overflow: hidden;
-  /* 轻微渐隐阴影：用更大的模糊 + 负扩散，避免出现“直角阴影块” */
   box-shadow:
     0 10px 28px -18px rgba(17, 24, 39, 0.35),
     0 3px 10px -8px rgba(17, 24, 39, 0.22);

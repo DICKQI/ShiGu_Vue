@@ -148,12 +148,40 @@
                 :http-request="dummyUpload"
                 :show-file-list="true"
                 :class="{ 'hide-upload-trigger': mainPhotoList.length >= 1 }"
+                :open-file-dialog-on-click="!isMobileUploadActionSheet"
                 accept="image/*"
               >
                 <template #trigger>
-                  <el-icon v-if="mainPhotoList.length < 1"><Plus /></el-icon>
+                  <!-- 移动端（APP/H5）：点击 + 弹出“拍照/相册”；桌面端保持原生文件选择 -->
+                  <span
+                    v-if="mainPhotoList.length < 1 && isMobileUploadActionSheet"
+                    class="main-photo-trigger"
+                    @click.stop.prevent="chooseMainPhotoSource"
+                  >
+                    <el-icon><Plus /></el-icon>
+                  </span>
+                  <el-icon v-else-if="mainPhotoList.length < 1"><Plus /></el-icon>
                 </template>
               </el-upload>
+
+              <!-- H5：分别用 capture / 非 capture 触发“拍照/相册”（隐藏 input，通过 + 号触发） -->
+              <input
+                v-if="isH5Mobile"
+                ref="cameraInputRef"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style="display: none"
+                @change="handleH5MainPhotoPicked"
+              />
+              <input
+                v-if="isH5Mobile"
+                ref="albumInputRef"
+                type="file"
+                accept="image/*"
+                style="display: none"
+                @change="handleH5MainPhotoPicked"
+              />
             </el-form-item>
           </el-col>
 
@@ -277,6 +305,30 @@
         </el-form-item>
       </el-form>
     </el-card>
+
+    <!-- 移动端主图选择抽屉 -->
+    <el-drawer
+      v-model="photoSourceDrawerVisible"
+      direction="btt"
+      :with-header="false"
+      size="auto"
+      class="photo-source-drawer"
+    >
+      <div class="action-sheet-content">
+        <div class="sheet-header">
+          选择主图
+        </div>
+        <div class="sheet-menu">
+          <div class="sheet-item" @click="handlePhotoFromCamera">
+            <el-icon><CameraIcon /></el-icon> 拍照
+          </div>
+          <div class="sheet-item" @click="handlePhotoFromAlbum">
+            <el-icon><Picture /></el-icon> 相册选择
+          </div>
+        </div>
+        <div class="sheet-cancel" @click="photoSourceDrawerVisible = false">取消</div>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -284,7 +336,9 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadFile } from 'element-plus'
-import { Plus, Delete, Picture } from '@element-plus/icons-vue'
+import { Plus, Delete, Picture, Camera as CameraIcon } from '@element-plus/icons-vue'
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
+import { Capacitor } from '@capacitor/core'
 import { useLocationStore } from '@/stores/location'
 import { createGoods, updateGoods, getGoodsDetail, uploadMainPhoto, uploadAdditionalPhotos, deleteAdditionalPhoto, updateAdditionalPhotoLabel } from '@/api/goods'
 import { getIPList, getCharacterList, getCategoryList } from '@/api/metadata'
@@ -338,6 +392,21 @@ const formTitle = computed(() => {
   return route.params.id ? '编辑谷子' : '新增谷子'
 })
 
+// H5 移动端：用 input[file] + capture 实现“拍照/相册”（不同浏览器表现可能不同）
+const isH5Mobile = computed(() => {
+  if (typeof window === 'undefined') return false
+  return !Capacitor.isNativePlatform() && window.innerWidth < 768
+})
+
+// 原生移动端（Capacitor）环境：支持调用相机/相册
+const isNativeMobile = computed(() => {
+  if (typeof window === 'undefined') return false
+  return Capacitor.isNativePlatform() && window.innerWidth < 768
+})
+
+// 移动端上传：使用“拍照/相册”动作面板替代默认文件选择
+const isMobileUploadActionSheet = computed(() => isNativeMobile.value || isH5Mobile.value)
+
 const filteredCharacters = computed(() => {
   if (!formData.value.ip) return []
   return characters.value.filter((char) => char.ip.id === formData.value.ip)
@@ -373,6 +442,84 @@ const handleMainPhotoRemove = () => {
   mainPhotoFile.value = null
   mainPhotoList.value = []
   formData.value.main_photo = ''
+}
+
+const setMainPhotoFromFile = (file: File, previewUrl?: string) => {
+  mainPhotoFile.value = file
+  formData.value.main_photo = ''
+  mainPhotoList.value = [
+    {
+      name: file.name || 'main_photo',
+      url: previewUrl,
+      status: 'success',
+    } as UploadFile,
+  ]
+}
+
+const cameraInputRef = ref<HTMLInputElement | null>(null)
+const albumInputRef = ref<HTMLInputElement | null>(null)
+
+// 主图选择抽屉状态
+const photoSourceDrawerVisible = ref(false)
+
+const handleH5MainPhotoPicked = (e: Event) => {
+  const input = e.target as HTMLInputElement | null
+  const file = input?.files?.[0]
+  if (!file) return
+  const preview = URL.createObjectURL(file)
+  setMainPhotoFromFile(file, preview)
+  // 允许重复选择同一张图
+  if (input) input.value = ''
+}
+
+const pickMainPhotoFromNative = async (source: CameraSource) => {
+  try {
+    const photo = await Camera.getPhoto({
+      quality: 85,
+      resultType: CameraResultType.Uri,
+      source,
+      correctOrientation: true,
+    })
+
+    if (!photo.webPath) {
+      throw new Error('未获取到图片路径')
+    }
+
+    const resp = await fetch(photo.webPath)
+    const blob = await resp.blob()
+    const mime = blob.type || 'image/jpeg'
+    const ext = mime.includes('/') ? mime.split('/')[1] : 'jpg'
+    const file = new File([blob], `main_photo_${Date.now()}.${ext}`, { type: mime })
+
+    setMainPhotoFromFile(file, photo.webPath)
+  } catch (err: any) {
+    // 用户取消不提示错误
+    const msg = err?.message || ''
+    if (msg.includes('User cancelled') || msg.includes('canceled') || msg.includes('cancel')) return
+    ElMessage.error('获取图片失败：' + (err?.message || '未知错误'))
+  }
+}
+
+const chooseMainPhotoSource = () => {
+  photoSourceDrawerVisible.value = true
+}
+
+const handlePhotoFromCamera = async () => {
+  photoSourceDrawerVisible.value = false
+  if (isNativeMobile.value) {
+    await pickMainPhotoFromNative(CameraSource.Camera)
+  } else if (isH5Mobile.value) {
+    cameraInputRef.value?.click()
+  }
+}
+
+const handlePhotoFromAlbum = async () => {
+  photoSourceDrawerVisible.value = false
+  if (isNativeMobile.value) {
+    await pickMainPhotoFromNative(CameraSource.Photos)
+  } else if (isH5Mobile.value) {
+    albumInputRef.value?.click()
+  }
 }
 
 // 附件图片处理函数
@@ -633,6 +780,14 @@ onUnmounted(() => {
   display: none;
 }
 
+.main-photo-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
 .main-photo-preview .el-image {
   width: 100%;
   height: 100%;
@@ -724,6 +879,56 @@ onUnmounted(() => {
     width: 100px;
     height: 100px;
   }
+}
+
+/* 主图选择抽屉样式（参考品类管理页面） */
+.action-sheet-content {
+  background: #f8f8f8;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.sheet-header {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: #909399;
+  background: #fff;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.sheet-menu {
+  background: #fff;
+}
+
+.sheet-item {
+  padding: 16px;
+  text-align: center;
+  font-size: 16px;
+  border-bottom: 1px solid #f5f5f5;
+  color: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.sheet-item:active {
+  background: #f5f5f5;
+}
+
+.sheet-cancel {
+  margin-top: 8px;
+  background: #fff;
+  padding: 16px;
+  text-align: center;
+  font-size: 16px;
+  color: #333;
+  cursor: pointer;
+}
+
+.sheet-cancel:active {
+  background: #f5f5f5;
 }
 
 </style>

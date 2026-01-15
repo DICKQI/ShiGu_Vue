@@ -158,6 +158,105 @@
           </el-col>
 
           <el-col :xs="24">
+            <el-form-item label="附件图片">
+              <div class="additional-photos-section">
+                <!-- 已有图片列表 -->
+                <div v-if="existingAdditionalPhotos.length > 0" class="existing-photos">
+                  <div
+                    v-for="(photo, index) in existingAdditionalPhotos"
+                    :key="photo.id"
+                    class="photo-item"
+                  >
+                    <el-image
+                      :src="photo.image"
+                      fit="cover"
+                      class="photo-preview"
+                      :preview-src-list="existingAdditionalPhotos.map(p => p.image)"
+                      :initial-index="index"
+                    >
+                      <template #error>
+                        <div class="image-error">
+                          <el-icon><Picture /></el-icon>
+                        </div>
+                      </template>
+                    </el-image>
+                    <div class="photo-actions">
+                      <el-input
+                        v-model="photo.label"
+                        placeholder="图片标签（可选）"
+                        size="small"
+                        class="photo-label-input"
+                        @blur="handlePhotoLabelChange(photo)"
+                      />
+                      <el-button
+                        type="danger"
+                        size="small"
+                        :icon="Delete"
+                        circle
+                        @click="handleRemoveExistingPhoto(photo.id)"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 新上传的图片列表 -->
+                <div v-if="newAdditionalPhotoFiles.length > 0" class="new-photos">
+                  <div
+                    v-for="(file, index) in newAdditionalPhotoFiles"
+                    :key="index"
+                    class="photo-item"
+                  >
+                    <el-image
+                      :src="file.preview"
+                      fit="cover"
+                      class="photo-preview"
+                    >
+                      <template #error>
+                        <div class="image-error">
+                          <el-icon><Picture /></el-icon>
+                        </div>
+                      </template>
+                    </el-image>
+                    <div class="photo-actions">
+                      <el-input
+                        v-model="file.label"
+                        placeholder="图片标签（可选）"
+                        size="small"
+                        class="photo-label-input"
+                      />
+                      <el-button
+                        type="danger"
+                        size="small"
+                        :icon="Delete"
+                        circle
+                        @click="handleRemoveNewPhoto(index)"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 上传按钮 -->
+                <el-upload
+                  v-model:file-list="additionalPhotoList"
+                  list-type="picture-card"
+                  :auto-upload="false"
+                  :on-change="handleAdditionalPhotoChange"
+                  :on-remove="handleAdditionalPhotoRemove"
+                  :http-request="dummyUpload"
+                  :show-file-list="false"
+                  accept="image/*"
+                  multiple
+                  class="additional-photo-upload"
+                >
+                  <template #trigger>
+                    <el-icon><Plus /></el-icon>
+                  </template>
+                </el-upload>
+              </div>
+            </el-form-item>
+          </el-col>
+
+          <el-col :xs="24">
             <el-form-item label="备注">
               <el-input
                 v-model="formData.notes"
@@ -182,14 +281,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage, type FormInstance, type FormRules, type UploadFile } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadFile } from 'element-plus'
+import { Plus, Delete, Picture } from '@element-plus/icons-vue'
 import { useLocationStore } from '@/stores/location'
-import { createGoods, updateGoods, getGoodsDetail, uploadMainPhoto } from '@/api/goods'
+import { createGoods, updateGoods, getGoodsDetail, uploadMainPhoto, uploadAdditionalPhotos, deleteAdditionalPhoto, updateAdditionalPhotoLabel } from '@/api/goods'
 import { getIPList, getCharacterList, getCategoryList } from '@/api/metadata'
-import type { GoodsDetail, IP, Character, Category } from '@/api/types'
+import type { GoodsDetail, IP, Character, Category, GuziImage } from '@/api/types'
 
 const router = useRouter()
 const route = useRoute()
@@ -220,6 +319,21 @@ const formData = ref({
 
 const mainPhotoFile = ref<File | null>(null)
 const mainPhotoList = ref<UploadFile[]>([])
+
+// 附件图片相关状态
+interface NewPhotoFile {
+  file: File
+  preview: string
+  label?: string
+}
+interface ExistingPhoto extends GuziImage {
+  label?: string
+  originalLabel?: string // 记录原始标签，用于判断是否修改
+}
+const existingAdditionalPhotos = ref<ExistingPhoto[]>([])
+const newAdditionalPhotoFiles = ref<NewPhotoFile[]>([])
+const additionalPhotoList = ref<UploadFile[]>([])
+
 const formTitle = computed(() => {
   return route.params.id ? '编辑谷子' : '新增谷子'
 })
@@ -261,6 +375,78 @@ const handleMainPhotoRemove = () => {
   formData.value.main_photo = ''
 }
 
+// 附件图片处理函数
+const handleAdditionalPhotoChange = (uploadFile: UploadFile, uploadFiles: UploadFile[]) => {
+  const file = uploadFile.raw
+  if (file) {
+    const preview = URL.createObjectURL(file)
+    newAdditionalPhotoFiles.value.push({
+      file,
+      preview,
+      label: '',
+    })
+  }
+  additionalPhotoList.value = []
+}
+
+const handleAdditionalPhotoRemove = () => {
+  additionalPhotoList.value = []
+}
+
+const handleRemoveNewPhoto = (index: number) => {
+  const removed = newAdditionalPhotoFiles.value[index]
+  if (removed && removed.preview) {
+    URL.revokeObjectURL(removed.preview)
+  }
+  newAdditionalPhotoFiles.value.splice(index, 1)
+}
+
+const handleRemoveExistingPhoto = async (photoId: number) => {
+  // 如果是编辑模式，需要调用删除接口
+  if (route.params.id) {
+    try {
+      await ElMessageBox.confirm('确定要删除这张图片吗？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      })
+      
+      const goodsId = route.params.id as string
+      await deleteAdditionalPhoto(goodsId, photoId)
+      existingAdditionalPhotos.value = existingAdditionalPhotos.value.filter((p) => p.id !== photoId)
+      ElMessage.success('删除成功')
+    } catch (err: any) {
+      // 用户取消删除或删除失败
+      if (err !== 'cancel') {
+        ElMessage.error('删除失败：' + (err.message || '未知错误'))
+      }
+    }
+  } else {
+    // 新建模式，只从UI中移除（因为还没有创建谷子，无法删除）
+    // 理论上新建模式下不应该有已有图片，但为了代码健壮性保留此逻辑
+    existingAdditionalPhotos.value = existingAdditionalPhotos.value.filter((p) => p.id !== photoId)
+  }
+}
+
+// 处理已有图片标签修改
+const handlePhotoLabelChange = async (photo: ExistingPhoto) => {
+  // 如果是编辑模式，且标签确实发生了变化，调用更新接口
+  if (route.params.id && photo.originalLabel !== photo.label) {
+    try {
+      const goodsId = route.params.id as string
+      const label = photo.label?.trim() || ''
+      await updateAdditionalPhotoLabel(goodsId, [photo.id], label)
+      // 更新原始标签值
+      photo.originalLabel = photo.label
+      ElMessage.success('标签更新成功')
+    } catch (err: any) {
+      // 更新失败，恢复原始标签
+      photo.label = photo.originalLabel
+      ElMessage.error('标签更新失败：' + (err.message || '未知错误'))
+    }
+  }
+}
+
 const handleSubmit = async () => {
   if (!formRef.value) return
 
@@ -285,16 +471,30 @@ const handleSubmit = async () => {
       if (route.params.id) {
         const id = route.params.id as string
         await updateGoods(id, submitData)
+        
+        // 上传主图（如果有新文件）
         if (mainPhotoFile.value) {
           await uploadMainPhoto(id, mainPhotoFile.value)
         }
+        
+        // 处理附件图片
+        await handleAdditionalPhotosUpload(id)
+        
         ElMessage.success('更新成功')
       } else {
         const result = await createGoods(submitData)
+        const id = result.id
+        
         // 上传主图（可选）
-        if (result?.id && mainPhotoFile.value) {
-          await uploadMainPhoto(result.id, mainPhotoFile.value)
+        if (mainPhotoFile.value) {
+          await uploadMainPhoto(id, mainPhotoFile.value)
         }
+        
+        // 上传附件图片（如果有）
+        if (newAdditionalPhotoFiles.value.length > 0) {
+          await handleAdditionalPhotosUpload(id)
+        }
+        
         ElMessage.success('创建成功')
       }
 
@@ -319,6 +519,25 @@ const handleReset = () => {
 
 const handleCancel = () => {
   router.back()
+}
+
+// 处理附件图片上传
+const handleAdditionalPhotosUpload = async (goodsId: string) => {
+  // 如果没有新上传的图片，直接返回
+  if (newAdditionalPhotoFiles.value.length === 0) {
+    return
+  }
+
+  try {
+    // 每张图片单独上传，以支持独立的标签
+    for (const photo of newAdditionalPhotoFiles.value) {
+      const label = photo.label?.trim() || ''
+      await uploadAdditionalPhotos(goodsId, [photo.file], { label })
+    }
+  } catch (err: any) {
+    ElMessage.error('上传附件图片失败：' + (err.message || '未知错误'))
+    throw err
+  }
 }
 
 onMounted(async () => {
@@ -359,10 +578,28 @@ onMounted(async () => {
       if (data.main_photo) {
         mainPhotoList.value = [{ url: data.main_photo, name: 'main_photo' } as UploadFile]
       }
+      
+      // 加载附件图片
+      if (data.additional_photos && data.additional_photos.length > 0) {
+        existingAdditionalPhotos.value = data.additional_photos.map((photo) => ({
+          ...photo,
+          label: photo.label || '',
+          originalLabel: photo.label || '', // 记录原始标签
+        }))
+      }
     } catch (err) {
       ElMessage.error('加载数据失败')
     }
   }
+})
+
+// 组件卸载时清理预览URL
+onUnmounted(() => {
+  newAdditionalPhotoFiles.value.forEach((photo) => {
+    if (photo.preview) {
+      URL.revokeObjectURL(photo.preview)
+    }
+  })
 })
 </script>
 
@@ -409,6 +646,84 @@ onMounted(async () => {
 
 :deep(.el-upload--picture-card:hover) {
   border-color: var(--primary-gold);
+}
+
+/* 附件图片样式 */
+.additional-photos-section {
+  width: 100%;
+}
+
+.existing-photos,
+.new-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 768px) {
+  .existing-photos,
+  .new-photos {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 12px;
+  }
+}
+
+.photo-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.photo-preview {
+  width: 100%;
+  height: 120px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .photo-preview {
+    height: 100px;
+  }
+}
+
+.photo-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.photo-label-input {
+  flex: 1;
+}
+
+.image-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background-color: #f5f7fa;
+  color: #909399;
+}
+
+.additional-photo-upload {
+  display: inline-block;
+}
+
+.additional-photo-upload :deep(.el-upload--picture-card) {
+  width: 120px;
+  height: 120px;
+}
+
+@media (max-width: 768px) {
+  .additional-photo-upload :deep(.el-upload--picture-card) {
+    width: 100px;
+    height: 100px;
+  }
 }
 
 </style>

@@ -66,15 +66,28 @@
           </div>
 
           <div v-if="detail.additional_photos.length > 0" class="additional-images">
-            <el-image
+            <div
               v-for="(photo, index) in detail.additional_photos"
               :key="photo.id"
-              :src="photo.image"
-              fit="cover"
-              :preview-src-list="allImages"
-              :initial-index="index + 1"
-              class="additional-image"
-            />
+              class="additional-image-item"
+            >
+              <el-image
+                :src="photo.image"
+                fit="cover"
+                :preview-src-list="allImages"
+                :initial-index="index + 1"
+                class="additional-image"
+              >
+                <template #error>
+                  <div class="image-error">
+                    <el-icon><Picture /></el-icon>
+                  </div>
+                </template>
+              </el-image>
+              <div v-if="photo.label" class="photo-label">
+                {{ photo.label }}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -581,11 +594,20 @@ onUnmounted(() => {
 
 .additional-images {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 12px;
   padding: 0 4px; 
 }
-.is-mobile .additional-images { padding: 12px 16px 0 16px; }
+.is-mobile .additional-images { 
+  padding: 12px 16px 0 16px;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 16px;
+}
+.additional-image-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 .additional-image {
   width: 100%;
   aspect-ratio: 1;
@@ -595,6 +617,29 @@ onUnmounted(() => {
   border: 1px solid transparent;
 }
 .additional-image:hover { border-color: var(--primary-gold, #e6a23c); }
+.image-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background-color: #f5f7fa;
+  color: #909399;
+}
+.photo-label {
+  font-size: 12px;
+  color: #606266;
+  text-align: center;
+  line-height: 1.4;
+  padding: 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.is-mobile .photo-label {
+  font-size: 13px;
+  padding: 0 2px;
+}
 
 /* ---------------- 信息区域 ---------------- */
 .detail-info { padding: 0 8px; }

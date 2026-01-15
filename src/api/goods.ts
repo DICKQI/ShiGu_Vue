@@ -28,6 +28,60 @@ export function uploadMainPhoto(id: string, file: File) {
   return request.post<GoodsDetail>(`/api/goods/${id}/upload-main-photo/`, formData)
 }
 
+// 上传或更新附加图片
+export function uploadAdditionalPhotos(
+  id: string,
+  files?: File[],
+  options?: {
+    photoIds?: number[]
+    label?: string
+  }
+) {
+  const formData = new FormData()
+  // 添加多个文件（可选，只更新标签时不需要）
+  if (files && files.length > 0) {
+    files.forEach((file) => {
+      formData.append('additional_photos', file)
+    })
+  }
+  // 如果提供了 photoIds，用于更新已有图片
+  if (options?.photoIds && options.photoIds.length > 0) {
+    options.photoIds.forEach((photoId) => {
+      formData.append('photo_ids', photoId.toString())
+    })
+  }
+  // 如果提供了 label，为本次操作的所有图片添加标签
+  if (options?.label !== undefined) {
+    formData.append('label', options.label)
+  }
+  return request.post<GoodsDetail>(`/api/goods/${id}/upload-additional-photos/`, formData)
+}
+
+// 只更新附加图片的标签（不修改图片文件）
+export function updateAdditionalPhotoLabel(
+  id: string,
+  photoIds: number[],
+  label?: string
+) {
+  return uploadAdditionalPhotos(id, undefined, {
+    photoIds,
+    label: label || '',
+  })
+}
+
+// 删除单张附加图片
+export function deleteAdditionalPhoto(goodsId: string, photoId: number) {
+  return request.delete<GoodsDetail>(`/api/goods/${goodsId}/additional-photos/${photoId}/`)
+}
+
+// 批量删除附加图片
+export function deleteAdditionalPhotos(goodsId: string, photoIds: number[]) {
+  const photoIdsStr = photoIds.join(',')
+  return request.delete<GoodsDetail>(`/api/goods/${goodsId}/additional-photos/`, {
+    params: { photo_ids: photoIdsStr },
+  })
+}
+
 // 删除谷子
 export function deleteGoods(id: string) {
   return request.delete(`/api/goods/${id}/`)

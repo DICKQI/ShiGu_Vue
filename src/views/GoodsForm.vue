@@ -466,6 +466,13 @@ const cropperOptions = computed(() => {
     mode: 'contain',
     maxImgSize: 2000,
     limitMinSize: [100, 100],
+    // 限制裁切框不能超出图片边界
+    viewMode: 1, // 1: 限制裁切框不能超出画布（图片）范围
+    dragMode: 'crop', // 'crop': 创建新的裁切框, 'move': 移动画布, 'none': 无操作
+    cropBoxMovable: true, // 允许移动裁切框
+    cropBoxResizable: true, // 允许调整裁切框大小（但仍受 viewMode 限制）
+    // 确保裁切框始终在图片范围内
+    strict: true, // 严格模式，确保裁切框不超出图片
   }
 
   // 根据选择的比例设置 aspectRatio

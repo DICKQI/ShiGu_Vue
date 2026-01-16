@@ -312,6 +312,8 @@ PickGoods_vue/
 | 🔗 **联动选择** | IP-角色联动选择，避免选择无效组合 | 级联选择器 + 数据过滤 |
 | 👥 **多角色关联** | 支持一个谷子关联多个角色 | 多选下拉框 + 后端 `character_ids` 字段 |
 | 📷 **图片上传** | 主图上传功能，已对接后端接口 | FormData + Axios 文件上传 |
+| ✂️ **图片裁剪** | 支持图片上传前裁剪，多种裁剪比例（1:1、4:3、16:9等），自由裁剪模式 | `vue-picture-cropper` + Cropper.js |
+| 📸 **原生相机** | 移动端支持调用原生相机拍照，自动集成到上传流程 | Capacitor Camera 插件 |
 | 🖼️ **补充图片** | 补充图片完整管理功能：上传、删除、标签管理、预览 | 图片上传 API + 标签编辑 + 图片预览组件 |
 | ⚠️ **冲突检测** | 409 冲突检测，友好的幂等性提示 | HTTP 状态码处理 |
 
@@ -456,6 +458,11 @@ PickGoods_vue/
 - 在局域网或测试环境中，前端访问不同后端实例（如开发/测试/预发布）
 - 打包为移动端应用后，通过设置页切换到真实线上 API，而不是写死为 `localhost`
 
+**技术实现**：
+- 使用 `localStorage` 持久化存储后端地址（键名：`pickgoods_api_base_url`，兼容旧键 `shigu_api_base_url`）
+- 每次请求前动态获取 `baseURL`，确保设置页修改后立即生效
+- 提供 `updateBaseURL`、`getCurrentBaseURL`、`resetBaseURL` 等工具函数
+
 ### 📱 移动端优化特性
 
 项目针对移动端体验进行了深度优化，提供原生应用级别的交互体验。
@@ -467,6 +474,12 @@ PickGoods_vue/
 || 🔄 **手势优化** | 移动端抽屉支持上拉展开、下拉收起，流畅的手势反馈 | 触摸事件处理 + 防抖优化 |
 || 📐 **安全区域适配** | 适配 iOS/Android 刘海屏、底部安全区域 | CSS `env(safe-area-inset-*)` + 动态 padding |
 || 🎨 **页面标题自动设置** | 路由切换时自动更新浏览器标题 | Vue Router 导航守卫 |
+
+**移动端原生相机与图片裁剪**：
+- 支持调用原生相机拍照，自动集成到图片上传流程
+- 图片上传前支持裁剪，提供多种裁剪比例（1:1、4:3、16:9等）和自由裁剪模式
+- 使用 `vue-picture-cropper` 组件，提供流畅的裁剪体验
+- 移动端触摸优化，支持手势操作
 
 **移动端底部导航栏**：
 - 固定在屏幕底部，支持安全区域适配
@@ -734,6 +747,7 @@ export default config;
 | `@capacitor/android` | ^8.0.0 | Android 平台支持 |
 | `@capacitor/status-bar` | ^8.0.0 | 状态栏样式控制 |
 | `@capacitor/network` | ^8.0.0 | 网络状态检测 |
+| `@capacitor/camera` | ^8.0.0 | 原生相机访问（拍照、选择照片） |
 | `@capacitor-community/http` | ^1.4.1 | HTTP 请求增强（支持 CORS） |
 
 ### Android 平台
@@ -1137,7 +1151,25 @@ if (Capacitor.isNativePlatform()) {
    await PluginName.method()
    ```
 
-#### 6. 性能优化
+#### 6. 相机权限配置
+
+项目已集成 Capacitor Camera 插件，需要在原生项目中配置相机权限：
+
+**Android（`android/app/src/main/AndroidManifest.xml`）**：
+```xml
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+```
+
+**iOS（`ios/App/App/Info.plist`）**：
+```xml
+<key>NSCameraUsageDescription</key>
+<string>需要访问相机以拍摄藏品照片</string>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>需要访问相册以选择照片</string>
+```
+
+#### 7. 性能优化
 
 - **图片优化**：使用 WebP 格式，启用懒加载
 - **代码分割**：Vite 已自动进行代码分割
@@ -1195,6 +1227,14 @@ if (Capacitor.isNativePlatform()) {
 - iOS：使用 Xcode 的 Console 和调试器
 - Web 代码：使用 Chrome DevTools（Android）或 Safari Web Inspector（iOS）
 
+#### Q9: 相机功能无法使用？
+
+**A**: 
+- 检查是否已安装 `@capacitor/camera` 插件
+- 确保已运行 `npx cap sync` 同步插件到原生项目
+- 检查原生项目中的权限配置（AndroidManifest.xml 和 Info.plist）
+- 在真实设备上测试（模拟器可能不支持相机）
+
 ### 参考资源
 
 - [Capacitor 官方文档](https://capacitorjs.com/docs)
@@ -1215,6 +1255,8 @@ if (Capacitor.isNativePlatform()) {
 | **真实数据接入** | ✅ | 已按照后端接口规范完成对接 |
 | **图片上传** | ✅ | 主图上传、角色头像上传已实现 |
 | **补充图片管理** | ✅ | 补充图片上传、删除、标签管理完整功能 |
+| **图片裁剪功能** | ✅ | 支持图片上传前裁剪，支持多种裁剪比例（1:1、4:3、16:9等） |
+| **原生相机集成** | ✅ | 移动端支持调用原生相机拍照，自动集成到图片上传流程 |
 | **IP 与角色管理** | ✅ | 统一页面，支持展开/折叠查看角色列表 |
 | **BGM 导入功能** | ✅ | 完整的 Bangumi 数据导入流程 |
 | **品类管理** | ✅ | 独立页面，支持完整 CRUD 操作 |
@@ -1231,8 +1273,6 @@ if (Capacitor.isNativePlatform()) {
 | **认证与权限** | 🔴 高 | 如需多用户，需补登录/Token/权限控制 |
 | **数据统计** | 🟡 中 | 资产价值、占比、时间分布等图表未实现 |
 | **性能优化** | 🟢 低 | 大量数据时可考虑虚拟滚动优化 |
-| **图片裁剪** | 🟢 低 | 图片上传前裁剪功能（目前使用直接上传） |
-| **补充图片批量操作** | 🟢 低 | 补充图片批量标签编辑、批量删除优化 |
 
 ---
 
@@ -1470,6 +1510,7 @@ Made with ❤️ by PickGoods Team
 |------|------|------|
 | **Axios** | 1.7.7 | HTTP 客户端，封装在 `utils/request.ts` |
 | **lodash-es** | 4.17.21 | 实用工具库（防抖、节流等） |
+| **vue-picture-cropper** | 0.7.0 | 图片裁剪组件，支持多种裁剪比例和自由裁剪 |
 
 ### 开发工具
 
@@ -1746,6 +1787,8 @@ HTTP 请求封装在 `src/utils/request.ts` 中，核心特性包括：
 - **状态同步**：操作后自动刷新相关数据，保证数据一致性
 - **移动端手势**：详情抽屉支持拖拽手势，半屏/全屏切换，提供原生应用体验
 - **底部导航**：移动端底部固定导航栏，快速切换主要功能模块
+- **图片裁剪**：上传前图片裁剪功能，支持多种比例和自由裁剪，提升图片质量
+- **原生相机**：移动端直接调用原生相机拍照，无缝集成到上传流程
 
 ---
 
@@ -1761,6 +1804,8 @@ HTTP 请求封装在 `src/utils/request.ts` 中，核心特性包括：
 | **IP与角色管理** | ✅ 完整 | CRUD 操作 + BGM 批量导入 + 关键词管理 |
 | **品类管理** | ✅ 完整 | 独立页面 + CRUD 操作 |
 | **图片上传** | ✅ 完整 | 主图上传 + 角色头像上传 + 补充图片 |
+| **图片裁剪** | ✅ 完整 | 支持多种裁剪比例和自由裁剪模式 |
+| **原生相机** | ✅ 完整 | 移动端原生相机拍照集成 |
 | **BGM 批量导入** | ✅ 完整 | 搜索、选择、导入、结果展示全流程 |
 
 ### 技术质量

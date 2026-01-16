@@ -329,16 +329,71 @@
         <div class="sheet-cancel" @click="photoSourceDrawerVisible = false">取消</div>
       </div>
     </el-drawer>
+
+    <!-- 图片裁切对话框 -->
+    <el-dialog
+      v-model="cropDialogVisible"
+      :title="'编辑图片'"
+      :width="isMobile ? '95%' : '600px'"
+      :close-on-click-modal="false"
+      class="crop-dialog"
+      @close="handleCropDialogClose"
+    >
+      <div class="crop-container">
+        <!-- 比例选择 -->
+        <div class="aspect-ratio-selector">
+          <div class="ratio-label">选择比例：</div>
+          <div class="ratio-buttons">
+            <el-button
+              v-for="ratio in aspectRatios"
+              :key="ratio.value"
+              :type="selectedAspectRatio === ratio.value ? 'primary' : 'default'"
+              size="small"
+              @click="selectedAspectRatio = ratio.value"
+            >
+              {{ ratio.label }}
+            </el-button>
+          </div>
+        </div>
+
+        <!-- 裁切组件 -->
+        <div class="cropper-wrapper">
+          <vue-picture-cropper
+            v-if="cropImageSrc"
+            ref="pictureCropperRef"
+            :key="`cropper-${selectedAspectRatio}`"
+            :box-style="{
+              width: '100%',
+              height: isMobile ? '300px' : '400px',
+              backgroundColor: '#f8f8f8',
+              margin: '0 auto'
+            }"
+            :img="cropImageSrc"
+            :options="cropperOptions"
+          />
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="handleCropCancel">取消</el-button>
+          <el-button type="primary" @click="handleCropConfirm" :loading="cropping">
+            确认
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadFile } from 'element-plus'
 import { Plus, Delete, Picture, Camera as CameraIcon } from '@element-plus/icons-vue'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { Capacitor } from '@capacitor/core'
+import VuePictureCropper, { cropper } from 'vue-picture-cropper'
 import { useLocationStore } from '@/stores/location'
 import { createGoods, updateGoods, getGoodsDetail, uploadMainPhoto, uploadAdditionalPhotos, deleteAdditionalPhoto, updateAdditionalPhotoLabel } from '@/api/goods'
 import { getIPList, getCharacterList, getCategoryList } from '@/api/metadata'
@@ -373,6 +428,73 @@ const formData = ref({
 
 const mainPhotoFile = ref<File | null>(null)
 const mainPhotoList = ref<UploadFile[]>([])
+
+// 图片裁切相关状态
+const cropDialogVisible = ref(false)
+const cropImageSrc = ref<string>('')
+const cropImageFile = ref<File | null>(null)
+const pictureCropperRef = ref<any>(null)
+const cropping = ref(false)
+const selectedAspectRatio = ref<string>('free')
+const aspectRatios = [
+  { label: '自由', value: 'free' },
+  { label: '1:1', value: '1:1' },
+  { label: '16:9', value: '16:9' },
+  { label: '4:3', value: '4:3' },
+  { label: '3:4', value: '3:4' },
+  { label: '9:16', value: '9:16' },
+]
+
+// 计算是否为移动端
+const isMobile = computed(() => {
+  if (typeof window === 'undefined') return false
+  return window.innerWidth < 768
+})
+
+// 裁切器配置
+const cropperOptions = computed(() => {
+  const baseOptions: any = {
+    img: cropImageSrc.value,
+    outputSize: 1,
+    outputType: 'png',
+    canScale: true,
+    autoCrop: true,
+    centerBox: true,
+    high: true,
+    cropData: {},
+    enlarge: 1,
+    mode: 'contain',
+    maxImgSize: 2000,
+    limitMinSize: [100, 100],
+    // 限制裁切框不能超出图片边界
+    viewMode: 1, // 1: 限制裁切框不能超出画布（图片）范围
+    dragMode: 'crop', // 'crop': 创建新的裁切框, 'move': 移动画布, 'none': 无操作
+    cropBoxMovable: true, // 允许移动裁切框
+    cropBoxResizable: true, // 允许调整裁切框大小（但仍受 viewMode 限制）
+    // 确保裁切框始终在图片范围内
+    strict: true, // 严格模式，确保裁切框不超出图片
+  }
+
+  // 根据选择的比例设置 aspectRatio
+  if (selectedAspectRatio.value !== 'free') {
+    const parts = selectedAspectRatio.value.split(':').map(Number)
+    const w = parts[0]
+    const h = parts[1]
+    if (w && h) {
+      baseOptions.aspectRatio = w / h
+      baseOptions.fixed = true
+      baseOptions.fixedNumber = [w, h]
+    } else {
+      baseOptions.aspectRatio = NaN
+      baseOptions.fixed = false
+    }
+  } else {
+    baseOptions.aspectRatio = NaN
+    baseOptions.fixed = false
+  }
+
+  return baseOptions
+})
 
 // 附件图片相关状态
 interface NewPhotoFile {
@@ -430,11 +552,12 @@ const handleIpChange = () => {
 const dummyUpload = () => Promise.resolve()
 
 const handleMainPhotoChange = (uploadFile: UploadFile, uploadFiles: UploadFile[]) => {
-  mainPhotoList.value = uploadFiles.slice(-1)
-  mainPhotoFile.value = uploadFile.raw || null
-  // 选择文件后清空旧 URL，避免表单里既有文件又有 URL
-  if (mainPhotoFile.value) {
-    formData.value.main_photo = ''
+  const file = uploadFile.raw
+  if (file) {
+    // 打开裁切对话框
+    openCropDialog(file)
+    // 清空上传列表，等待裁切完成后再设置
+    mainPhotoList.value = []
   }
 }
 
@@ -445,6 +568,12 @@ const handleMainPhotoRemove = () => {
 }
 
 const setMainPhotoFromFile = (file: File, previewUrl?: string) => {
+  // 清理旧的预览URL（如果存在）
+  const oldFile = mainPhotoList.value[0]
+  if (oldFile && oldFile.url && oldFile.url.startsWith('blob:')) {
+    URL.revokeObjectURL(oldFile.url)
+  }
+  
   mainPhotoFile.value = file
   formData.value.main_photo = ''
   mainPhotoList.value = [
@@ -466,8 +595,8 @@ const handleH5MainPhotoPicked = (e: Event) => {
   const input = e.target as HTMLInputElement | null
   const file = input?.files?.[0]
   if (!file) return
-  const preview = URL.createObjectURL(file)
-  setMainPhotoFromFile(file, preview)
+  // 打开裁切对话框
+  openCropDialog(file)
   // 允许重复选择同一张图
   if (input) input.value = ''
 }
@@ -491,7 +620,8 @@ const pickMainPhotoFromNative = async (source: CameraSource) => {
     const ext = mime.includes('/') ? mime.split('/')[1] : 'jpg'
     const file = new File([blob], `main_photo_${Date.now()}.${ext}`, { type: mime })
 
-    setMainPhotoFromFile(file, photo.webPath)
+    // 打开裁切对话框
+    openCropDialog(file, photo.webPath)
   } catch (err: any) {
     // 用户取消不提示错误
     const msg = err?.message || ''
@@ -520,6 +650,200 @@ const handlePhotoFromAlbum = async () => {
   } else if (isH5Mobile.value) {
     albumInputRef.value?.click()
   }
+}
+
+// 打开裁切对话框
+const openCropDialog = (file: File, previewUrl?: string) => {
+  cropImageFile.value = file
+  // 创建预览URL
+  if (previewUrl) {
+    cropImageSrc.value = previewUrl
+  } else {
+    cropImageSrc.value = URL.createObjectURL(file)
+  }
+  cropDialogVisible.value = true
+  selectedAspectRatio.value = 'free' // 重置为自由比例
+}
+
+// 获取裁切器实例
+// vue-picture-cropper 通过导入的 cropper 工具实例来调用方法
+const getCropperInstance = () => {
+  // 优先使用导入的 cropper 工具实例（这是推荐的方式）
+  if (cropper && (typeof cropper.getDataURL === 'function' || typeof cropper.getBlob === 'function' || typeof cropper.getFile === 'function')) {
+    return cropper
+  }
+  
+  // 如果工具实例不可用，尝试从组件获取
+  if (pictureCropperRef.value) {
+    const component = pictureCropperRef.value
+    
+    // 尝试多种方式获取实例
+    if (component.$refs && component.$refs.cropper) {
+      return component.$refs.cropper
+    }
+    if (component.cropper) {
+      return component.cropper
+    }
+    if ((component as any).setupState && (component as any).setupState.cropper) {
+      return (component as any).setupState.cropper
+    }
+    if ((component as any).__cropper) {
+      return (component as any).__cropper
+    }
+  }
+  
+  return null
+}
+
+// 确认裁切
+const handleCropConfirm = async () => {
+  if (!pictureCropperRef.value || !cropImageFile.value) {
+    ElMessage.warning('裁切器未就绪')
+    return
+  }
+
+  cropping.value = true
+  try {
+    // 获取裁切器实例
+    const cropperInstance = getCropperInstance()
+    if (!cropperInstance) {
+      ElMessage.error('无法获取裁切器实例')
+      cropping.value = false
+      return
+    }
+
+    let croppedFile: File | null = null
+    let previewUrl: string = ''
+
+    // 方法1: 尝试使用 getFile (推荐，直接返回 File 对象)
+    if (typeof cropperInstance.getFile === 'function') {
+      try {
+        croppedFile = await cropperInstance.getFile({
+          width: 2000,
+          height: 2000,
+          mimeType: cropImageFile.value.type || 'image/png',
+          quality: 0.9,
+        })
+        if (croppedFile) {
+          previewUrl = URL.createObjectURL(croppedFile)
+        }
+      } catch (err) {
+        // getFile 失败，继续尝试其他方法
+      }
+    }
+
+    // 方法2: 尝试使用 getBlob
+    if (!croppedFile && typeof cropperInstance.getBlob === 'function') {
+      try {
+        const blob = await cropperInstance.getBlob({
+          width: 2000,
+          height: 2000,
+          mimeType: cropImageFile.value.type || 'image/png',
+          quality: 0.9,
+        })
+        if (blob) {
+          const mime = cropImageFile.value?.type || 'image/png'
+          const ext = mime.includes('/') ? mime.split('/')[1] : 'png'
+          croppedFile = new File([blob], `main_photo_${Date.now()}.${ext}`, { type: mime })
+          previewUrl = URL.createObjectURL(blob)
+        }
+      } catch (err) {
+        // getBlob 失败，继续尝试其他方法
+      }
+    }
+
+    // 方法3: 使用 getDataURL 然后转换为 Blob
+    if (!croppedFile && typeof cropperInstance.getDataURL === 'function') {
+      try {
+        const dataURL = cropperInstance.getDataURL({
+          width: 2000,
+          height: 2000,
+          mimeType: cropImageFile.value.type || 'image/png',
+          quality: 0.9,
+        })
+        if (dataURL) {
+          // 将 dataURL 转换为 Blob
+          const response = await fetch(dataURL)
+          const blob = await response.blob()
+          const mime = cropImageFile.value?.type || 'image/png'
+          const ext = mime.includes('/') ? mime.split('/')[1] : 'png'
+          croppedFile = new File([blob], `main_photo_${Date.now()}.${ext}`, { type: mime })
+          previewUrl = dataURL
+        }
+      } catch (err) {
+        // getDataURL 失败，继续尝试其他方法
+      }
+    }
+
+    // 方法4: 尝试访问底层 cropper 实例的 getCroppedCanvas
+    if (!croppedFile) {
+      // 尝试从组件实例中获取底层 cropper
+      const nativeCropper = pictureCropperRef.value.cropper || 
+                           pictureCropperRef.value.$cropper || 
+                           (cropperInstance.cropper ? cropperInstance.cropper : null)
+      
+      if (nativeCropper && typeof nativeCropper.getCroppedCanvas === 'function') {
+        try {
+          const canvas = nativeCropper.getCroppedCanvas({
+            width: 2000,
+            height: 2000,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high',
+          })
+          if (canvas) {
+            const mime = cropImageFile.value?.type || 'image/png'
+            const blob = await new Promise<Blob>((resolve, reject) => {
+              canvas.toBlob((blob: Blob | null) => {
+                if (blob) {
+                  resolve(blob)
+                } else {
+                  reject(new Error('Canvas toBlob failed'))
+                }
+              }, mime, 0.9)
+            })
+            const ext = mime.includes('/') ? mime.split('/')[1] : 'png'
+            croppedFile = new File([blob], `main_photo_${Date.now()}.${ext}`, { type: mime })
+            previewUrl = URL.createObjectURL(blob)
+          }
+        } catch (err) {
+          // 底层 cropper 实例方法失败
+        }
+      }
+    }
+
+    if (!croppedFile) {
+      ElMessage.error('无法获取裁切结果，请重试')
+      cropping.value = false
+      return
+    }
+
+    // 设置主图
+    setMainPhotoFromFile(croppedFile, previewUrl)
+
+    // 关闭对话框
+    cropDialogVisible.value = false
+    cropping.value = false
+
+    ElMessage.success('图片裁切完成')
+  } catch (err: any) {
+    ElMessage.error('裁切失败：' + (err?.message || '未知错误'))
+    cropping.value = false
+  }
+}
+
+// 取消裁切
+const handleCropCancel = () => {
+  cropDialogVisible.value = false
+}
+
+// 关闭裁切对话框时清理
+const handleCropDialogClose = () => {
+  // 清理预览URL
+  if (cropImageSrc.value && cropImageSrc.value.startsWith('blob:')) {
+    URL.revokeObjectURL(cropImageSrc.value)
+  }
+  cropImageSrc.value = ''
+  cropImageFile.value = null
 }
 
 // 附件图片处理函数
@@ -747,6 +1071,16 @@ onUnmounted(() => {
       URL.revokeObjectURL(photo.preview)
     }
   })
+  // 清理裁切预览URL
+  if (cropImageSrc.value && cropImageSrc.value.startsWith('blob:')) {
+    URL.revokeObjectURL(cropImageSrc.value)
+  }
+  // 清理主图预览URL
+  mainPhotoList.value.forEach((file) => {
+    if (file.url && file.url.startsWith('blob:')) {
+      URL.revokeObjectURL(file.url)
+    }
+  })
 })
 </script>
 
@@ -929,6 +1263,91 @@ onUnmounted(() => {
 
 .sheet-cancel:active {
   background: #f5f5f5;
+}
+
+/* 图片裁切对话框样式 */
+.crop-dialog {
+  z-index: 3000;
+}
+
+.crop-container {
+  width: 100%;
+}
+
+.aspect-ratio-selector {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f8f8f8;
+  border-radius: 4px;
+}
+
+.ratio-label {
+  font-size: 14px;
+  color: #606266;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.ratio-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .ratio-buttons {
+    gap: 6px;
+  }
+  
+  .ratio-buttons .el-button {
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+}
+
+.cropper-wrapper {
+  width: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .crop-dialog :deep(.el-dialog) {
+    margin: 5vh auto 0;
+    max-height: 90vh;
+  }
+  
+  .crop-dialog :deep(.el-dialog__body) {
+    padding: 15px;
+    max-height: calc(90vh - 120px);
+    overflow-y: auto;
+  }
+  
+  .aspect-ratio-selector {
+    padding: 12px;
+    margin-bottom: 15px;
+  }
+  
+  .ratio-label {
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .dialog-footer {
+    gap: 8px;
+  }
+  
+  .dialog-footer .el-button {
+    flex: 1;
+  }
 }
 
 </style>

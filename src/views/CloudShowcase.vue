@@ -35,7 +35,11 @@
     </div>
 
     <!-- 分页 - 悬浮固定在底部 -->
-    <div v-if="guziStore.pagination.count > 0" class="pagination-container">
+    <div 
+      v-if="guziStore.pagination.count > 0" 
+      class="pagination-container"
+      :class="{ 'pagination-visible': showPagination || !isMobile }"
+    >
       <div class="pagination-wrapper">
         <el-pagination
           v-model:current-page="currentPage"
@@ -74,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useGuziStore } from '@/stores/guzi'
@@ -95,6 +99,10 @@ const contextMenuVisible = ref(false)
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
 const contextMenuGoods = ref<GoodsListItem | null>(null)
+
+// 移动端分页器显示控制
+const isMobile = ref(window.innerWidth < 768)
+const showPagination = ref(false)
 
 const currentPage = computed({
   get: () => guziStore.pagination.page,
@@ -158,9 +166,52 @@ const handleDeleteGoods = async () => {
   }
 }
 
+// 检测是否滚动到底部
+const checkScrollBottom = () => {
+  if (!isMobile.value) {
+    showPagination.value = true
+    return
+  }
+
+  const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+  const windowHeight = window.innerHeight
+  const documentHeight = document.documentElement.scrollHeight
+  
+  // 当距离底部小于等于 100px 时显示分页器
+  const threshold = 100
+  const distanceToBottom = documentHeight - (scrollTop + windowHeight)
+  
+  showPagination.value = distanceToBottom <= threshold
+}
+
+const handleResize = () => {
+  isMobile.value = window.innerWidth < 768
+  if (!isMobile.value) {
+    showPagination.value = true
+  } else {
+    checkScrollBottom()
+  }
+}
+
 onMounted(() => {
   // 初始化加载数据（立即执行，不使用防抖）
   guziStore.searchGuziImmediate()
+  
+  // 初始化分页器显示状态
+  if (isMobile.value) {
+    checkScrollBottom()
+  } else {
+    showPagination.value = true
+  }
+  
+  // 添加滚动监听
+  window.addEventListener('scroll', checkScrollBottom, { passive: true })
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', checkScrollBottom)
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 
@@ -242,12 +293,30 @@ onMounted(() => {
 @media (max-width: 768px) {
   .pagination-container {
     padding: 10px 16px;
+    /* 在移动端，将分页器放在底部导航栏上方 */
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    /* 默认隐藏，通过 transform 向下移动 */
+    transform: translateY(calc(100% + 20px));
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+  
+  .pagination-container.pagination-visible {
+    transform: translateY(0);
+    opacity: 1;
   }
   
   .pagination-wrapper {
     padding: 6px 10px;
     border-radius: 12px;
     /* 移除 width 设置，让分页器根据内容自适应宽度 */
+  }
+  
+  /* 兼容不支持 safe-area-inset-bottom 的环境 */
+  @supports not (bottom: env(safe-area-inset-bottom)) {
+    .pagination-container {
+      bottom: 64px;
+    }
   }
 }
 

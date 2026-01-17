@@ -1028,6 +1028,11 @@ onMounted(async () => {
 
   await locationStore.fetchNodes()
 
+  // 如果是新增模式，预设备注模板
+  if (!route.params.id) {
+    formData.value.notes = '店铺：\n工艺：\n画师：\n主题：'
+  }
+
   // 如果是编辑模式，加载数据
   if (route.params.id) {
     try {

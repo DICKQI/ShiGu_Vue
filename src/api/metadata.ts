@@ -82,9 +82,14 @@ export function deleteCharacter(id: number) {
 
 // ==================== 品类 CRUD ====================
 
-// 获取所有品类列表
-export function getCategoryList(params?: { name?: string; search?: string }) {
+// 获取所有品类列表（扁平），支持父级筛选
+export function getCategoryList(params?: { name?: string; search?: string; parent?: number; parent__isnull?: boolean }) {
   return request.get<Category[]>('/api/categories/', { params })
+}
+
+// 获取品类树（扁平列表，前端自行组装 children）
+export function getCategoryTree() {
+  return request.get<Category[]>('/api/categories/tree/')
 }
 
 // 获取品类详情
@@ -93,17 +98,17 @@ export function getCategoryDetail(id: number) {
 }
 
 // 创建品类
-export function createCategory(data: { name: string }) {
+export function createCategory(data: { name: string; parent?: number | null; color_tag?: string | null; order?: number }) {
   return request.post<Category>('/api/categories/', data)
 }
 
 // 更新品类
-export function updateCategory(id: number, data: { name: string }) {
+export function updateCategory(id: number, data: { name: string; parent?: number | null; color_tag?: string | null; order?: number }) {
   return request.put<Category>(`/api/categories/${id}/`, data)
 }
 
 // 部分更新品类
-export function patchCategory(id: number, data: Partial<{ name: string }>) {
+export function patchCategory(id: number, data: Partial<{ name: string; parent?: number | null; color_tag?: string | null; order?: number }>) {
   return request.patch<Category>(`/api/categories/${id}/`, data)
 }
 

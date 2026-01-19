@@ -56,19 +56,62 @@
           
           <!-- 【PC端视图】 -->
           <div class="hidden-xs-only">
-            <el-table :data="categoryList" style="width: 100%" class="pc-table">
-              <el-table-column prop="id" label="ID" width="80" align="center" class-name="id-column" />
-              <el-table-column prop="name" label="品类名称">
+            <el-table
+              ref="tableRef"
+              :data="displayedTree"
+              style="width: 100%"
+              class="pc-table"
+              row-key="id"
+              :default-expand-all="false"
+              :tree-props="{ children: 'children' }"
+              :indent="0"
+              :row-class-name="rowClassName"
+              @expand-change="handleExpandChange"
+            >
+              <el-table-column prop="name" label="品类">
                 <template #default="{ row }">
-                  <div class="category-item-name">
+                  <div
+                    class="category-item-name"
+                    :style="{ paddingLeft: `${Math.max((row.depth || 1) - 1, 0) * 18 + 8}px` }"
+                  >
+                    <div
+                      class="depth-bar"
+                      :style="{ backgroundColor: depthColor(row.depth) }"
+                    ></div>
                     <el-icon class="folder-icon"><CollectionTag /></el-icon>
                     <span>{{ row.name }}</span>
+                    <span
+                      v-if="row.color_tag"
+                      class="color-dot"
+                      :style="{ backgroundColor: row.color_tag || '#a3a3a3' }"
+                    />
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="150" align="right">
+              <el-table-column label="路径" min-width="200">
+                <template #default="{ row }">
+                  <el-tag type="info" effect="plain" class="path-tag">
+                    {{ row.path_name || '—' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="order" label="排序" width="100" align="center">
+                <template #default="{ row }">
+                  <span class="order-text">{{ row.order ?? 0 }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="220" align="right">
                 <template #default="{ row }">
                   <div class="action-inline">
+                    <el-button
+                      v-if="row.children && row.children.length"
+                      link
+                      type="primary"
+                      @click="toggleRowExpand(row)"
+                    >
+                      {{ isExpanded(row) ? '收起' : '展开' }}
+                    </el-button>
+                    <span v-if="row.children && row.children.length" class="action-divider" />
                     <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
                     <span class="action-divider" />
                     <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
@@ -80,28 +123,36 @@
 
           <!-- 【移动端视图】 -->
           <div class="visible-xs-only mobile-list-container">
-            <div 
-              v-for="item in categoryList" 
-              :key="item.id" 
+            <div
+              v-for="item in flatDisplayedList"
+              :key="item.id"
               class="mobile-card"
-              @click="openMobileActions(item)"
+              :style="{ paddingLeft: `${16 + (item.depth || 1) * 12}px`, borderLeftColor: depthColor(item.depth) }"
+              @click="handleMobileCardClick(item)"
             >
               <div class="mobile-card-left">
                 <div class="icon-placeholder">
                   <el-icon><CollectionTag /></el-icon>
                 </div>
                 <div class="card-info">
-                  <div class="card-name">{{ item.name }}</div>
-                  <div class="card-id">ID: {{ item.id }}</div>
+                  <div class="card-name">
+                    {{ item.name }}
+                    <span
+                      v-if="item.color_tag"
+                      class="color-dot"
+                      :style="{ backgroundColor: item.color_tag || '#a3a3a3' }"
+                    />
+                  </div>
+                  <div class="card-path">{{ item.path_name }}</div>
                 </div>
               </div>
-              <div class="mobile-card-right">
+              <div class="mobile-card-right" @click.stop="openMobileActions(item)">
                 <el-icon><MoreFilled /></el-icon>
               </div>
             </div>
           </div>
           
-          <el-empty v-if="!loading && categoryList.length === 0" description="暂无品类数据" />
+          <el-empty v-if="!loading && flatDisplayedList.length === 0" description="暂无品类数据" />
         </div>
       </div>
     </div>
@@ -117,6 +168,46 @@
       <el-form :model="formData" :rules="formRules" ref="formRef" label-position="top">
         <el-form-item label="品类名称" prop="name">
           <el-input v-model="formData.name" placeholder="请输入品类名称，如：马口铁徽章" maxlength="50" show-word-limit />
+        </el-form-item>
+
+        <el-form-item label="父级品类" prop="parent">
+          <el-tree-select
+            v-model="formData.parent"
+            :data="parentTreeOptions"
+            :props="{ label: 'name', value: 'id', children: 'children', disabled: 'disabled' }"
+            placeholder="可选择任意层级作为父节点，不选则为顶级"
+            check-strictly
+            clearable
+            filterable
+            style="width: 100%"
+          />
+        </el-form-item>
+
+        <el-form-item label="颜色标签" prop="color_tag">
+          <div class="color-picker-row">
+            <el-color-picker v-model="formData.color_tag" show-alpha />
+            <el-input v-model="formData.color_tag" placeholder="#AABBCC，可不填" clearable />
+            <div
+              class="color-preview"
+              :style="{ backgroundColor: formData.color_tag || '#f5f7fa' }"
+            ></div>
+          </div>
+          <div class="color-presets">
+            <span class="preset-label">常用：</span>
+            <el-tag
+              v-for="preset in colorPresets"
+              :key="preset"
+              :style="{ backgroundColor: preset, color: '#fff', cursor: 'pointer' }"
+              effect="dark"
+              @click="formData.color_tag = preset"
+            >
+              {{ preset }}
+            </el-tag>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="排序（同级越小越靠前）" prop="order">
+          <el-input-number v-model="formData.order" :min="0" :max="9999" :step="1" style="width: 100%" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -157,17 +248,23 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Plus, Search, CollectionTag, Refresh, Loading, Top, MoreFilled, Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { getCategoryList, createCategory, updateCategory, deleteCategory } from '@/api/metadata'
+import { getCategoryList, getCategoryTree, createCategory, updateCategory, deleteCategory } from '@/api/metadata'
 import type { Category } from '@/api/types'
+
+type CategoryNode = Category & { children?: CategoryNode[]; depth?: number }
 
 const loading = ref(false)
 const submitting = ref(false)
 const searchText = ref('')
-const categoryList = ref<Category[]>([])
+const allCategories = ref<Category[]>([])
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const editingId = ref<number | null>(null)
 const formRef = ref<FormInstance>()
+const colorPresets = ['#8e7dff', '#FF5733', '#33C3F0', '#FFC300', '#67C23A', '#E6A23C']
+const tableRef = ref()
+const expandedIds = ref<Set<number>>(new Set())
+const expandedMobileIds = ref<Set<number>>(new Set())
 
 // 窗口宽度响应式
 const windowWidth = ref(window.innerWidth)
@@ -255,18 +352,152 @@ const handleTouchEnd = async () => {
   }
 }
 
-const formData = ref({ name: '' })
+const formData = ref({
+  name: '',
+  parent: null as number | null,
+  color_tag: '',
+  order: 0,
+})
 const formRules: FormRules = {
-  name: [{ required: true, message: '名称不能为空', trigger: 'blur' }]
+  name: [{ required: true, message: '名称不能为空', trigger: 'blur' }],
+  order: [{ type: 'number', message: '排序需为数字', trigger: 'change' }],
 }
 
 const dialogTitle = computed(() => isEdit.value ? '🏷️ 修改品类' : '✨ 新增品类')
 
+const buildCategoryTree = (list: Category[]): CategoryNode[] => {
+  const map = new Map<number, CategoryNode>()
+  list.forEach((item) => {
+    map.set(item.id, { ...item, children: [], depth: 1 })
+  })
+  const roots: CategoryNode[] = []
+  map.forEach((node) => {
+    if (node.parent !== null && map.has(node.parent)) {
+      const parent = map.get(node.parent)!
+      node.depth = (parent.depth || 1) + 1
+      parent.children!.push(node)
+    } else {
+      roots.push(node)
+    }
+  })
+  // 同级按 order + name 排序
+  const sortTree = (nodes: Category[]) => {
+    nodes.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name))
+    nodes.forEach((n) => n.children && sortTree(n.children))
+  }
+  sortTree(roots)
+  return roots
+}
+
+const filterTreeByKeyword = (nodes: CategoryNode[], keyword: string) => {
+  if (!keyword) return nodes
+  const result: CategoryNode[] = []
+  nodes.forEach((node) => {
+    const matched = node.name.includes(keyword) || (node.path_name || '').includes(keyword)
+    const filteredChildren = node.children ? filterTreeByKeyword(node.children, keyword) : []
+    if (matched || filteredChildren.length > 0) {
+      result.push({ ...node, children: filteredChildren })
+    }
+  })
+  return result
+}
+
+const flattenTree = (nodes: CategoryNode[]) => {
+  const arr: CategoryNode[] = []
+  const walk = (list: CategoryNode[]) => {
+    list.forEach((item) => {
+      arr.push(item)
+      if ((item as any).children && (item as any).children.length) {
+        walk((item as any).children)
+      }
+    })
+  }
+  walk(nodes)
+  return arr
+}
+
+const displayedTree = computed<CategoryNode[]>(() => {
+  const tree = buildCategoryTree(allCategories.value)
+  return filterTreeByKeyword(tree, searchText.value.trim())
+})
+
+const flattenForMobile = (nodes: CategoryNode[]) => {
+  const arr: CategoryNode[] = []
+  const walk = (list: CategoryNode[]) => {
+    list.forEach((item) => {
+      arr.push(item)
+      if (item.children && item.children.length && expandedMobileIds.value.has(item.id)) {
+        walk(item.children)
+      }
+    })
+  }
+  walk(nodes)
+  return arr
+}
+
+const flatDisplayedList = computed(() => flattenForMobile(displayedTree.value))
+
+const depthColor = (depth?: number) => {
+  if (!depth || depth <= 1) return '#dcdfe6'
+  const palette = ['#8e7dff', '#33C3F0', '#FFC300', '#67C23A', '#E6A23C', '#F56C6C']
+  return palette[(depth - 2) % palette.length]
+}
+
+const rowClassName = ({ row }: { row: CategoryNode }) => {
+  return row && (row as any).depth ? `row-depth-${(row as any).depth}` : ''
+}
+
+const parentTreeOptions = computed(() => {
+  const tree = buildCategoryTree(allCategories.value)
+  if (isEdit.value && editingId.value !== null) {
+    const disableSelfAndDesc = (nodes: CategoryNode[]) => {
+      nodes.forEach((node) => {
+        if (node.id === editingId.value) {
+          ;(node as any).disabled = true
+        }
+        if (node.children && node.children.length) {
+          if ((node as any).disabled) {
+            node.children.forEach((child) => ((child as any).disabled = true))
+          } else {
+            disableSelfAndDesc(node.children)
+          }
+        }
+      })
+    }
+    disableSelfAndDesc(tree)
+  }
+  return [
+    { id: null, name: '设为顶级', children: tree } as unknown as Category,
+  ]
+})
+
+const isExpanded = (row: Category) => expandedIds.value.has(row.id)
+
+const handleExpandChange = (row: CategoryNode, expanded: boolean) => {
+  if (expanded) {
+    expandedIds.value.add(row.id)
+  } else {
+    expandedIds.value.delete(row.id)
+  }
+}
+
+const toggleRowExpand = (row: CategoryNode) => {
+  const next = !isExpanded(row)
+  expandedIds.value[next ? 'add' : 'delete'](row.id)
+  if (tableRef.value?.toggleRowExpansion) {
+    tableRef.value.toggleRowExpansion(row, next)
+  } else if (tableRef.value?.store?.toggleRowExpansion) {
+    tableRef.value.store.toggleRowExpansion(row, next)
+  }
+}
+
 const fetchCategoryList = async () => {
   loading.value = true
   try {
-    const data = await getCategoryList({ search: searchText.value.trim() || undefined })
-    categoryList.value = data
+    const keyword = searchText.value.trim()
+    // 优先拉取树接口，支持多层结构与颜色标签
+    const data = keyword ? await getCategoryList({ search: keyword }) : await getCategoryTree()
+    allCategories.value = data
   } finally {
     loading.value = false
   }
@@ -274,8 +505,23 @@ const fetchCategoryList = async () => {
 
 const handleSearch = () => fetchCategoryList()
 const handleRefresh = () => fetchCategoryList()
-const handleAdd = () => { isEdit.value = false; formData.value.name = ''; dialogVisible.value = true; }
-const handleEdit = (row: Category) => { isEdit.value = true; editingId.value = row.id; formData.value.name = row.name; dialogVisible.value = true; }
+const handleAdd = () => { 
+  isEdit.value = false
+  editingId.value = null
+  formData.value = { name: '', parent: null, color_tag: '', order: 0 }
+  dialogVisible.value = true
+}
+const handleEdit = (row: Category) => { 
+  isEdit.value = true
+  editingId.value = row.id
+  formData.value = { 
+    name: row.name, 
+    parent: row.parent, 
+    color_tag: row.color_tag || '', 
+    order: row.order ?? 0 
+  }
+  dialogVisible.value = true
+}
 
 const handleDelete = async (row: Category) => {
   try {
@@ -289,6 +535,17 @@ const handleDelete = async (row: Category) => {
 const openMobileActions = (row: Category) => {
   currentActionRow.value = row
   mobileDrawerVisible.value = true
+}
+
+const isMobileExpanded = (row: CategoryNode) => expandedMobileIds.value.has(row.id)
+const toggleMobileExpand = (row: CategoryNode) => {
+  if (!row.children || row.children.length === 0) return
+  const next = !isMobileExpanded(row)
+  expandedMobileIds.value[next ? 'add' : 'delete'](row.id)
+}
+
+const handleMobileCardClick = (row: CategoryNode) => {
+  toggleMobileExpand(row)
 }
 
 const handleMobileEdit = () => {
@@ -311,10 +568,16 @@ const handleSubmit = async () => {
     if (!valid) return
     submitting.value = true
     try {
+      const payload = {
+        name: formData.value.name.trim(),
+        parent: formData.value.parent ?? null,
+        color_tag: formData.value.color_tag?.trim() || null,
+        order: formData.value.order ?? 0,
+      }
       if (isEdit.value && editingId.value) {
-        await updateCategory(editingId.value, formData.value)
+        await updateCategory(editingId.value, payload)
       } else {
-        await createCategory(formData.value)
+        await createCategory(payload)
       }
       dialogVisible.value = false
       fetchCategoryList()
@@ -404,9 +667,24 @@ onUnmounted(() => {
 /* PC 表格样式 */
 .category-item-name { display: flex; align-items: center; gap: 10px; font-weight: 500; color: #444; }
 .folder-icon { color: #8e7dff; font-size: 18px; }
-:deep(.id-column) { color: #c0c4cc; font-family: monospace; }
+.depth-bar { width: 4px; height: 20px; border-radius: 2px; background: #dcdfe6; }
+.level-tag { margin-left: 6px; }
+.color-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-left: 6px; box-shadow: 0 0 0 1px #ececec; }
+.path-tag { border-radius: 8px; }
+.order-text { color: #606266; font-variant-numeric: tabular-nums; }
 .action-inline { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .action-divider { display: inline-block; width: 1px; height: 16px; background: #e4e7ed; }
+.pc-table :deep(.el-table__expand-icon),
+.pc-table :deep(.el-table__placeholder) {
+  display: none;
+}
+.action-inline :deep(.el-button.is-link:focus-visible),
+.action-inline :deep(.el-button.is-link:focus),
+.action-inline :deep(.el-button.is-link:active) {
+  box-shadow: none !important;
+  outline: none !important;
+  background-color: transparent !important;
+}
 
 /* PC 刷新按钮 */
 .refresh-fab {
@@ -450,6 +728,7 @@ onUnmounted(() => {
   transition: all 0.2s;
   cursor: pointer;
   border: 1px solid #f2f3f5;
+  border-left: 3px solid #dcdfe6;
 }
 
 .mobile-card:active {
@@ -551,6 +830,37 @@ onUnmounted(() => {
 
 .sheet-cancel:active {
   background: #f5f5f5;
+}
+
+.color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.color-picker-row .el-input {
+  flex: 1;
+}
+
+.color-preview {
+  width: 36px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid #ebeef5;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.06);
+}
+
+.color-presets {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.preset-label {
+  font-size: 12px;
+  color: #909399;
 }
 
 /* 响应式断点控制 */

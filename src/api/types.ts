@@ -45,10 +45,15 @@ export interface Character {
   gender: CharacterGender
 }
 
-// 品类信息
+// 品类信息（树形支持）
 export interface Category {
   id: number
   name: string
+  parent: number | null
+  path_name: string
+  color_tag?: string | null
+  order: number
+  children?: Category[]
 }
 
 // 谷子状态

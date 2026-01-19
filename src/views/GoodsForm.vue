@@ -62,18 +62,24 @@
 
           <el-col :xs="24" :sm="12">
             <el-form-item label="品类" prop="category">
-              <el-select
+              <el-tree-select
                 v-model="formData.category"
+                :data="categoryTreeOptions"
+                :props="{ label: 'name', value: 'id', children: 'children' }"
                 placeholder="选择品类"
                 style="width: 100%"
-              >
-                <el-option
-                  v-for="cat in categoryOptions"
-                  :key="cat.id"
-                  :label="cat.name"
-                  :value="cat.id"
-                />
-              </el-select>
+                clearable
+                filterable
+                check-strictly
+              />
+              <div v-if="selectedCategory" class="category-chip">
+                <span
+                  class="color-dot"
+                  v-if="selectedCategory.color_tag"
+                  :style="{ backgroundColor: selectedCategory.color_tag || '#a3a3a3' }"
+                ></span>
+                <span class="chip-text">{{ selectedCategory.path_name || selectedCategory.name }}</span>
+              </div>
             </el-form-item>
           </el-col>
 
@@ -533,6 +539,28 @@ const filteredCharacters = computed(() => {
   if (!formData.value.ip) return []
   return characters.value.filter((char) => char.ip.id === formData.value.ip)
 })
+
+const buildCategoryTree = (list: Category[]) => {
+  const map = new Map<number, Category & { children: Category[] }>()
+  list.forEach((item) => map.set(item.id, { ...item, children: [] }))
+  const roots: Category[] = []
+  map.forEach((node) => {
+    if (node.parent !== null && map.has(node.parent)) {
+      map.get(node.parent)!.children!.push(node)
+    } else {
+      roots.push(node)
+    }
+  })
+  const sortTree = (nodes: Category[]) => {
+    nodes.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name))
+    nodes.forEach((n) => n.children && sortTree(n.children))
+  }
+  sortTree(roots)
+  return roots
+}
+
+const categoryTreeOptions = computed(() => buildCategoryTree(categoryOptions.value))
+const selectedCategory = computed(() => categoryOptions.value.find((c) => c.id === formData.value.category))
 
 const rules: FormRules = {
   name: [{ required: true, message: '请输入谷子名称', trigger: 'blur' }],
@@ -1100,6 +1128,30 @@ onUnmounted(() => {
   font-weight: bold;
   color: var(--primary-gold);
   font-size: 18px;
+}
+
+.category-chip {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #f7f7fb;
+  border: 1px solid #ebeef5;
+  font-size: 12px;
+  color: #606266;
+}
+
+.color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #e0e0e0;
+}
+
+.chip-text {
+  white-space: nowrap;
 }
 
 .main-photo-preview {

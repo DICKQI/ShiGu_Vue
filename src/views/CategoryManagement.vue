@@ -88,7 +88,7 @@
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column label="路径" min-width="200">
+              <el-table-column label="完整名称" min-width="200">
                 <template #default="{ row }">
                   <el-tag type="info" effect="plain" class="path-tag">
                     {{ row.path_name || '—' }}

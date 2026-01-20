@@ -81,24 +81,20 @@
           </el-select>
         </div>
 
-            <!-- 品类筛选 -->
+            <!-- 品类筛选（支持多层级树形选择） -->
             <div class="filter-item">
-          <label>品类</label>
-          <el-select
-            v-model="localFilters.category"
-            placeholder="选择品类"
-            clearable
-            @change="handleFilterChange"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="cat in categoryOptions"
-              :key="cat.id"
-              :label="cat.name"
-              :value="cat.id"
-            />
-          </el-select>
-        </div>
+              <label>品类</label>
+              <el-tree-select
+                v-model="localFilters.category"
+                :data="categoryTreeData"
+                placeholder="选择品类（支持任意层级）"
+                clearable
+                @change="handleFilterChange"
+                style="width: 100%"
+                :props="{ label: 'label', value: 'id' }"
+                check-strictly
+              />
+            </div>
 
             <!-- 状态筛选（支持多选） -->
             <div class="filter-item">
@@ -140,13 +136,20 @@ import { ElMessage } from 'element-plus'
 import { ArrowDown, RefreshLeft } from '@element-plus/icons-vue'
 import { useGuziStore } from '@/stores/guzi'
 import { useLocationStore } from '@/stores/location'
-import { getIPList, getCharacterList, getCategoryList } from '@/api/metadata'
+import { getIPList, getCharacterList, getCategoryTree } from '@/api/metadata'
 import type { GoodsSearchParams, IP, Character, Category, GoodsStatus } from '@/api/types'
 
 // 从API获取的数据
 const ipOptions = ref<IP[]>([])
 const characters = ref<Character[]>([])
-const categoryOptions = ref<Category[]>([])
+const categoryList = ref<Category[]>([])
+
+// 品类树节点类型（用于 el-tree-select）
+interface CategoryTreeNode {
+  id: number
+  label: string
+  children?: CategoryTreeNode[]
+}
 
 const guziStore = useGuziStore()
 const locationStore = useLocationStore()
@@ -175,6 +178,61 @@ const localFilters = ref<GoodsSearchParams>({
 const selectedStatuses = ref<GoodsStatus[]>([])
 
 const locationTreeData = computed(() => locationStore.treeData)
+
+// 将品类列表转换为树形结构（用于 el-tree-select）
+const categoryTreeData = computed(() => {
+  const list = categoryList.value
+  if (!list || list.length === 0) return []
+
+  // 创建节点映射
+  const nodeMap = new Map<number, CategoryTreeNode>()
+  const rootNodes: CategoryTreeNode[] = []
+
+  // 第一遍：创建所有节点
+  list.forEach((category) => {
+    const treeNode: CategoryTreeNode = {
+      id: category.id,
+      label: category.name,
+      children: [],
+    }
+    nodeMap.set(category.id, treeNode)
+  })
+
+  // 第二遍：建立父子关系
+  list.forEach((category) => {
+    const treeNode = nodeMap.get(category.id)!
+    if (category.parent === null) {
+      rootNodes.push(treeNode)
+    } else {
+      const parentNode = nodeMap.get(category.parent)
+      if (parentNode) {
+        if (!parentNode.children) {
+          parentNode.children = []
+        }
+        parentNode.children.push(treeNode)
+      }
+    }
+  })
+
+  // 排序：按 order 字段排序，然后按名称排序
+  const sortTree = (nodes: CategoryTreeNode[]) => {
+    nodes.sort((a, b) => {
+      const categoryA = list.find((cat) => cat.id === a.id)
+      const categoryB = list.find((cat) => cat.id === b.id)
+      const orderA = categoryA?.order ?? 0
+      const orderB = categoryB?.order ?? 0
+      return orderA - orderB || a.label.localeCompare(b.label)
+    })
+    nodes.forEach((node) => {
+      if (node.children && node.children.length > 0) {
+        sortTree(node.children)
+      }
+    })
+  }
+
+  sortTree(rootNodes)
+  return rootNodes
+})
 
 const filteredCharacters = computed(() => {
   // 如果选择了IP，只显示该IP下的角色；否则返回空数组（选择器会被禁用）
@@ -263,14 +321,14 @@ onMounted(async () => {
 
   // 加载基础数据
   try {
-    const [ipList, characterList, categoryList] = await Promise.all([
+    const [ipList, characterList, categoryTree] = await Promise.all([
       getIPList(),
       getCharacterList(),
-      getCategoryList(),
+      getCategoryTree(),
     ])
     ipOptions.value = ipList
     characters.value = characterList
-    categoryOptions.value = categoryList
+    categoryList.value = categoryTree
   } catch (err) {
     ElMessage.error('加载基础数据失败')
   }

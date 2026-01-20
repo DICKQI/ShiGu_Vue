@@ -170,6 +170,11 @@
                 </template>
               </el-upload>
 
+              <!-- 编辑模式：允许对原主图重新裁切/编辑 -->
+              <div v-if="route.params.id && (formData.main_photo || mainPhotoList.length)" class="main-photo-actions">
+                <el-button size="small" :icon="Edit" @click="handleReEditMainPhoto">重新编辑主图</el-button>
+              </div>
+
               <!-- H5：分别用 capture / 非 capture 触发“拍照/相册”（隐藏 input，通过 + 号触发） -->
               <input
                 v-if="isH5Mobile"
@@ -363,7 +368,7 @@
         </div>
 
         <!-- 裁切组件 -->
-        <div class="cropper-wrapper">
+        <div class="cropper-wrapper" :class="{ 'circle-crop': selectedAspectRatio === 'circle' }">
           <vue-picture-cropper
             v-if="cropImageSrc"
             ref="pictureCropperRef"
@@ -396,7 +401,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadFile } from 'element-plus'
-import { Plus, Delete, Picture, Camera as CameraIcon } from '@element-plus/icons-vue'
+import { Plus, Delete, Picture, Camera as CameraIcon, Edit } from '@element-plus/icons-vue'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { Capacitor } from '@capacitor/core'
 import VuePictureCropper, { cropper } from 'vue-picture-cropper'
@@ -445,6 +450,7 @@ const selectedAspectRatio = ref<string>('free')
 const aspectRatios = [
   { label: '自由', value: 'free' },
   { label: '1:1', value: '1:1' },
+  { label: '圆形', value: 'circle' },
   { label: '16:9', value: '16:9' },
   { label: '4:3', value: '4:3' },
   { label: '3:4', value: '3:4' },
@@ -482,7 +488,12 @@ const cropperOptions = computed(() => {
   }
 
   // 根据选择的比例设置 aspectRatio
-  if (selectedAspectRatio.value !== 'free') {
+  if (selectedAspectRatio.value === 'circle') {
+    // 圆形裁切：本质上是 1:1 的固定比例 + CSS 把裁切框渲染成圆形
+    baseOptions.aspectRatio = 1
+    baseOptions.fixed = true
+    baseOptions.fixedNumber = [1, 1]
+  } else if (selectedAspectRatio.value !== 'free') {
     const parts = selectedAspectRatio.value.split(':').map(Number)
     const w = parts[0]
     const h = parts[1]
@@ -693,6 +704,31 @@ const openCropDialog = (file: File, previewUrl?: string) => {
   selectedAspectRatio.value = 'free' // 重置为自由比例
 }
 
+// 编辑模式：把原主图拉进裁切器重新编辑
+const handleReEditMainPhoto = async () => {
+  try {
+    // 优先取当前 UI/表单里的主图 URL（编辑模式下来自详情接口）
+    const url = (formData.value.main_photo || mainPhotoList.value?.[0]?.url || '').toString()
+    if (!url) {
+      ElMessage.warning('当前没有可编辑的主图')
+      return
+    }
+
+    const resp = await fetch(url)
+    if (!resp.ok) {
+      throw new Error(`拉取图片失败（HTTP ${resp.status}）`)
+    }
+    const blob = await resp.blob()
+    const mime = blob.type || 'image/jpeg'
+    const ext = mime.includes('/') ? mime.split('/')[1] : 'jpg'
+    const file = new File([blob], `main_photo_${Date.now()}.${ext}`, { type: mime })
+
+    openCropDialog(file, url)
+  } catch (err: any) {
+    ElMessage.error('重新编辑主图失败：' + (err?.message || '未知错误'))
+  }
+}
+
 // 获取裁切器实例
 // vue-picture-cropper 通过导入的 cropper 工具实例来调用方法
 const getCropperInstance = () => {
@@ -721,6 +757,57 @@ const getCropperInstance = () => {
   }
   
   return null
+}
+
+const blobToImageBitmap = async (blob: Blob) => {
+  // createImageBitmap 在大多数现代浏览器可用；不行则回退到 HTMLImageElement
+  if (typeof createImageBitmap === 'function') {
+    return await createImageBitmap(blob)
+  }
+  const url = URL.createObjectURL(blob)
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image()
+      el.onload = () => resolve(el)
+      el.onerror = () => reject(new Error('图片解码失败'))
+      el.src = url
+    })
+    return img
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+const applyCircleMaskToBlob = async (input: Blob) => {
+  const bitmapOrImg = await blobToImageBitmap(input)
+  const width = (bitmapOrImg as any).width
+  const height = (bitmapOrImg as any).height
+  const size = Math.min(width, height)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 不可用')
+
+  // 圆形裁切：圆外透明
+  ctx.clearRect(0, 0, size, size)
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2)
+  ctx.closePath()
+  ctx.clip()
+
+  // 如果不是正方形，居中裁成正方形
+  const sx = Math.max(0, Math.floor((width - size) / 2))
+  const sy = Math.max(0, Math.floor((height - size) / 2))
+  ctx.drawImage(bitmapOrImg as any, sx, sy, size, size, 0, 0, size, size)
+  ctx.restore()
+
+  const outBlob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('导出圆形图片失败'))), 'image/png', 0.92)
+  })
+  return outBlob
 }
 
 // 确认裁切
@@ -766,11 +853,12 @@ const handleCropConfirm = async () => {
         const blob = await cropperInstance.getBlob({
           width: 2000,
           height: 2000,
-          mimeType: cropImageFile.value.type || 'image/png',
+          // 圆形裁切需要透明背景，强制 PNG
+          mimeType: selectedAspectRatio.value === 'circle' ? 'image/png' : (cropImageFile.value.type || 'image/png'),
           quality: 0.9,
         })
         if (blob) {
-          const mime = cropImageFile.value?.type || 'image/png'
+          const mime = selectedAspectRatio.value === 'circle' ? 'image/png' : (cropImageFile.value?.type || 'image/png')
           const ext = mime.includes('/') ? mime.split('/')[1] : 'png'
           croppedFile = new File([blob], `main_photo_${Date.now()}.${ext}`, { type: mime })
           previewUrl = URL.createObjectURL(blob)
@@ -786,14 +874,15 @@ const handleCropConfirm = async () => {
         const dataURL = cropperInstance.getDataURL({
           width: 2000,
           height: 2000,
-          mimeType: cropImageFile.value.type || 'image/png',
+          // 圆形裁切需要透明背景，强制 PNG
+          mimeType: selectedAspectRatio.value === 'circle' ? 'image/png' : (cropImageFile.value.type || 'image/png'),
           quality: 0.9,
         })
         if (dataURL) {
           // 将 dataURL 转换为 Blob
           const response = await fetch(dataURL)
           const blob = await response.blob()
-          const mime = cropImageFile.value?.type || 'image/png'
+          const mime = selectedAspectRatio.value === 'circle' ? 'image/png' : (cropImageFile.value?.type || 'image/png')
           const ext = mime.includes('/') ? mime.split('/')[1] : 'png'
           croppedFile = new File([blob], `main_photo_${Date.now()}.${ext}`, { type: mime })
           previewUrl = dataURL
@@ -819,7 +908,7 @@ const handleCropConfirm = async () => {
             imageSmoothingQuality: 'high',
           })
           if (canvas) {
-            const mime = cropImageFile.value?.type || 'image/png'
+            const mime = selectedAspectRatio.value === 'circle' ? 'image/png' : (cropImageFile.value?.type || 'image/png')
             const blob = await new Promise<Blob>((resolve, reject) => {
               canvas.toBlob((blob: Blob | null) => {
                 if (blob) {
@@ -843,6 +932,24 @@ const handleCropConfirm = async () => {
       ElMessage.error('无法获取裁切结果，请重试')
       cropping.value = false
       return
+    }
+
+    // 圆形裁切：真正输出圆形区域（圆外透明 PNG）
+    if (selectedAspectRatio.value === 'circle') {
+      try {
+        const maskedBlob = await applyCircleMaskToBlob(croppedFile)
+        const maskedFile = new File([maskedBlob], `main_photo_${Date.now()}.png`, { type: 'image/png' })
+        // 预览 URL：释放旧的预览，避免泄漏
+        if (previewUrl && previewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(previewUrl)
+        }
+        croppedFile = maskedFile
+        previewUrl = URL.createObjectURL(maskedBlob)
+      } catch (e: any) {
+        ElMessage.error('圆形裁切处理失败：' + (e?.message || '未知错误'))
+        cropping.value = false
+        return
+      }
     }
 
     // 设置主图
@@ -1179,6 +1286,10 @@ onUnmounted(() => {
   height: 100%;
 }
 
+.main-photo-actions {
+  margin-top: 10px;
+}
+
 .main-photo-preview .el-image {
   width: 100%;
   height: 100%;
@@ -1366,6 +1477,12 @@ onUnmounted(() => {
   width: 100%;
   margin: 0 auto;
   overflow: hidden;
+}
+
+/* 圆形裁切：仅改变裁切框的视觉形状（导出仍为方图，圆外透明） */
+.cropper-wrapper.circle-crop :deep(.cropper-view-box),
+.cropper-wrapper.circle-crop :deep(.cropper-face) {
+  border-radius: 50%;
 }
 
 @media (max-width: 768px) {

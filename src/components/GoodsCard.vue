@@ -50,10 +50,10 @@
 
     <!-- 2. 内容区域 -->
     <div class="card-content">
-      <!-- 优化标题间距：去掉固定高度，缩小下边距 -->
+      <!-- 标题 -->
       <h3 class="goods-title" :title="goods.name">{{ goods.name }}</h3>
 
-      <!-- 参数详情：对齐布局 -->
+      <!-- 参数对齐布局 -->
       <div class="info-meta">
         <div class="info-row">
           <span class="info-label">IP</span>
@@ -67,22 +67,22 @@
         </div>
       </div>
 
-      <!-- 底部脚部 -->
+      <!-- 3. 底部脚部（解决移动端冲突的核心区域） -->
       <div class="card-footer">
-        <!-- 动态品类标签 -->
-        <span 
-          class="category-tag" 
-          :style="categoryStyle"
-        >
-          {{ goods.category.name }}
-        </span>
+        <!-- 品类标签：固定宽度不收缩 -->
+        <div class="category-wrapper">
+          <span class="category-tag" :style="categoryStyle">
+            {{ goods.category.name }}
+          </span>
+        </div>
 
+        <!-- 位置信息：空间不足时自动收缩并显示省略号 -->
         <div 
           v-if="goods.location_path" 
           class="location-box" 
           @click.stop="handleLocationClick"
         >
-          <el-icon><Location /></el-icon>
+          <el-icon class="loc-icon"><Location /></el-icon>
           <span class="location-text">{{ goods.location_path.split('/').pop() }}</span>
         </div>
       </div>
@@ -110,10 +110,7 @@ const emit = defineEmits<{
 const isLongPress = ref(false)
 let longPressTimer: number | null = null
 
-// 标签文本
 const tagText = computed(() => props.goods.is_official ? '官谷' : '同人')
-
-// 标签样式类
 const tagClass = computed(() => ({
   'tag-official': props.goods.is_official,
   'tag-unofficial': !props.goods.is_official
@@ -129,7 +126,7 @@ const categoryStyle = computed(() => {
   }
 })
 
-// --- 逻辑处理函数 ---
+// --- 逻辑处理 ---
 const handleClick = () => {
   if (isLongPress.value) {
     isLongPress.value = false
@@ -144,20 +141,12 @@ const handleLocationClick = () => {
 
 const handleMenuButtonClick = (event: MouseEvent) => {
   event.stopPropagation()
-  emit('contextMenu', {
-    goods: props.goods,
-    x: event.clientX,
-    y: event.clientY,
-  })
+  emit('contextMenu', { goods: props.goods, x: event.clientX, y: event.clientY })
 }
 
 const handleContextMenu = (event: MouseEvent) => {
   event.preventDefault()
-  emit('contextMenu', {
-    goods: props.goods,
-    x: event.clientX,
-    y: event.clientY,
-  })
+  emit('contextMenu', { goods: props.goods, x: event.clientX, y: event.clientY })
 }
 
 const clearLongPressTimer = () => {
@@ -174,11 +163,7 @@ const handleTouchStart = (event: TouchEvent) => {
   longPressTimer = window.setTimeout(() => {
     isLongPress.value = true
     const currentTouch = event.touches[0] || touch
-    emit('contextMenu', {
-      goods: props.goods,
-      x: currentTouch.clientX,
-      y: currentTouch.clientY,
-    })
+    emit('contextMenu', { goods: props.goods, x: currentTouch.clientX, y: currentTouch.clientY })
   }, 600)
 }
 
@@ -207,12 +192,12 @@ onBeforeUnmount(() => clearLongPressTimer())
 }
 
 .goods-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.06);
   border-color: var(--primary-gold);
 }
 
-/* 图片容器 */
+/* 图片区域 */
 .card-image-wrapper {
   position: relative;
   width: 100%;
@@ -224,11 +209,6 @@ onBeforeUnmount(() => clearLongPressTimer())
 .main-image {
   width: 100%;
   height: 100%;
-  transition: transform 0.5s ease;
-}
-
-.goods-card:hover .main-image {
-  transform: scale(1.06);
 }
 
 /* 官谷/同人标签 */
@@ -248,19 +228,16 @@ onBeforeUnmount(() => clearLongPressTimer())
   -webkit-backdrop-filter: blur(8px) brightness(0.85);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .tag-official { background: rgba(212, 175, 55, 0.5); color: #FFD700; }
 .tag-unofficial { background: rgba(162, 155, 254, 0.5); color: #E0DEFF; }
 
-/* 数量角标 */
 .quantity-badge {
   position: absolute;
   bottom: 8px;
   right: 8px;
   background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(4px);
   color: #fff;
   padding: 2px 6px;
   border-radius: 4px;
@@ -268,7 +245,6 @@ onBeforeUnmount(() => clearLongPressTimer())
   font-weight: bold;
 }
 
-/* 更多按钮 */
 .menu-button {
   position: absolute;
   top: 10px;
@@ -286,7 +262,6 @@ onBeforeUnmount(() => clearLongPressTimer())
 }
 
 .goods-card:hover .menu-button { opacity: 1; }
-.menu-button:hover { background-color: var(--primary-gold); color: #fff; }
 
 /* 内容区 */
 .card-content {
@@ -294,15 +269,15 @@ onBeforeUnmount(() => clearLongPressTimer())
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-width: 0; /* 允许内部元素收缩 */
 }
 
 .goods-title {
-  margin: 0 0 8px 0; /* 缩小了标题底部的边距 */
+  margin: 0 0 8px 0;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-main);
   line-height: 1.4;
-  /* 去掉了固定高度，使布局更紧凑 */
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -310,11 +285,10 @@ onBeforeUnmount(() => clearLongPressTimer())
   text-overflow: ellipsis;
 }
 
-/* 参数对齐布局 */
 .info-meta {
   display: flex;
   flex-direction: column;
-  gap: 5px; /* 稍微缩小了行间距 */
+  gap: 5px;
   margin-bottom: 10px;
 }
 
@@ -331,7 +305,7 @@ onBeforeUnmount(() => clearLongPressTimer())
   border-radius: 4px;
   margin-right: 10px;
   font-weight: 500;
-  width: 32px; /* 保持 Label 对齐 */
+  width: 32px;
   text-align: center;
   flex-shrink: 0;
   font-size: 11px;
@@ -340,6 +314,7 @@ onBeforeUnmount(() => clearLongPressTimer())
 .info-value {
   color: #606266;
   flex: 1;
+  min-width: 0;
 }
 
 .truncate {
@@ -348,7 +323,7 @@ onBeforeUnmount(() => clearLongPressTimer())
   text-overflow: ellipsis;
 }
 
-/* 底部脚部 */
+/* 底部脚部 - 解决冲突的关键样式 */
 .card-footer {
   margin-top: auto;
   padding-top: 10px;
@@ -356,33 +331,49 @@ onBeforeUnmount(() => clearLongPressTimer())
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px; /* 强制两者之间的最小间距 */
+  width: 100%;
+}
+
+.category-wrapper {
+  flex-shrink: 0; /* 保证标签不会被挤压变窄 */
 }
 
 .category-tag {
+  display: inline-block;
   font-size: 11px;
   font-weight: bold;
   padding: 2px 8px;
   border-radius: 4px;
   border: 1px solid transparent;
+  white-space: nowrap;
 }
 
 .location-box {
   display: flex;
   align-items: center;
+  justify-content: flex-end; /* 在右侧对齐内容 */
   gap: 3px;
   font-size: 11px;
   color: var(--text-sub);
+  flex: 1; /* 占据剩余所有空间 */
+  min-width: 0; /* flex容器内允许省略号的关键 */
+}
+
+.loc-icon {
+  flex-shrink: 0; /* 图标不收缩 */
 }
 
 .location-text {
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: ellipsis; /* 长位置信息自动显示省略号 */
 }
 
 @media (max-width: 768px) {
   .goods-title { -webkit-line-clamp: 1; }
   .menu-button { opacity: 1; }
+  .card-content { padding: 10px; }
 }
 </style>
 

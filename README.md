@@ -34,6 +34,7 @@
 | 🎯 **精准检索** | 支持 IP、角色、品类、状态、位置等多维度筛选，300ms 防抖优化搜索体验 |
 | 📦 **层级管理** | 树形结构管理收纳位置，清晰展示藏品分布情况 |
 | 🚀 **高效录入** | BGM 批量导入、表单联动校验、图片上传一体化，提升录入效率 80%+ |
+| 🔄 **灵活排序** | 支持谷子前移/后移排序，品类拖拽排序，自定义展示顺序 |
 | 🎨 **视觉体验** | 香槟镭射主题设计，精致的交互细节，流畅的动画效果 |
 | 📱 **响应式设计** | PC 端表格展示，移动端卡片展示，完美适配不同设备 |
 
@@ -134,7 +135,7 @@ VITE_API_BASE_URL=http://127.0.0.1:8000
 ## 📁 项目结构
 
 ```
-PickGoods_vue/
+ShiGu_vue/
 ├── public/              # 静态资源目录
 ├── src/
 │   ├── api/            # API 接口层
@@ -170,11 +171,11 @@ PickGoods_vue/
 
 | 功能模块 | 说明 | 详细文档 |
 |---------|------|----------|
-| 🎨 **云展柜** | 智能搜索、多维筛选、响应式展示 | [功能特性文档](docs/FEATURES.md#-云展柜cloud-showcase) |
+| 🎨 **云展柜** | 智能搜索、多维筛选、响应式展示、排序功能 | [功能特性文档](docs/FEATURES.md#-云展柜cloud-showcase) |
 | 📍 **位置管理** | 树形导航、位置 CRUD、层级管理 | [功能特性文档](docs/FEATURES.md#-位置管理location-management) |
 | 📝 **资产录入** | 表单校验、图片上传、联动选择 | [功能特性文档](docs/FEATURES.md#-资产录入goods-form) |
 | 🎭 **IP与角色管理** | BGM 批量导入、关键词管理 | [功能特性文档](docs/FEATURES.md#-ip作品与角色管理ip--character-management) |
-| 📦 **品类管理** | 品类 CRUD、搜索功能 | [功能特性文档](docs/FEATURES.md#-品类管理category-management) |
+| 📦 **品类管理** | 品类 CRUD、搜索功能、拖拽排序 | [功能特性文档](docs/FEATURES.md#-品类管理category-management) |
 | ⚙️ **设置** | 后端地址配置、持久化存储 | [功能特性文档](docs/FEATURES.md#️-设置settings) |
 | 📱 **移动端优化** | 原生相机、手势优化、安全区域适配 | [移动端开发文档](docs/MOBILE_DEVELOPMENT.md) |
 
@@ -202,6 +203,7 @@ PickGoods_vue/
 | **Axios** | 1.7.7 | HTTP 客户端 |
 | **lodash-es** | 4.17.21 | 实用工具库（防抖、节流等） |
 | **vue-picture-cropper** | 0.7.0 | 图片裁剪组件 |
+| **sortablejs** | 1.15.3 | 拖拽排序库（品类管理） |
 
 ### 技术特点
 

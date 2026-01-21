@@ -15,6 +15,7 @@
 | `POST` | `/api/goods/{id}/upload-additional-photos/` | 上传/更新补充图片（支持批量上传、标签管理） | `src/api/goods.ts` |
 | `DELETE` | `/api/goods/{id}/additional-photos/{photoId}/` | 删除单张补充图片 | `src/api/goods.ts` |
 | `DELETE` | `/api/goods/{id}/additional-photos/` | 批量删除补充图片 | `src/api/goods.ts` |
+| `POST` | `/api/goods/{id}/move/` | 移动谷子排序（支持跨页锚点） | `src/api/goods.ts` |
 
 ### 查询参数（`GET /api/goods/`）
 
@@ -24,10 +25,37 @@
 - `category` - 品类 ID
 - `status` - 状态（`in_cabinet`、`outdoor`、`sold`）
 - `status__in` - 多状态过滤（如：`in_cabinet,sold`）
+- `is_official` - 是否官谷筛选（`true`=只看官谷，`false`=只看非官谷，不传=不过滤）
 - `location` - 位置 ID
 - `search` - 搜索关键词（模糊匹配）
 - `page` - 页码（默认 1）
 - `page_size` - 每页数量（默认 20）
+
+### 排序功能（`POST /api/goods/{id}/move/`）
+
+移动谷子排序，支持跨页排序。
+
+**请求体**：
+```typescript
+{
+  anchor_id: string  // 锚点谷子 ID（相对于此谷子进行排序）
+  position: 'before' | 'after'  // 位置：'before' 表示前移，'after' 表示后移
+}
+```
+
+**响应**：
+```typescript
+{
+  detail?: string
+  id: string
+  new_order?: number
+}
+```
+
+**使用场景**：
+- 前移：将当前谷子移动到锚点谷子之前
+- 后移：将当前谷子移动到锚点谷子之后
+- 跨页排序：支持跨页排序，自动获取前一页/后一页的锚点
 
 ---
 
@@ -76,6 +104,7 @@
 | `GET` | `/api/categories/{id}/` | 品类详情 | `src/api/metadata.ts` |
 | `PUT` | `/api/categories/{id}/` | 更新品类 | `src/api/metadata.ts` |
 | `DELETE` | `/api/categories/{id}/` | 删除品类 | `src/api/metadata.ts` |
+| `POST` | `/api/categories/batch-update-order/` | 批量更新品类排序 | `src/api/metadata.ts` |
 
 ---
 
@@ -107,6 +136,33 @@
   ]
 }
 ```
+
+### 品类批量更新排序（`POST /api/categories/batch-update-order/`）
+
+批量更新品类排序，用于拖拽排序后的批量提交。
+
+**请求体**：
+```typescript
+{
+  items: Array<{
+    id: number      // 品类 ID
+    order: number   // 新的排序值（通常使用步长 10，如 0, 10, 20, 30...）
+  }>
+}
+```
+
+**响应**：
+```typescript
+{
+  detail: string
+  updated_count: number
+  categories: Category[]
+}
+```
+
+**使用场景**：
+- 品类管理页面拖拽排序后，批量提交排序变更
+- 仅支持同一父级内部的排序调整
 
 ---
 

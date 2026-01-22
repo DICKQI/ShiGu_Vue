@@ -78,27 +78,32 @@
           :class="{ 'is-disabled': moveDisabledToTop }"
           @click="handleMoveToTop"
         >
-          置顶到本页顶部
+          <el-icon class="context-menu-icon"><Top /></el-icon>
+          <span>置顶到本页顶部</span>
         </div>
         <div
           class="context-menu-item"
           :class="{ 'is-disabled': moveDisabledForward }"
           @click="handleMoveForward"
         >
-          前移
+          <el-icon class="context-menu-icon"><ArrowLeft /></el-icon>
+          <span>前移</span>
         </div>
         <div
           class="context-menu-item"
           :class="{ 'is-disabled': moveDisabledBackward }"
           @click="handleMoveBackward"
         >
-          后移
+          <el-icon class="context-menu-icon"><ArrowRight /></el-icon>
+          <span>后移</span>
         </div>
         <div class="context-menu-item" @click="handleEditGoods">
-          编辑
+          <el-icon class="context-menu-icon"><Edit /></el-icon>
+          <span>编辑</span>
         </div>
         <div class="context-menu-item context-menu-item-danger" @click="handleDeleteGoods">
-          删除
+          <el-icon class="context-menu-icon"><Delete /></el-icon>
+          <span>删除</span>
         </div>
       </div>
     </div>
@@ -109,6 +114,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowLeft, ArrowRight, Delete, Edit, Top } from '@element-plus/icons-vue'
 import { useGuziStore } from '@/stores/guzi'
 import SearchBar from '@/components/SearchBar.vue'
 import FilterPanel from '@/components/FilterPanel.vue'
@@ -579,6 +585,9 @@ onUnmounted(() => {
 }
 
 .context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 16px;
   font-size: 14px;
   color: var(--text-dark);
@@ -586,6 +595,12 @@ onUnmounted(() => {
   transition: background-color var(--transition-fast), color var(--transition-fast);
   outline: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+.context-menu-icon {
+  flex: none;
+  font-size: 16px;
+  color: inherit;
 }
 
 .context-menu-item:focus,

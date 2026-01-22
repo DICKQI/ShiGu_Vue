@@ -104,6 +104,7 @@
       destroy-on-close
     >
       <div class="mobile-drawer-content" v-if="selectedNode">
+        <div class="drawer-handle"></div>
         <div class="drawer-header sticky-header">
           <h2 class="drawer-title">{{ selectedNode.name }}</h2>
           <div class="drawer-actions">
@@ -128,6 +129,10 @@
             @change-include="handleIncludeChildrenChange"
             @click-guzi="handleGuziClick"
           />
+        </div>
+        <div class="mobile-action-bar hidden-sm-and-up">
+          <el-button class="edit-btn" type="primary" @click="handleEditNode(selectedNode as any)">编辑位置</el-button>
+          <el-button class="delete-btn" plain @click="handleDeleteNode(selectedNode as any)">删除节点</el-button>
         </div>
       </div>
     </el-drawer>
@@ -182,7 +187,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, defineComponent, h } from 'vue'
 import { Plus, Edit, Delete, ArrowRight, Close, Loading, Top } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElSkeleton, ElEmpty } from 'element-plus'
 import { useLocationStore } from '@/stores/location'
 import {
   createLocationNode,
@@ -215,7 +220,7 @@ const NodeDetailContent = defineComponent({
         ])
       ]),
       h('div', { class: 'guzi-list-section' }, [
-        h('div', { class: 'section-header' }, [
+        h('div', { class: 'section-header mobile-optimize' }, [
           h('h3', { class: 'section-title' }, [
             '该位置的谷子',
             h('span', { class: 'count-badge' }, props.guziList.length)
@@ -233,10 +238,12 @@ const NodeDetailContent = defineComponent({
           ])
         ]),
         props.loading 
-          ? h('div', { class: 'loading-guzi' }, '加载中...') 
+          ? h('div', { class: 'loading-skeleton' }, [
+              h(ElSkeleton, { rows: 3, animated: true })
+            ]) 
           : (props.guziList.length === 0 
-              ? h('div', { class: 'empty-guzi' }, '暂无谷子') 
-              : h('div', { class: 'guzi-grid' }, 
+              ? h(ElEmpty, { description: '这里空空如也', imageSize: 60 }) 
+              : h('div', { class: 'guzi-grid tight-grid' }, 
                   props.guziList.map((goods: any) => 
                     h(GoodsCard, { 
                       key: goods.id, 
@@ -662,6 +669,49 @@ onUnmounted(() => {
 .drawer-actions { display: flex; gap: 8px; }
 .drawer-body { flex: 1; overflow-y: auto; padding-bottom: 20px; }
 
+.drawer-handle {
+  width: 40px;
+  height: 5px;
+  background: #ddd;
+  border-radius: 3px;
+  margin: 10px auto 0;
+}
+
+.mobile-action-bar {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: #fff;
+  border-top: 1px solid #eee;
+}
+
+.mobile-action-bar .el-button {
+  flex: 1;
+}
+
+.mobile-action-bar .edit-btn {
+  background-color: var(--primary-gold);
+  border-color: var(--primary-gold);
+  color: #fff;
+}
+
+.mobile-action-bar .edit-btn:hover,
+.mobile-action-bar .edit-btn:focus {
+  filter: brightness(1.05);
+}
+
+.mobile-action-bar .delete-btn {
+  color: var(--primary-gold);
+  border-color: rgba(203, 162, 108, 0.4);
+  background-color: #fff;
+}
+
+.mobile-action-bar .delete-btn:hover,
+.mobile-action-bar .delete-btn:focus {
+  background-color: rgba(203, 162, 108, 0.04);
+  border-color: rgba(203, 162, 108, 0.8);
+}
+
 /* 弹窗 */
 .responsive-dialog { max-width: 100vw; }
 .dialog-form { padding: 10px 0; }
@@ -673,5 +723,43 @@ onUnmounted(() => {
 }
 @media only screen and (min-width: 768px) {
   .hidden-sm-and-up { display: none !important; }
+}
+
+/* 移动端样式优化 */
+@media only screen and (max-width: 767px) {
+  :deep(.el-tree-node__content) {
+    height: 56px;
+    margin-bottom: 4px;
+    background: #fff;
+    border-bottom: 0.5px solid #f0f0f0;
+  }
+
+  .node-label {
+    font-weight: 500;
+    color: var(--text-dark);
+  }
+
+  .pull-indicator {
+    background: linear-gradient(to bottom, #f5f7fa, transparent);
+  }
+
+  :deep(.guzi-grid) {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  :deep(.el-drawer.btt) {
+    border-radius: 20px 20px 0 0 !important;
+    box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* NodeDetailContent 细节样式 */
+:deep(.mobile-optimize) {
+  padding-top: 4px;
+}
+
+.loading-skeleton {
+  padding: 12px 4px;
 }
 </style>

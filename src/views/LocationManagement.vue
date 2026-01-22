@@ -296,9 +296,20 @@ const parentNodeOptions = computed(() => {
 })
 
 // --- 下拉刷新逻辑 ---
+// 修复：获取页面滚动高度的辅助函数
+const getScrollTop = () => {
+  return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
+}
+
 const handleTouchStart = (e: TouchEvent) => {
   // 如果不在移动端，或者正在刷新中，忽略
   if (!isMobile.value || isRefreshing.value) return
+  
+  // 核心修复：检查 window 的滚动高度，只有在页面最顶端时才记录触摸点
+  if (getScrollTop() > 0) {
+    startY.value = 0 // 确保非顶端时不记录有效起始点
+    return
+  }
   
   // 只有当滚动条在顶部时才允许触发
   if (scrollContainerRef.value && scrollContainerRef.value.scrollTop > 0) return
@@ -309,7 +320,11 @@ const handleTouchStart = (e: TouchEvent) => {
 }
 
 const handleTouchMove = (e: TouchEvent) => {
+  // 如果起始点无效（说明开始触摸时不在顶部），直接忽略
   if (!isMobile.value || isRefreshing.value || startY.value === 0) return
+  
+  // 双重保险：移动过程中如果页面被卷下去了，也不处理
+  if (getScrollTop() > 0) return
   
   const firstTouch = e.touches?.[0]
   if (!firstTouch) return

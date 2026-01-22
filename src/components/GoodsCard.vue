@@ -279,6 +279,7 @@ onBeforeUnmount(() => clearLongPressTimer())
   color: var(--text-main);
   line-height: 1.4;
   display: -webkit-box;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -371,8 +372,9 @@ onBeforeUnmount(() => clearLongPressTimer())
 }
 
 @media (max-width: 768px) {
-  .goods-title { -webkit-line-clamp: 1; }
-  .menu-button { opacity: 1; }
+  .goods-title { line-clamp: 1; -webkit-line-clamp: 1; }
+  /* 移动端不常驻显示菜单按钮：长按卡片仍可唤起右键菜单 */
+  .menu-button { opacity: 0; }
   .card-content { padding: 10px; }
 }
 </style>

@@ -56,6 +56,14 @@ export interface Category {
   children?: Category[]
 }
 
+// 主题信息
+export interface Theme {
+  id: number
+  name: string
+  description?: string | null
+  created_at?: string | null
+}
+
 // 谷子状态
 export type GoodsStatus = 'in_cabinet' | 'outdoor' | 'sold'
 
@@ -73,6 +81,7 @@ export interface GoodsListItem {
   ip: IP
   characters: Character[]
   category: Category
+  theme?: Theme | null
   location_path: string
   main_photo?: string | null
   status: GoodsStatus
@@ -109,6 +118,7 @@ export interface GoodsSearchParams {
   // 支持后端的多角色过滤：characters__in=5,6
   characters__in?: string
   category?: number
+  theme?: number
   status?: GoodsStatus
   // 支持后端的多状态过滤：status__in=in_cabinet,sold
   status__in?: string
@@ -136,6 +146,8 @@ export interface GoodsInput {
   character_ids?: number[]
   category?: number | Category
   category_id?: number
+  theme?: number | Theme | null
+  theme_id?: number | null
   status?: GoodsStatus
   location?: number | null
   quantity?: number

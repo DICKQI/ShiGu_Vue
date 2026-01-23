@@ -122,6 +122,10 @@
                 <span class="info-label">品类</span>
                 <span class="info-value">{{ detail.category.name }}</span>
               </div>
+              <div v-if="detail.theme" class="info-row">
+                <span class="info-label">主题</span>
+                <span class="info-value">{{ detail.theme.name }}</span>
+              </div>
             </div>
 
             <div class="info-list">
@@ -154,6 +158,51 @@
               <div class="info-value notes">{{ detail.notes }}</div>
             </div>
           </div>
+
+          <!-- 相同主题的谷子列表 -->
+          <div v-if="detail.theme" class="same-theme-section">
+            <el-collapse v-model="sameThemeExpanded" class="same-theme-collapse">
+              <el-collapse-item name="same-theme">
+                <template #title>
+                  <div class="same-theme-title">
+                    <el-icon class="theme-icon"><Collection /></el-icon>
+                    <span>相同主题的谷子 ({{ sameThemeGoods.length }})</span>
+                  </div>
+                </template>
+                <div v-if="sameThemeLoading" class="same-theme-loading">
+                  <el-skeleton :rows="3" animated />
+                </div>
+                <div v-else-if="sameThemeGoods.length === 0" class="same-theme-empty">
+                  <el-empty description="暂无相同主题的谷子" :image-size="80" />
+                </div>
+                <div v-else class="same-theme-grid">
+                  <div
+                    v-for="goods in sameThemeGoods"
+                    :key="goods.id"
+                    class="same-theme-item"
+                    @click="handleSameThemeItemClick(goods.id)"
+                  >
+                    <el-image
+                      v-if="goods.main_photo"
+                      :src="goods.main_photo"
+                      fit="cover"
+                      class="same-theme-image"
+                    >
+                      <template #error>
+                        <div class="same-theme-image-placeholder">
+                          <el-icon><Picture /></el-icon>
+                        </div>
+                      </template>
+                    </el-image>
+                    <div v-else class="same-theme-image-placeholder">
+                      <el-icon><Picture /></el-icon>
+                    </div>
+                    <div class="same-theme-item-name">{{ goods.name }}</div>
+                  </div>
+                </div>
+              </el-collapse-item>
+            </el-collapse>
+          </div>
         </div>
       </div>
     </div>
@@ -166,9 +215,10 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { Picture, Close } from '@element-plus/icons-vue'
+import { Picture, Close, Collection } from '@element-plus/icons-vue'
 import { useGuziStore } from '@/stores/guzi'
-import type { GoodsDetail } from '@/api/types'
+import { getGoodsList } from '@/api/goods'
+import type { GoodsDetail, GoodsListItem } from '@/api/types'
 
 interface Props {
   modelValue: boolean
@@ -185,6 +235,11 @@ const detail = ref<GoodsDetail | null>(null)
 const loading = ref(false)
 // 添加请求标识，用于防止竞态条件
 let currentRequestId: string | null = null
+
+// 相同主题的谷子列表
+const sameThemeGoods = ref<GoodsListItem[]>([])
+const sameThemeLoading = ref(false)
+const sameThemeExpanded = ref<string[]>([])
 
 // --- 移动端状态管理 ---
 const isMobile = ref(false)
@@ -259,6 +314,10 @@ watch(
     if (newId === oldId) return
     if (newId && visible.value) {
       await loadDetail(newId)
+      // 加载相同主题的谷子
+      if (detail.value?.theme) {
+        await loadSameThemeGoods(detail.value.theme.id, newId)
+      }
     }
   },
   { immediate: true }
@@ -273,7 +332,13 @@ watch(visible, async (newVal) => {
     }
     // 如果已经有 goodsId，加载详情
     // 注意：这里可能会和 goodsId 的 watch 重复调用，但 loadDetail 内部会有去重处理
-    if (props.goodsId) await loadDetail(props.goodsId)
+    if (props.goodsId) {
+      await loadDetail(props.goodsId)
+      // 加载相同主题的谷子
+      if (detail.value?.theme) {
+        await loadSameThemeGoods(detail.value.theme.id, props.goodsId)
+      }
+    }
   } else {
     // 清除当前请求标识
     currentRequestId = null
@@ -282,6 +347,8 @@ watch(visible, async (newVal) => {
       // 只有在没有新的请求时才清空
       if (!currentRequestId) {
         detail.value = null
+        sameThemeGoods.value = []
+        sameThemeExpanded.value = []
       }
     }, 300)
   }
@@ -306,6 +373,12 @@ async function loadDetail(id: string) {
       // 这种情况下应该保留之前的数据，而不是显示"加载失败"
       if (data) {
         detail.value = data
+        // 加载相同主题的谷子
+        if (data.theme) {
+          await loadSameThemeGoods(data.theme.id, id)
+        } else {
+          sameThemeGoods.value = []
+        }
       } else if (!detail.value) {
         // 只有之前也没有数据时才设置为 null（显示加载失败）
         detail.value = null
@@ -332,6 +405,32 @@ async function loadDetail(id: string) {
         currentRequestId = null
       }
     }
+  }
+}
+
+// 加载相同主题的谷子
+async function loadSameThemeGoods(themeId: number, currentGoodsId: string) {
+  sameThemeLoading.value = true
+  try {
+    const response = await getGoodsList({ theme: themeId, page_size: 100 })
+    const allGoods = Array.isArray(response) ? response : (response.results || [])
+    // 排除当前谷子本身
+    sameThemeGoods.value = allGoods.filter(goods => goods.id !== currentGoodsId)
+  } catch (error) {
+    console.error('加载相同主题的谷子失败:', error)
+    sameThemeGoods.value = []
+  } finally {
+    sameThemeLoading.value = false
+  }
+}
+
+// 点击相同主题的谷子项
+async function handleSameThemeItemClick(goodsId: string) {
+  // 直接加载新谷子的详情
+  await loadDetail(goodsId)
+  // 确保相同主题列表展开
+  if (sameThemeExpanded.value.length === 0) {
+    sameThemeExpanded.value = ['same-theme']
   }
 }
 
@@ -691,6 +790,105 @@ onUnmounted(() => {
   white-space: pre-wrap;
   font-size: 13px;
   color: #606266;
+}
+
+/* 相同主题的谷子列表样式 */
+.same-theme-section {
+  margin-top: 24px;
+  padding: 0 8px;
+}
+.is-mobile .same-theme-section {
+  padding: 0;
+}
+
+.same-theme-collapse {
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.same-theme-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+}
+
+.theme-icon {
+  color: var(--primary-gold, #e6a23c);
+  font-size: 16px;
+}
+
+.same-theme-loading {
+  padding: 16px;
+}
+
+.same-theme-empty {
+  padding: 20px;
+}
+
+.same-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+
+.same-theme-item {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #ebeef5;
+}
+
+.same-theme-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.same-theme-image {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px 8px 0 0;
+}
+
+.same-theme-image-placeholder {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f5f7fa;
+  color: #c0c4cc;
+  font-size: 24px;
+}
+
+.same-theme-item-name {
+  padding: 8px;
+  font-size: 12px;
+  color: #606266;
+  text-align: center;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.is-mobile .same-theme-grid {
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+
+.is-mobile .same-theme-item-name {
+  font-size: 11px;
+  padding: 6px;
 }
 
 /* ---------------- Element UI 样式重置与动画控制 ---------------- */

@@ -128,6 +128,40 @@ export function batchUpdateCategoryOrder(items: { id: number; order: number }[])
   })
 }
 
+// ==================== 主题 CRUD ====================
+
+import type { Theme } from './types'
+
+// 获取所有主题列表
+export function getThemeList(params?: { name?: string; search?: string }) {
+  return request.get<Theme[]>('/api/themes/', { params })
+}
+
+// 获取主题详情
+export function getThemeDetail(id: number) {
+  return request.get<Theme>(`/api/themes/${id}/`)
+}
+
+// 创建主题
+export function createTheme(data: { name: string; description?: string | null }) {
+  return request.post<Theme>('/api/themes/', data)
+}
+
+// 更新主题
+export function updateTheme(id: number, data: { name: string; description?: string | null }) {
+  return request.put<Theme>(`/api/themes/${id}/`, data)
+}
+
+// 部分更新主题
+export function patchTheme(id: number, data: Partial<{ name: string; description?: string | null }>) {
+  return request.patch<Theme>(`/api/themes/${id}/`, data)
+}
+
+// 删除主题
+export function deleteTheme(id: number) {
+  return request.delete(`/api/themes/${id}/`)
+}
+
 // ==================== BGM角色导入 ====================
 
 import type { BGMSearchResponse, BGMCreateCharactersResponse, BGMCreateCharacterItem } from './types'

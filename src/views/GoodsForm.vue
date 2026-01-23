@@ -84,6 +84,30 @@
           </el-col>
 
           <el-col :xs="24" :sm="12">
+            <el-form-item label="主题">
+              <el-select
+                v-model="formData.theme"
+                placeholder="选择或创建主题"
+                filterable
+                allow-create
+                default-first-option
+                :reserve-keyword="true"
+                @change="handleThemeChange"
+                @create="handleThemeCreate"
+                style="width: 100%"
+                clearable
+              >
+                <el-option
+                  v-for="theme in themeOptions"
+                  :key="theme.id"
+                  :label="theme.name"
+                  :value="theme.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+
+          <el-col :xs="24" :sm="12">
             <el-form-item label="状态" prop="status">
               <el-radio-group v-model="formData.status">
                 <el-radio-button label="in_cabinet">在馆</el-radio-button>
@@ -408,8 +432,8 @@ import { Capacitor } from '@capacitor/core'
 import VuePictureCropper, { cropper } from 'vue-picture-cropper'
 import { useLocationStore } from '@/stores/location'
 import { createGoods, updateGoods, getGoodsDetail, uploadMainPhoto, uploadAdditionalPhotos, deleteAdditionalPhoto, updateAdditionalPhotoLabel } from '@/api/goods'
-import { getIPList, getCharacterList, getCategoryList } from '@/api/metadata'
-import type { GoodsDetail, IP, Character, Category, GuziImage } from '@/api/types'
+import { getIPList, getCharacterList, getCategoryList, getThemeList, createTheme } from '@/api/metadata'
+import type { GoodsDetail, IP, Character, Category, GuziImage, Theme } from '@/api/types'
 
 const router = useRouter()
 const route = useRoute()
@@ -422,12 +446,15 @@ const submitting = ref(false)
 const ipOptions = ref<IP[]>([])
 const characters = ref<Character[]>([])
 const categoryOptions = ref<Category[]>([])
+const themeOptions = ref<import('@/api/types').Theme[]>([])
+const allThemes = ref<import('@/api/types').Theme[]>([])
 
 const formData = ref({
   name: '',
   ip: undefined as number | undefined,
   characters: [] as number[],
   category: undefined as number | undefined,
+  theme: undefined as number | string | undefined | null, // 允许字符串，用于新创建的主题名
   status: 'in_cabinet' as 'in_cabinet' | 'outdoor' | 'sold',
   location: undefined as number | undefined,
   quantity: 1,
@@ -587,6 +614,107 @@ const rules: FormRules = {
 
 const handleIpChange = () => {
   formData.value.characters = []
+}
+
+// 待创建的主题名（当用户输入新主题名但还未创建时）
+const pendingThemeName = ref<string | null>(null)
+
+// 主题变更处理
+const handleThemeChange = (value: number | string | null) => {
+  // value可能是数字（已有主题ID）、字符串（新创建的主题名）或null（清空）
+  if (value === null) {
+    formData.value.theme = null
+    pendingThemeName.value = null
+    return
+  }
+  if (typeof value === 'string') {
+    // 这是新创建的主题名，先保存到pendingThemeName
+    // 注意：这里不立即设置为null，让el-select显示用户输入的内容
+    // 等待handleThemeCreate处理（用户按回车或选择创建选项时触发）
+    pendingThemeName.value = value.trim()
+    // 保持字符串值，让用户看到输入的内容
+    // handleThemeCreate 会在创建成功后更新为ID
+    return
+  }
+  // 数字ID，直接使用
+  formData.value.theme = value
+  pendingThemeName.value = null
+}
+
+// 创建新主题（由el-select的@create事件触发，用户输入新名称后按回车或选择创建选项时触发）
+const handleThemeCreate = async (themeName: string) => {
+  if (!themeName || !themeName.trim()) {
+    ElMessage.warning('主题名称不能为空')
+    formData.value.theme = null
+    pendingThemeName.value = null
+    return
+  }
+  
+  const trimmedName = themeName.trim()
+  
+  try {
+    // 检查是否已存在同名主题
+    const existingTheme = allThemes.value.find(t => t.name === trimmedName)
+    if (existingTheme) {
+      formData.value.theme = existingTheme.id
+      pendingThemeName.value = null
+      ElMessage.info('该主题已存在，已自动选择')
+      return
+    }
+    
+    // 创建新主题
+    const newTheme = await createTheme({ name: trimmedName })
+    allThemes.value.push(newTheme)
+    themeOptions.value = allThemes.value
+    // 更新为创建后的主题ID
+    formData.value.theme = newTheme.id
+    pendingThemeName.value = null
+    ElMessage.success('主题创建成功')
+  } catch (err: any) {
+    ElMessage.error('创建主题失败：' + (err.message || '未知错误'))
+    // 创建失败时，保持字符串值，让用户可以重新尝试
+    // 不清空，这样用户可以看到输入的内容
+    console.error('创建主题失败:', err)
+  }
+}
+
+// 确保主题已创建（在提交前调用）
+const ensureThemeCreated = async (): Promise<number | null> => {
+  // 如果已经有theme_id（数字），直接返回
+  if (typeof formData.value.theme === 'number') {
+    return formData.value.theme
+  }
+  
+  // 如果 theme 是字符串（新创建的主题名），或者 pendingThemeName 有值
+  const themeNameToCreate = typeof formData.value.theme === 'string' 
+    ? formData.value.theme.trim() 
+    : (pendingThemeName.value ? pendingThemeName.value.trim() : null)
+  
+  if (themeNameToCreate) {
+    try {
+      // 再次检查是否已存在同名主题（可能在其他地方创建了）
+      const existingTheme = allThemes.value.find(t => t.name === themeNameToCreate)
+      if (existingTheme) {
+        formData.value.theme = existingTheme.id
+        pendingThemeName.value = null
+        return existingTheme.id
+      }
+      
+      // 创建新主题
+      const newTheme = await createTheme({ name: themeNameToCreate })
+      allThemes.value.push(newTheme)
+      themeOptions.value = allThemes.value
+      formData.value.theme = newTheme.id
+      pendingThemeName.value = null
+      return newTheme.id
+    } catch (err: any) {
+      ElMessage.error('创建主题失败：' + (err.message || '未知错误'))
+      throw err
+    }
+  }
+  
+  // 如果没有主题，返回null
+  return null
 }
 
 const dummyUpload = () => Promise.resolve()
@@ -1062,13 +1190,17 @@ const handleSubmit = async () => {
 
     submitting.value = true
     try {
-      const { main_photo, ...restForm } = formData.value
+      // 确保主题已创建（如果是新主题，先创建获取ID）
+      const themeId = await ensureThemeCreated()
+      
+      const { main_photo, theme, ...restForm } = formData.value
       const submitData: import('@/api/types').GoodsInput = {
         ...restForm,
         price: restForm.price?.toString(),
         ip_id: restForm.ip,
         character_ids: restForm.characters,
         category_id: restForm.category,
+        theme_id: themeId, // 使用确保创建后的theme_id（不包含theme字段）
       }
       // purchase_date 为空字符串时不上传该字段
       if (!restForm.purchase_date) {
@@ -1150,14 +1282,17 @@ const handleAdditionalPhotosUpload = async (goodsId: string) => {
 onMounted(async () => {
   // 加载基础数据
   try {
-    const [ipList, characterList, categoryList] = await Promise.all([
+    const [ipList, characterList, categoryList, themeList] = await Promise.all([
       getIPList(),
       getCharacterList(),
       getCategoryList(),
+      getThemeList(),
     ])
     ipOptions.value = ipList
     characters.value = characterList
     categoryOptions.value = categoryList
+    allThemes.value = themeList
+    themeOptions.value = themeList
   } catch (err) {
     ElMessage.error('加载基础数据失败')
   }
@@ -1178,6 +1313,7 @@ onMounted(async () => {
         ip: data.ip.id,
         characters: data.characters.map(c => c.id),
         category: data.category.id,
+        theme: data.theme?.id || null,
         status: data.status as 'in_cabinet' | 'outdoor' | 'sold',
         location: data.location || undefined,
         quantity: data.quantity,

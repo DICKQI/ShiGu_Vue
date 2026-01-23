@@ -96,6 +96,26 @@
               />
             </div>
 
+            <!-- 主题筛选 -->
+            <div class="filter-item">
+              <label>主题</label>
+              <el-select
+                v-model="localFilters.theme"
+                placeholder="选择主题"
+                clearable
+                filterable
+                @change="handleFilterChange"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="theme in themeOptions"
+                  :key="theme.id"
+                  :label="theme.name"
+                  :value="theme.id"
+                />
+              </el-select>
+            </div>
+
             <!-- 状态筛选（支持多选） -->
             <div class="filter-item filter-item--status">
           <label>状态</label>
@@ -152,13 +172,14 @@ import { ElMessage } from 'element-plus'
 import { ArrowDown, RefreshLeft } from '@element-plus/icons-vue'
 import { useGuziStore } from '@/stores/guzi'
 import { useLocationStore } from '@/stores/location'
-import { getIPList, getCharacterList, getCategoryTree } from '@/api/metadata'
-import type { GoodsSearchParams, IP, Character, Category, GoodsStatus } from '@/api/types'
+import { getIPList, getCharacterList, getCategoryTree, getThemeList } from '@/api/metadata'
+import type { GoodsSearchParams, IP, Character, Category, GoodsStatus, Theme } from '@/api/types'
 
 // 从API获取的数据
 const ipOptions = ref<IP[]>([])
 const characters = ref<Character[]>([])
 const categoryList = ref<Category[]>([])
+const themeOptions = ref<Theme[]>([])
 
 // 品类树节点类型（用于 el-tree-select）
 interface CategoryTreeNode {
@@ -184,6 +205,7 @@ const localFilters = ref<GoodsSearchParams>({
   ip: undefined,
   character: undefined,
   category: undefined,
+  theme: undefined,
   status: undefined,
   status__in: undefined,
   is_official: undefined,
@@ -279,6 +301,7 @@ const handleFilterChange = () => {
     ip: localFilters.value.ip || undefined,
     character: localFilters.value.character || undefined,
     category: localFilters.value.category || undefined,
+    theme: localFilters.value.theme || undefined,
     is_official: localFilters.value.is_official,
     location: localFilters.value.location || undefined,
   }
@@ -298,6 +321,7 @@ const handleReset = () => {
     ip: undefined,
     character: undefined,
     category: undefined,
+    theme: undefined,
     status: undefined,
     status__in: undefined,
     is_official: undefined,
@@ -315,6 +339,7 @@ watch(
       ip: newFilters.ip,
       character: newFilters.character,
       category: newFilters.category,
+      theme: newFilters.theme,
       status: newFilters.status,
       status__in: newFilters.status__in,
       is_official: newFilters.is_official,
@@ -340,14 +365,16 @@ onMounted(async () => {
 
   // 加载基础数据
   try {
-    const [ipList, characterList, categoryTree] = await Promise.all([
+    const [ipList, characterList, categoryTree, themeList] = await Promise.all([
       getIPList(),
       getCharacterList(),
       getCategoryTree(),
+      getThemeList(),
     ])
     ipOptions.value = ipList
     characters.value = characterList
     categoryList.value = categoryTree
+    themeOptions.value = themeList
   } catch (err) {
     ElMessage.error('加载基础数据失败')
   }
@@ -496,7 +523,7 @@ onUnmounted(() => {})
   }
 }
 
-/* PC 大屏：空间充足时强制 6 列同一行，并压缩“是否官谷”列宽 */
+/* PC 大屏：空间充足时强制 7 列同一行，并压缩"是否官谷"列宽 */
 @media (min-width: 1280px) {
   .filter-content {
     /* 大屏：根据内容自适应列宽，避免状态与是否官谷之间拉得过开 */
@@ -504,6 +531,7 @@ onUnmounted(() => {})
       minmax(180px, 1fr)  /* IP作品 */
       minmax(180px, 1fr)  /* 角色 */
       minmax(180px, 1fr)  /* 品类 */
+      minmax(180px, 1fr)  /* 主题 */
       auto                /* 状态，仅按按钮内容占宽 */
       minmax(120px, auto) /* 是否官谷（字少，窄一点） */
       minmax(180px, 1fr); /* 位置 */

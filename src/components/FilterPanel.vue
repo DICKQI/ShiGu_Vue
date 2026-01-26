@@ -430,8 +430,11 @@ onUnmounted(() => {})
   transform: rotate(180deg);
 }
 
-/* 展开/收起外层，用于高度动画 */
+/* 展开/收起外层：使用 grid-template-rows 实现高性能动画 */
 .filter-collapse-wrapper {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.3s ease, opacity 0.2s ease;
   overflow: hidden;
 }
 
@@ -443,25 +446,24 @@ onUnmounted(() => {})
   gap: clamp(12px, 1.6vw, 20px);
   align-items: start;
   padding-bottom: 4px; /* 留一点空隙防止阴影被裁切 */
+  min-height: 0; /* 确保内部内容在折叠时不会溢出 */
 }
 
-/* 展开/收起动画：使用 max-height + 透明度，模拟「缓慢缩小」 */
+/* 展开/收起动画：使用 grid-template-rows，性能最优 */
 .filter-collapse-enter-active,
 .filter-collapse-leave-active {
-  transition:
-    max-height 0.3s ease,
-    opacity 0.25s ease;
+  transition: grid-template-rows 0.3s ease, opacity 0.2s ease;
 }
 
 .filter-collapse-enter-from,
 .filter-collapse-leave-to {
-  max-height: 0;
+  grid-template-rows: 0fr;
   opacity: 0;
 }
 
 .filter-collapse-enter-to,
 .filter-collapse-leave-from {
-  max-height: 800px; /* 足够覆盖筛选内容高度 */
+  grid-template-rows: 1fr;
   opacity: 1;
 }
 
@@ -488,59 +490,54 @@ onUnmounted(() => {})
   align-items: center;
 }
 
-/* ---------------- 动画与布局修复样式（去重后保留） ---------------- */
 
-/* 核心修复：确保内部内容在动画期间不发生位移，仅通过高度裁切控制显示 */
-.filter-collapse-wrapper {
-  overflow: hidden;
-  will-change: max-height;
-}
-
-/* 优化动画曲线：展开更顺滑，收起更干脆 */
-.filter-collapse-enter-active {
-  transition:
-    max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.3s ease;
-}
-
-.filter-collapse-leave-active {
-  transition:
-    max-height 0.3s cubic-bezier(0.4, 0, 1, 1),
-    opacity 0.2s ease;
-}
-
-/* 修复：进入开始和离开结束阶段强制高度为 0，避免中间状态抖动 */
-.filter-collapse-enter-from,
-.filter-collapse-leave-to {
-  max-height: 0 !important;
-  opacity: 0;
-}
-
-/* PC：让“状态”跨两列，避免 3 个按钮被挤换行导致错位 */
-@media (min-width: 769px) and (max-width: 1279px) {
-  .filter-item--status {
-    grid-column: span 2;
-  }
-}
-
-/* PC 大屏：空间充足时强制 7 列同一行，并压缩"是否官谷"列宽 */
+/* PC 大屏：强制单行显示，使用更稳定的分配方式 */
 @media (min-width: 1280px) {
   .filter-content {
-    /* 大屏：根据内容自适应列宽，避免状态与是否官谷之间拉得过开 */
-    grid-template-columns:
-      minmax(180px, 1fr)  /* IP作品 */
-      minmax(180px, 1fr)  /* 角色 */
-      minmax(180px, 1fr)  /* 品类 */
-      minmax(180px, 1fr)  /* 主题 */
-      auto                /* 状态，仅按按钮内容占宽 */
-      minmax(120px, auto) /* 是否官谷（字少，窄一点） */
-      minmax(180px, 1fr); /* 位置 */
-    align-items: start;
+    /* 使用更稳定的分配方式：前4个等宽，状态自适应，是否官谷压缩，位置略宽 */
+    grid-template-columns: repeat(4, 1fr) auto minmax(80px, 0.8fr) 1.2fr;
+    gap: 12px;
+    align-items: start;     /* 顶部对齐，确保所有元素垂直位置一致 */
+    white-space: nowrap;    /* 防止内部元素由于挤压而换行 */
+    /* 开启硬件加速，减少缩放时的重绘 */
+    transform: translateZ(0);
+    will-change: contents;
   }
 
-  /* 大屏时不需要跨列，保证同一行 */
+  /* 2. 针对状态按钮组的深度优化：PC端改回紧凑型，并确保高度与其他输入框一致 */
   .filter-item--status {
-    grid-column: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .filter-item--status .status-group {
+    gap: 0px;               /* PC 端取消间隙，使用按钮组样式更省空间 */
+    align-items: stretch;   /* 确保按钮组内部元素高度一致 */
+  }
+
+  :deep(.el-checkbox-button__inner) {
+    padding: 8px 12px !important; /* 缩小按钮内边距 */
+    font-size: 13px !important;
+    height: 32px;           /* 与 Element Plus 输入框默认高度一致 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 3. 针对"是否官谷"下拉框的特定优化 */
+  .filter-item--official {
+    min-width: 90px;
+  }
+}
+
+/* 针对 1280px 以下、769px 以上的屏幕（如 13寸笔记本） */
+@media (min-width: 769px) and (max-width: 1279px) {
+  .filter-content {
+    /* 在这个区间，如果 7 个实在塞不下，才允许它自适应缩放，
+       但仍优先保持单行，除非总宽小于 900px */
+    grid-template-columns: repeat(7, minmax(80px, 1fr));
+    gap: 8px;
   }
 }
 

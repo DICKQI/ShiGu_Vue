@@ -30,6 +30,10 @@
               <el-icon><Box /></el-icon>
               <span>品类管理</span>
             </el-menu-item>
+            <el-menu-item index="/theme">
+              <el-icon><Star /></el-icon>
+              <span>主题管理</span>
+            </el-menu-item>
           </el-menu>
         </div>
         <!-- 设置按钮（PC端和移动端都显示） -->
@@ -74,7 +78,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Grid, FolderOpened, Plus, Collection, Box, Refresh, Loading, Setting } from '@element-plus/icons-vue'
+import { Grid, FolderOpened, Plus, Collection, Box, Refresh, Loading, Setting, Star } from '@element-plus/icons-vue'
 import { useGuziStore } from '@/stores/guzi'
 import { Capacitor } from '@capacitor/core'
 import { StatusBar } from '@capacitor/status-bar'
@@ -96,6 +100,7 @@ const activeMenu = computed(() => {
   if (path.startsWith('/location')) return '/location'
   if (path.startsWith('/ipcharacter') || path.startsWith('/ip') || path.startsWith('/character')) return '/ipcharacter'
   if (path.startsWith('/category')) return '/category'
+  if (path.startsWith('/theme')) return '/theme'
   return '/showcase'
 })
 

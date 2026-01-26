@@ -17,7 +17,7 @@
 
 <script setup lang="ts">
 import { useRouter, useRoute } from 'vue-router'
-import { Grid, FolderOpened, Collection, Box } from '@element-plus/icons-vue'
+import { Grid, FolderOpened, Collection, Box, Star } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -48,6 +48,11 @@ const navItems: NavItem[] = [
     path: '/category',
     label: '品类管理',
     icon: Box
+  },
+  {
+    path: '/theme',
+    label: '主题管理',
+    icon: Star
   }
 ]
 
@@ -64,6 +69,9 @@ const isActive = (path: string): boolean => {
   }
   if (path === '/category') {
     return currentPath.startsWith('/category')
+  }
+  if (path === '/theme') {
+    return currentPath.startsWith('/theme')
   }
   return false
 }

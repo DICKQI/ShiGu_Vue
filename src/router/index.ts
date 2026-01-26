@@ -48,6 +48,14 @@ const routes: RouteRecordRaw[] = [
     },
   },
   {
+    path: '/theme',
+    name: 'ThemeManagement',
+    component: () => import('@/views/ThemeManagement.vue'),
+    meta: {
+      title: '主题管理',
+    },
+  },
+  {
     path: '/goods/new',
     name: 'GoodsNew',
     component: () => import('@/views/GoodsForm.vue'),

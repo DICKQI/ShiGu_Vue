@@ -135,6 +135,122 @@ export interface GoodsSearchParams {
   page_size?: number
 }
 
+// 统计看板查询参数（复用列表筛选 + 统计专用参数）
+export interface GoodsStatsParams {
+  // 与 GoodsSearchParams 共用的筛选字段
+  ip?: number
+  character?: number
+  category?: number
+  theme?: number
+  status?: GoodsStatus
+  status__in?: string
+  is_official?: boolean
+  location?: number
+  search?: string
+  // 统计专用
+  top?: number
+  group_by?: 'month' | 'week' | 'day'
+  purchase_start?: string
+  purchase_end?: string
+  created_start?: string
+  created_end?: string
+}
+
+// 统计响应类型
+export interface GoodsStatsMeta {
+  top: number
+  group_by: 'month' | 'week' | 'day'
+  purchase_start: string | null
+  purchase_end: string | null
+  created_start: string | null
+  created_end: string | null
+}
+
+export interface GoodsStatsOverview {
+  goods_count: number
+  quantity_sum: number
+  value_sum: string
+  with_price_count: number
+  missing_price_count: number
+  with_purchase_date_count: number
+  missing_purchase_date_count: number
+  with_location_count: number
+  missing_location_count: number
+  with_main_photo_count: number
+  missing_main_photo_count: number
+}
+
+export interface GoodsStatusDistributionItem {
+  status: GoodsStatus
+  label: string
+  goods_count: number
+  quantity_sum: number
+}
+
+export interface GoodsOfficialDistributionItem {
+  is_official: boolean
+  label: string
+  goods_count: number
+  quantity_sum: number
+}
+
+export interface GoodsSubjectTypeDistributionItem {
+  ip__subject_type: number | null
+  label: string
+  goods_count: number
+  quantity_sum: number
+}
+
+export interface GoodsCategoryTopItem {
+  category_id: number
+  category__name: string
+  category__path_name: string
+  category__color_tag?: string | null
+  goods_count: number
+  quantity_sum: number
+  value_sum: string
+}
+
+export interface GoodsIPTopItem {
+  ip_id: number
+  ip__name: string
+  ip__subject_type?: number | null
+  subject_type_label?: string
+  goods_count: number
+  quantity_sum: number
+  value_sum: string
+}
+
+export interface GoodsTrendBucket {
+  bucket: string
+  goods_count: number
+  quantity_sum: number
+  value_sum?: string
+}
+
+export interface GoodsStatsDistributions {
+  status?: GoodsStatusDistributionItem[]
+  is_official?: GoodsOfficialDistributionItem[]
+  ip_subject_type?: GoodsSubjectTypeDistributionItem[]
+  category_top?: GoodsCategoryTopItem[]
+  ip_top?: GoodsIPTopItem[]
+  // 角色 / 位置 Top 在需要时再补充完整类型
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any
+}
+
+export interface GoodsStatsTrends {
+  purchase_date?: GoodsTrendBucket[]
+  created_at?: GoodsTrendBucket[]
+}
+
+export interface GoodsStatsResponse {
+  meta: GoodsStatsMeta
+  overview: GoodsStatsOverview
+  distributions: GoodsStatsDistributions
+  trends: GoodsStatsTrends
+}
+
 // 创建/更新谷子的输入类型（字段可以是 ID 或对象）
 export interface GoodsInput {
   name?: string

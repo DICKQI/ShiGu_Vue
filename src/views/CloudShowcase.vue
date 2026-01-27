@@ -5,107 +5,119 @@
       <SearchBar />
     </div>
 
-    <!-- 筛选面板 -->
-    <FilterPanel />
+    <!-- 顶部 Tab：列表 / 统计 -->
+    <el-tabs v-model="activeTab" class="cloud-tabs">
+      <el-tab-pane label="云展柜列表" name="list" />
+      <el-tab-pane label="统计看板" name="stats" />
+    </el-tabs>
 
-    <!-- 列表区域 -->
-    <div class="list-section">
-      <!-- 添加 Transition 组件包裹内容 -->
-      <Transition name="fade-slide" mode="out-in">
-        <!-- Loading 状态 -->
-        <div v-if="guziStore.loading" key="loading" class="loading-container">
-          <el-skeleton :rows="5" animated />
-        </div>
+    <div v-if="activeTab === 'list'">
+      <!-- 筛选面板 -->
+      <FilterPanel />
 
-        <!-- 错误状态 -->
-        <div v-else-if="guziStore.error" key="error" class="error-container">
-          <el-alert :title="guziStore.error" type="error" :closable="false" />
-        </div>
+      <!-- 列表区域 -->
+      <div class="list-section">
+        <!-- 添加 Transition 组件包裹内容 -->
+        <Transition name="fade-slide" mode="out-in">
+          <!-- Loading 状态 -->
+          <div v-if="guziStore.loading" key="loading" class="loading-container">
+            <el-skeleton :rows="5" animated />
+          </div>
 
-        <!-- 空数据状态 -->
-        <div v-else-if="guziStore.guziList.length === 0" key="empty" class="empty-container">
-          <el-empty description="暂无谷子数据" />
-        </div>
+          <!-- 错误状态 -->
+          <div v-else-if="guziStore.error" key="error" class="error-container">
+            <el-alert :title="guziStore.error" type="error" :closable="false" />
+          </div>
 
-        <!-- 商品列表状态 - 绑定 currentPage 作为 key，强制分页时触发动画 -->
-        <div v-else class="goods-grid" :key="currentPage">
-          <GoodsCard
-            v-for="goods in guziStore.guziList"
-            :key="goods.id"
-            :goods="goods"
-            @click="handleCardClick"
-            @location-click="handleLocationClick"
-            @context-menu="handleCardContextMenu"
+          <!-- 空数据状态 -->
+          <div v-else-if="guziStore.guziList.length === 0" key="empty" class="empty-container">
+            <el-empty description="暂无谷子数据" />
+          </div>
+
+          <!-- 商品列表状态 - 绑定 currentPage 作为 key，强制分页时触发动画 -->
+          <div v-else class="goods-grid" :key="currentPage">
+            <GoodsCard
+              v-for="goods in guziStore.guziList"
+              :key="goods.id"
+              :goods="goods"
+              @click="handleCardClick"
+              @location-click="handleLocationClick"
+              @context-menu="handleCardContextMenu"
+            />
+          </div>
+        </Transition>
+      </div>
+
+      <!-- 分页 - 悬浮固定在底部 -->
+      <div 
+        v-if="guziStore.pagination.count > 0" 
+        class="pagination-container"
+        :class="{ 'pagination-visible': showPagination || !isMobile }"
+      >
+        <div class="pagination-wrapper">
+          <el-pagination
+            v-model:current-page="currentPage"
+            :page-size="guziStore.pagination.page_size"
+            :total="guziStore.pagination.count"
+            layout="prev, pager, next"
+            @current-change="handlePageChange"
           />
         </div>
-      </Transition>
-    </div>
-
-    <!-- 分页 - 悬浮固定在底部 -->
-    <div 
-      v-if="guziStore.pagination.count > 0" 
-      class="pagination-container"
-      :class="{ 'pagination-visible': showPagination || !isMobile }"
-    >
-      <div class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="currentPage"
-          :page-size="guziStore.pagination.page_size"
-          :total="guziStore.pagination.count"
-          layout="prev, pager, next"
-          @current-change="handlePageChange"
-        />
       </div>
-    </div>
 
-    <!-- 详情抽屉 -->
-    <GoodsDrawer v-model="drawerVisible" :goods-id="selectedGoodsId" />
+      <!-- 详情抽屉 -->
+      <GoodsDrawer v-model="drawerVisible" :goods-id="selectedGoodsId" />
 
-    <!-- 右键菜单 -->
-    <div
-      v-if="contextMenuVisible"
-      class="context-menu-overlay"
-      @click="closeContextMenu"
-      @contextmenu.prevent
-    >
+      <!-- 右键菜单 -->
       <div
-        class="context-menu"
-        :style="{ top: contextMenuY + 'px', left: contextMenuX + 'px' }"
-        @click.stop
+        v-if="contextMenuVisible"
+        class="context-menu-overlay"
+        @click="closeContextMenu"
+        @contextmenu.prevent
       >
         <div
-          class="context-menu-item"
-          :class="{ 'is-disabled': moveDisabledToTop }"
-          @click="handleMoveToTop"
+          class="context-menu"
+          :style="{ top: contextMenuY + 'px', left: contextMenuX + 'px' }"
+          @click.stop
         >
-          <el-icon class="context-menu-icon"><Top /></el-icon>
-          <span>置顶到本页顶部</span>
-        </div>
-        <div
-          class="context-menu-item"
-          :class="{ 'is-disabled': moveDisabledForward }"
-          @click="handleMoveForward"
-        >
-          <el-icon class="context-menu-icon"><ArrowLeft /></el-icon>
-          <span>前移</span>
-        </div>
-        <div
-          class="context-menu-item"
-          :class="{ 'is-disabled': moveDisabledBackward }"
-          @click="handleMoveBackward"
-        >
-          <el-icon class="context-menu-icon"><ArrowRight /></el-icon>
-          <span>后移</span>
-        </div>
-        <div class="context-menu-item" @click="handleEditGoods">
-          <el-icon class="context-menu-icon"><Edit /></el-icon>
-          <span>编辑</span>
-        </div>
-        <div class="context-menu-item context-menu-item-danger" @click="handleDeleteGoods">
-          <el-icon class="context-menu-icon"><Delete /></el-icon>
-          <span>删除</span>
+          <div
+            class="context-menu-item"
+            :class="{ 'is-disabled': moveDisabledToTop }"
+            @click="handleMoveToTop"
+          >
+            <el-icon class="context-menu-icon"><Top /></el-icon>
+            <span>置顶到本页顶部</span>
+          </div>
+          <div
+            class="context-menu-item"
+            :class="{ 'is-disabled': moveDisabledForward }"
+            @click="handleMoveForward"
+          >
+            <el-icon class="context-menu-icon"><ArrowLeft /></el-icon>
+            <span>前移</span>
+          </div>
+          <div
+            class="context-menu-item"
+            :class="{ 'is-disabled': moveDisabledBackward }"
+            @click="handleMoveBackward"
+          >
+            <el-icon class="context-menu-icon"><ArrowRight /></el-icon>
+            <span>后移</span>
+          </div>
+          <div class="context-menu-item" @click="handleEditGoods">
+            <el-icon class="context-menu-icon"><Edit /></el-icon>
+            <span>编辑</span>
+          </div>
+          <div class="context-menu-item context-menu-item-danger" @click="handleDeleteGoods">
+            <el-icon class="context-menu-icon"><Delete /></el-icon>
+            <span>删除</span>
+          </div>
         </div>
       </div>
+    </div>
+
+    <div v-else class="stats-section">
+      <StatsDashboard />
     </div>
   </div>
 </template>
@@ -120,11 +132,14 @@ import SearchBar from '@/components/SearchBar.vue'
 import FilterPanel from '@/components/FilterPanel.vue'
 import GoodsCard from '@/components/GoodsCard.vue'
 import GoodsDrawer from '@/components/GoodsDrawer.vue'
+import StatsDashboard from '@/components/StatsDashboard.vue'
 import type { GoodsListItem } from '@/api/types'
 import { deleteGoods, getGoodsList, moveGoods } from '@/api/goods'
 
 const router = useRouter()
 const guziStore = useGuziStore()
+
+const activeTab = ref<'list' | 'stats'>('list')
 
 const drawerVisible = ref(false)
 const selectedGoodsId = ref<string>('')
@@ -458,9 +473,17 @@ onUnmounted(() => {
   margin-bottom: 24px;
 }
 
+.cloud-tabs {
+  margin-top: 4px;
+}
+
 .list-section {
   margin-top: 24px;
   min-height: 400px; /* 给列表区域一个最小高度，防止切换时的闪烁塌陷 */
+}
+
+.stats-section {
+  margin-top: 16px;
 }
 
 /* 列表切换过渡动画 */

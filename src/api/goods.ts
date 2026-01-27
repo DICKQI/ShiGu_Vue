@@ -1,9 +1,23 @@
 import request from '@/utils/request'
-import type { GoodsListItem, GoodsDetail, PaginatedResponse, GoodsSearchParams, GoodsInput, MoveGoodsResponse } from './types'
+import type {
+  GoodsListItem,
+  GoodsDetail,
+  PaginatedResponse,
+  GoodsSearchParams,
+  GoodsInput,
+  MoveGoodsResponse,
+  GoodsStatsParams,
+  GoodsStatsResponse,
+} from './types'
 
 // 获取谷子列表
 export function getGoodsList(params?: GoodsSearchParams) {
   return request.get<PaginatedResponse<GoodsListItem>>('/api/goods/', { params })
+}
+
+// 获取谷子统计图表数据（Dashboard）
+export function getGoodsStats(params?: GoodsStatsParams) {
+  return request.get<GoodsStatsResponse>('/api/goods/stats/', { params })
 }
 
 // 获取谷子详情

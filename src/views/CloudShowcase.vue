@@ -1,17 +1,24 @@
 <template>
   <div class="cloud-showcase">
-    <!-- 搜索栏 -->
-    <div class="search-section">
-      <SearchBar />
-    </div>
-
-    <!-- 顶部 Tab：列表 / 统计 -->
+    <!-- 顶部 Tab：云展柜 / 谷仓 / 统计 -->
     <el-tabs v-model="activeTab" class="cloud-tabs">
-      <el-tab-pane label="云展柜列表" name="list" />
+      <el-tab-pane label="云展柜" name="showcase" />
+      <el-tab-pane label="谷仓" name="barn" />
       <el-tab-pane label="统计看板" name="stats" />
     </el-tabs>
 
-    <div v-if="activeTab === 'list'">
+    <!-- Tab 内容区域 - 添加过渡动画 -->
+    <Transition name="tab-fade" mode="out-in">
+      <div v-if="activeTab === 'showcase'" key="showcase" class="showcase-section" v-loading="showcaseRefreshing">
+        <ShowcaseManager />
+      </div>
+
+      <div v-else-if="activeTab === 'barn'" key="barn">
+      <!-- 搜索栏 -->
+      <div class="search-section">
+        <SearchBar />
+      </div>
+
       <!-- 筛选面板 -->
       <FilterPanel />
 
@@ -49,8 +56,8 @@
       </div>
 
       <!-- 分页 - 悬浮固定在底部 -->
-      <div 
-        v-if="guziStore.pagination.count > 0" 
+      <div
+        v-if="guziStore.pagination.count > 0"
         class="pagination-container"
         :class="{ 'pagination-visible': showPagination || !isMobile }"
       >
@@ -116,30 +123,34 @@
       </div>
     </div>
 
-    <div v-else class="stats-section">
-      <StatsDashboard />
-    </div>
+      <div v-else key="stats" class="stats-section" v-loading="statsRefreshing">
+        <StatsDashboard />
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight, Delete, Edit, Top } from '@element-plus/icons-vue'
 import { useGuziStore } from '@/stores/guzi'
+import { useShowcaseStore } from '@/stores/showcase'
 import SearchBar from '@/components/SearchBar.vue'
 import FilterPanel from '@/components/FilterPanel.vue'
 import GoodsCard from '@/components/GoodsCard.vue'
 import GoodsDrawer from '@/components/GoodsDrawer.vue'
 import StatsDashboard from '@/components/StatsDashboard.vue'
+import ShowcaseManager from '@/components/ShowcaseManager.vue'
 import type { GoodsListItem } from '@/api/types'
 import { deleteGoods, getGoodsList, moveGoods } from '@/api/goods'
 
 const router = useRouter()
 const guziStore = useGuziStore()
+const showcaseStore = useShowcaseStore()
 
-const activeTab = ref<'list' | 'stats'>('list')
+const activeTab = ref<'showcase' | 'barn' | 'stats'>('barn')
 
 const drawerVisible = ref(false)
 const selectedGoodsId = ref<string>('')
@@ -149,6 +160,10 @@ const contextMenuX = ref(0)
 const contextMenuY = ref(0)
 const contextMenuGoods = ref<GoodsListItem | null>(null)
 const moveLoading = ref(false)
+
+// 刷新状态
+const showcaseRefreshing = ref(false)
+const statsRefreshing = ref(false)
 
 // 移动端分页器显示控制
 const isMobile = ref(window.innerWidth < 768)
@@ -438,9 +453,50 @@ const handleResize = () => {
   }
 }
 
+let statsRefreshCompleteHandler: (() => void) | null = null
+
+const handleShowcaseRefresh = async () => {
+  try {
+    if (activeTab.value === 'barn') {
+      await guziStore.searchGuziImmediate()
+      return
+    }
+    if (activeTab.value === 'showcase') {
+      showcaseRefreshing.value = true
+      try {
+        await showcaseStore.fetchList()
+        if (showcaseStore.activeShowcaseId) {
+          await showcaseStore.fetchDetail(showcaseStore.activeShowcaseId)
+        }
+      } finally {
+        showcaseRefreshing.value = false
+      }
+      return
+    }
+    // stats：交给 StatsDashboard 自己监听刷新事件处理
+    statsRefreshing.value = true
+    window.dispatchEvent(new CustomEvent('cloud-showcase:stats-refresh'))
+    // 监听刷新完成事件
+    statsRefreshCompleteHandler = () => {
+      statsRefreshing.value = false
+      if (statsRefreshCompleteHandler) {
+        window.removeEventListener('cloud-showcase:stats-refresh-complete', statsRefreshCompleteHandler)
+        statsRefreshCompleteHandler = null
+      }
+    }
+    window.addEventListener('cloud-showcase:stats-refresh-complete', statsRefreshCompleteHandler)
+  } finally {
+    // 通知 Layout.vue 刷新完成
+    window.dispatchEvent(new CustomEvent('cloud-showcase:refresh-complete'))
+  }
+}
+
 onMounted(() => {
   // 初始化加载数据（立即执行，不使用防抖）
   guziStore.searchGuziImmediate()
+
+  // 将当前 Tab 同步给布局层（用于控制右下角 + 号显示）
+  window.dispatchEvent(new CustomEvent('cloud-showcase:tab-changed', { detail: { tab: activeTab.value } }))
   
   // 初始化分页器显示状态
   if (isMobile.value) {
@@ -452,12 +508,26 @@ onMounted(() => {
   // 添加滚动监听
   window.addEventListener('scroll', checkScrollBottom, { passive: true })
   window.addEventListener('resize', handleResize)
+
+  // 监听右下角“刷新”按钮事件，按当前 Tab 执行对应刷新
+  window.addEventListener('cloud-showcase:refresh', handleShowcaseRefresh as EventListener)
 })
 
 onUnmounted(() => {
   window.removeEventListener('scroll', checkScrollBottom)
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('cloud-showcase:refresh', handleShowcaseRefresh as EventListener)
+  if (statsRefreshCompleteHandler) {
+    window.removeEventListener('cloud-showcase:stats-refresh-complete', statsRefreshCompleteHandler)
+  }
 })
+
+watch(
+  () => activeTab.value,
+  (tab) => {
+    window.dispatchEvent(new CustomEvent('cloud-showcase:tab-changed', { detail: { tab } }))
+  },
+)
 </script>
 
 <style scoped>
@@ -484,6 +554,26 @@ onUnmounted(() => {
 
 .stats-section {
   margin-top: 16px;
+}
+
+.showcase-section {
+  margin-top: 16px;
+}
+
+/* Tab 切换过渡动画 - 参考 Layout.vue 的 page-fade 效果 */
+.tab-fade-enter-active,
+.tab-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.tab-fade-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.tab-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 /* 列表切换过渡动画 */

@@ -65,10 +65,16 @@
     <!-- 悬浮按钮组（仅云展柜页面展示） -->
     <div v-if="showFab" class="fab-group" :class="{ 'fab-mobile': isMobile }">
       <div class="fab-btn refresh-fab" @click="handleRefresh" :class="{ loading: refreshLoading }">
-        <el-icon v-if="!refreshLoading"><Refresh /></el-icon>
-        <el-icon v-else class="is-loading"><Loading /></el-icon>
+        <Transition name="fab-icon" mode="out-in">
+          <el-icon v-if="!refreshLoading" key="refresh">
+            <Refresh />
+          </el-icon>
+          <el-icon v-else key="loading" class="is-loading">
+            <Loading />
+          </el-icon>
+        </Transition>
       </div>
-      <div class="fab-btn" @click="goToAdd">
+      <div v-if="showAddFab" class="fab-btn" @click="goToAdd">
         <el-icon><Plus /></el-icon>
       </div>
     </div>
@@ -93,6 +99,7 @@ const refreshLoading = ref(false)
 const isNativePlatform = ref(Capacitor.isNativePlatform())
 const statusBarHeight = ref(0)
 const navbarRef = ref<HTMLElement | null>(null)
+const showcaseActiveTab = ref<'showcase' | 'barn' | 'stats' | null>(null)
 
 const activeMenu = computed(() => {
   const path = route.path
@@ -118,6 +125,7 @@ const goToSettings = () => {
 
 // 仅在云展柜页面显示“新增谷子”悬浮按钮
 const showFab = computed(() => route.path.startsWith('/showcase'))
+const showAddFab = computed(() => showFab.value && showcaseActiveTab.value === 'barn')
 
 const goToAdd = () => {
   router.push('/goods/new')
@@ -130,9 +138,23 @@ const handleRefresh = async () => {
   if (refreshLoading.value) return
   refreshLoading.value = true
   try {
+    // 交由云展柜页面内部按当前 Tab 处理
+    if (route.path.startsWith('/showcase')) {
+      window.dispatchEvent(new CustomEvent('cloud-showcase:refresh'))
+      // 监听刷新完成事件
+      const handleRefreshComplete = () => {
+        refreshLoading.value = false
+        window.removeEventListener('cloud-showcase:refresh-complete', handleRefreshComplete)
+      }
+      window.addEventListener('cloud-showcase:refresh-complete', handleRefreshComplete)
+      return
+    }
+    // 兜底：其它页面仍刷新谷仓列表（历史行为）
     await guziStore.searchGuziImmediate()
   } finally {
-    refreshLoading.value = false
+    if (!route.path.startsWith('/showcase')) {
+      refreshLoading.value = false
+    }
   }
 }
 
@@ -140,8 +162,14 @@ const handleResize = () => {
   isMobile.value = window.innerWidth < 768
 }
 
+const handleShowcaseTabChanged = (e: Event) => {
+  const ce = e as CustomEvent<{ tab?: 'showcase' | 'barn' | 'stats' }>
+  showcaseActiveTab.value = ce.detail?.tab ?? null
+}
+
 onMounted(() => {
   window.addEventListener('resize', handleResize)
+  window.addEventListener('cloud-showcase:tab-changed', handleShowcaseTabChanged as EventListener)
   
   // 在原生平台上，尝试获取状态栏高度并设置 padding（作为 CSS env() 的后备方案）
   if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
@@ -171,6 +199,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('cloud-showcase:tab-changed', handleShowcaseTabChanged as EventListener)
 })
 </script>
 
@@ -369,6 +398,10 @@ onUnmounted(() => {
   box-shadow: 0 6px 20px rgba(212, 175, 55, 0.6);
 }
 
+.fab-btn:active {
+  transform: scale(0.95);
+}
+
 .fab-btn:focus,
 .fab-btn:active {
   outline: none;
@@ -380,7 +413,6 @@ onUnmounted(() => {
 
 .refresh-fab:hover {
   background: linear-gradient(135deg, #8e7dff 0%, #7a6aff 100%);
-  transform: scale(1.1) rotate(180deg);
 }
 
 .refresh-fab:focus,
@@ -395,6 +427,22 @@ onUnmounted(() => {
 
 .refresh-fab .is-loading {
   animation: rotate 1s linear infinite;
+}
+
+.refresh-fab:hover .el-icon:not(.is-loading) {
+  transform: rotate(180deg);
+  transition: transform 0.35s ease;
+}
+
+.fab-icon-enter-active,
+.fab-icon-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fab-icon-enter-from,
+.fab-icon-leave-to {
+  opacity: 0;
+  transform: scale(0.7);
 }
 
 @keyframes rotate {

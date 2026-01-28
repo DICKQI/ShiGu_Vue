@@ -281,6 +281,99 @@ export interface MoveGoodsResponse {
   new_order?: number
 }
 
+// ==================== 展柜（Showcase）====================
+
+export interface Showcase {
+  id: string
+  name: string
+  description?: string | null
+  cover_image?: string | null
+  order?: number
+  is_public?: boolean
+  created_at?: string
+  updated_at?: string
+  /**
+   * 展柜详情接口会包含以下字段（列表接口通常不含）
+   */
+  categories?: ShowcaseCategory[]
+  showcase_goods?: ShowcaseGoods[]
+}
+
+export interface ShowcaseCategory {
+  id: string
+  showcase?: string
+  name: string
+  description?: string | null
+  order: number
+  created_at?: string
+  updated_at?: string
+}
+
+export interface ShowcaseGoods {
+  id: string
+  goods: GoodsListItem & {
+    order?: number
+  }
+  category: ShowcaseCategory | null
+  order: number
+  notes?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface ShowcaseListParams {
+  page?: number
+  page_size?: number
+}
+
+export type PaginatedShowcaseResponse = PaginatedResponse<Showcase>
+
+export interface ShowcaseCreateInput {
+  name: string
+  description?: string | null
+  is_public?: boolean
+  /**
+   * 说明：后端文档支持 multipart 同传 cover_image；如需封面上传，前端用 FormData。
+   * 这里允许透传 FormData（在 api/showcase.ts 中按需处理）。
+   */
+}
+
+export type ShowcaseUpdateInput = Partial<ShowcaseCreateInput> & {
+  name?: string
+}
+
+export interface ShowcaseCategoryCreateInput {
+  showcase: string
+  name: string
+  description?: string | null
+  order?: number
+}
+
+export type ShowcaseCategoryUpdateInput = Partial<ShowcaseCategoryCreateInput>
+
+export interface ShowcaseAddGoodsInput {
+  goods_id: string
+  category_id?: string
+  notes?: string
+}
+
+export interface ShowcaseRemoveGoodsInput {
+  goods_id: string
+}
+
+export interface ShowcaseMoveGoodsInput {
+  goods_id: string
+  anchor_goods_id: string
+  position: 'before' | 'after'
+  category_id?: string
+}
+
+export interface ShowcaseMoveGoodsResponse {
+  detail?: string
+  id: string
+  new_order?: number
+}
+
 // BGM角色搜索结果
 export interface BGMCharacter {
   name: string

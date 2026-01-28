@@ -8,9 +8,6 @@
             <el-button text size="small" @click="handleResetFilters">
               重置
             </el-button>
-            <el-button type="primary" size="small" @click="fetchStats">
-              刷新数据
-            </el-button>
           </div>
         </div>
       </template>
@@ -598,14 +595,22 @@ const handleResize = () => {
   chartInstances.forEach((c) => c.resize())
 }
 
+const handleStatsRefresh = async () => {
+  await fetchStats()
+  // 通知父组件刷新完成
+  window.dispatchEvent(new CustomEvent('cloud-showcase:stats-refresh-complete'))
+}
+
 onMounted(async () => {
   await initMetadata()
   await fetchStats()
   window.addEventListener('resize', handleResize)
+  window.addEventListener('cloud-showcase:stats-refresh', handleStatsRefresh as EventListener)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('cloud-showcase:stats-refresh', handleStatsRefresh as EventListener)
   disposeCharts()
 })
 

@@ -1,240 +1,287 @@
 <template>
   <div class="showcase-manager">
-    <div class="layout">
+    <!-- 背景装饰 -->
+    <div class="bg-decoration"></div>
+
+    <div class="layout" :class="{ 'mobile-detail-active': isMobile && showcaseStore.activeShowcaseId }">
       <!-- 左侧：展柜列表 -->
-      <el-card shadow="hover" class="panel panel-left">
-        <template #header>
-          <div class="panel-header">
-            <div class="panel-title">展柜列表</div>
-            <div class="panel-actions">
-              <el-button type="primary" size="small" @click="openCreateShowcase">
-                新建
+      <div class="panel-container left-panel" v-show="!isMobile || !showcaseStore.activeShowcaseId">
+        <el-card shadow="never" class="glass-card adaptive-card">
+          <template #header>
+            <div class="panel-header">
+              <div class="panel-title">
+                <el-icon><Collection /></el-icon> 我的展柜
+              </div>
+              <el-button type="primary" circle class="btn-accent" @click="openCreateShowcase">
+                <el-icon><Plus /></el-icon>
               </el-button>
             </div>
-          </div>
-        </template>
+          </template>
 
-        <div v-if="showcaseStore.error" class="panel-error">
-          <el-alert :title="showcaseStore.error" type="error" :closable="false" />
-        </div>
+          <div class="scroll-content">
+            <div v-if="showcaseStore.error" class="state-box">
+              <el-alert :title="showcaseStore.error" type="error" :closable="false" show-icon />
+            </div>
 
-        <div v-else-if="showcaseStore.listLoading && showcaseStore.list.length === 0" class="panel-loading">
-          <el-skeleton :rows="6" animated />
-        </div>
+            <div v-else-if="showcaseStore.listLoading && showcaseStore.list.length === 0" class="state-box">
+              <el-skeleton :rows="6" animated />
+            </div>
 
-        <div v-else-if="showcaseStore.list.length === 0" class="panel-empty">
-          <el-empty description="暂无展柜，先新建一个吧" />
-        </div>
+            <div v-else-if="showcaseStore.list.length === 0" class="state-box empty">
+              <el-empty description="暂无展柜，打造你的第一个痛柜吧！" image-size="100" />
+            </div>
 
-        <div v-else class="showcase-list">
-          <div
-            v-for="s in showcaseStore.list"
-            :key="s.id"
-            class="showcase-item"
-            :class="{ active: s.id === showcaseStore.activeShowcaseId }"
-            @click="handleSelectShowcase(s.id)"
-          >
-            <div class="showcase-cover">
-              <el-image
-                v-if="s.cover_image"
-                :src="s.cover_image"
-                fit="cover"
-                class="cover-img"
+            <div v-else class="showcase-list">
+              <div
+                v-for="s in showcaseStore.list"
+                :key="s.id"
+                class="showcase-item"
+                :class="{ active: s.id === showcaseStore.activeShowcaseId }"
+                @click="handleSelectShowcase(s.id)"
               >
-                <template #error>
-                  <div class="cover-placeholder"></div>
-                </template>
-              </el-image>
-              <div v-else class="cover-placeholder"></div>
+                <div class="showcase-cover">
+                  <el-image
+                    v-if="s.cover_image"
+                    :src="s.cover_image"
+                    fit="cover"
+                    class="cover-img"
+                    loading="lazy"
+                  />
+                  <div v-else class="cover-placeholder">
+                    <el-icon><Picture /></el-icon>
+                  </div>
+                </div>
+                <div class="showcase-info">
+                  <div class="showcase-name text-truncate">{{ s.name }}</div>
+                  <div class="showcase-desc text-truncate">{{ s.description || '暂无描述' }}</div>
+                </div>
+                <el-icon v-if="s.id === showcaseStore.activeShowcaseId" class="active-icon"><ArrowRight /></el-icon>
+              </div>
             </div>
-            <div class="showcase-meta">
-              <div class="showcase-name" :title="s.name">{{ s.name }}</div>
-              <div class="showcase-desc">{{ s.description || '—' }}</div>
-            </div>
-          </div>
 
-          <div class="pager">
-            <el-pagination
-              v-if="showcaseStore.pagination.count > 0"
-              v-model:current-page="showcaseCurrentPage"
-              :page-size="showcaseStore.pagination.page_size"
-              :total="showcaseStore.pagination.count"
-              layout="prev, pager, next"
-            />
+            <div class="pager-container">
+              <el-pagination
+                v-if="showcaseStore.pagination.count > 0"
+                v-model:current-page="showcaseCurrentPage"
+                :page-size="showcaseStore.pagination.page_size"
+                :total="showcaseStore.pagination.count"
+                small
+                layout="prev, pager, next"
+                background
+              />
+            </div>
           </div>
-        </div>
-      </el-card>
+        </el-card>
+      </div>
 
       <!-- 右侧：展柜详情 -->
-      <el-card shadow="hover" class="panel panel-right">
-        <template #header>
-          <div class="panel-header">
-            <div class="panel-title">展柜详情</div>
-            <div class="panel-actions">
-              <el-button
-                size="small"
-                :disabled="!showcaseStore.activeShowcaseId"
-                @click="openEditShowcase"
-              >
-                编辑
-              </el-button>
-              <el-button
-                size="small"
-                type="danger"
-                plain
-                :disabled="!showcaseStore.activeShowcaseId"
-                @click="handleDeleteShowcase"
-              >
-                删除
-              </el-button>
-            </div>
-          </div>
-        </template>
-
-        <div v-if="!showcaseStore.activeShowcaseId" class="detail-empty">
-          <el-empty description="请选择左侧一个展柜" />
-        </div>
-
-        <div
-          v-else-if="showcaseStore.detailLoading && !showcaseStore.activeShowcase"
-          class="panel-loading"
-        >
-          <el-skeleton :rows="10" animated />
-        </div>
-
-        <div v-else-if="showcaseStore.activeShowcase" class="detail">
-          <div class="detail-head">
-            <div class="detail-head-left">
-              <div class="detail-name">{{ showcaseStore.activeShowcase.name }}</div>
-              <div class="detail-desc">
-                {{ showcaseStore.activeShowcase.description || '暂无描述' }}
+      <div class="panel-container right-panel" v-show="!isMobile || showcaseStore.activeShowcaseId">
+        <el-card shadow="never" class="glass-card adaptive-card detail-card">
+          <template #header>
+            <div class="panel-header detail-header">
+              <div class="header-left">
+                <el-button v-if="isMobile" link @click="backToList" class="back-btn">
+                  <el-icon><ArrowLeft /></el-icon>
+                </el-button>
+                <div class="panel-title">展柜详情</div>
+              </div>
+              <div class="panel-actions">
+                <el-button text bg size="small" :disabled="!showcaseStore.activeShowcaseId" @click="openEditShowcase">
+                  编辑
+                </el-button>
+                <el-button
+                  type="danger"
+                  text
+                  bg
+                  size="small"
+                  :disabled="!showcaseStore.activeShowcaseId"
+                  @click="handleDeleteShowcase"
+                >
+                  删除
+                </el-button>
               </div>
             </div>
-            <div class="detail-head-right">
-              <el-button type="primary" size="small" @click="openAddGoods">
-                添加谷子
-              </el-button>
-            </div>
+          </template>
+
+          <div v-if="!showcaseStore.activeShowcaseId && !isMobile" class="detail-empty-state">
+            <el-empty description="请从左侧选择一个展柜开始布置" />
           </div>
 
-          <el-divider />
+          <div v-else-if="showcaseStore.detailLoading && !showcaseStore.activeShowcase" class="detail-loading">
+            <el-skeleton :rows="10" animated />
+          </div>
 
-          <!-- 展柜谷子（不分分类） -->
-          <div class="category-section">
-            <div class="category-block">
-              <div class="category-head">
-                <div class="category-title">
-                  展柜内谷子
-                  <span class="category-sub">({{ showcaseStore.sortedShowcaseGoods.length }})</span>
+          <div v-else-if="showcaseStore.activeShowcase" class="detail-content scroll-content">
+            <div class="detail-info-banner">
+              <div class="info-text">
+                <h2 class="detail-name">{{ showcaseStore.activeShowcase.name }}</h2>
+                <p class="detail-desc">{{ showcaseStore.activeShowcase.description || '这个展柜还没有描述...' }}</p>
+                <div class="detail-tags">
+                  <el-tag size="small" :type="showcaseStore.activeShowcase.is_public ? 'success' : 'info'" effect="light" round>
+                    {{ showcaseStore.activeShowcase.is_public ? '公开展示' : '私密收藏' }}
+                  </el-tag>
                 </div>
               </div>
+              <div class="info-action">
+                <el-button type="primary" class="btn-accent add-goods-btn" @click="openAddGoods">
+                  <el-icon class="el-icon--left"><Goods /></el-icon> 添加谷子
+                </el-button>
+              </div>
+            </div>
 
-              <div v-if="showcaseStore.sortedShowcaseGoods.length === 0" class="category-empty">
-                <el-empty description="该展柜暂无谷子" />
+            <el-divider class="custom-divider" />
+
+            <div class="goods-section">
+              <div class="section-header">
+                <span class="section-title">收纳物品</span>
+                <span class="section-count">{{ showcaseStore.sortedShowcaseGoods.length }} 件</span>
+              </div>
+
+              <div v-if="showcaseStore.sortedShowcaseGoods.length === 0" class="goods-empty">
+                <el-empty description="这里空空如也，快去添加心爱的谷子吧！" image-size="80" />
               </div>
 
               <div v-else class="goods-grid">
                 <div
                   v-for="item in showcaseStore.sortedShowcaseGoods"
                   :key="item.id"
-                  class="goods-item"
+                  class="goods-wrapper"
                 >
-                  <GoodsCard :goods="item.goods" @click="handleOpenGoodsDetail" @location-click="noop" @context-menu="noop" />
-                  <div class="goods-actions">
-                    <el-button-group>
-                      <el-button size="small" @click="moveUp(item.goods.id)">上移</el-button>
-                      <el-button size="small" @click="moveDown(item.goods.id)">下移</el-button>
-                      <el-button size="small" type="danger" plain @click="handleRemoveFromShowcase(item.goods.id)">
-                        移除
-                      </el-button>
-                    </el-button-group>
+                  <GoodsCard
+                    :goods="item.goods"
+                    class="mini-goods-card"
+                    @click="handleOpenGoodsDetail"
+                    @location-click="noop"
+                    @context-menu="noop"
+                  />
+                  <div class="goods-control">
+                    <el-dropdown trigger="click" size="small">
+                      <span class="el-dropdown-link">
+                        <el-icon><MoreFilled /></el-icon>
+                      </span>
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item @click="moveUp(item.goods.id)" :disabled="isFirst(item.goods.id)">
+                            <el-icon><Top /></el-icon> 上移
+                          </el-dropdown-item>
+                          <el-dropdown-item @click="moveDown(item.goods.id)" :disabled="isLast(item.goods.id)">
+                            <el-icon><Bottom /></el-icon> 下移
+                          </el-dropdown-item>
+                          <el-dropdown-item divided @click="handleRemoveFromShowcase(item.goods.id)" class="text-danger">
+                            <el-icon><Delete /></el-icon> 移除
+                          </el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </el-card>
+        </el-card>
+      </div>
     </div>
 
-    <!-- 谷子详情抽屉（复用现有） -->
     <GoodsDrawer v-model="goodsDrawerVisible" :goods-id="selectedGoodsId" />
 
-    <!-- 新建/编辑展柜 -->
-    <el-dialog v-model="showcaseDialogVisible" :title="showcaseDialogTitle" width="460px">
-      <el-form :model="showcaseForm" label-width="90px">
-        <el-form-item label="名称">
-          <el-input v-model="showcaseForm.name" maxlength="200" show-word-limit />
+    <el-dialog
+      v-model="showcaseDialogVisible"
+      :title="showcaseDialogTitle"
+      width="460px"
+      class="custom-dialog"
+      align-center
+    >
+      <el-form :model="showcaseForm" label-position="top">
+        <el-form-item label="展柜名称">
+          <el-input v-model="showcaseForm.name" maxlength="200" show-word-limit placeholder="给你的痛柜起个名字" />
         </el-form-item>
         <el-form-item label="描述">
-          <el-input v-model="showcaseForm.description" type="textarea" :rows="3" maxlength="500" show-word-limit />
+          <el-input v-model="showcaseForm.description" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="写点什么..." />
         </el-form-item>
-        <el-form-item label="公开">
-          <el-switch v-model="showcaseForm.is_public" />
+        <el-form-item>
+          <div class="switch-row">
+            <span>是否公开</span>
+            <el-switch v-model="showcaseForm.is_public" active-color="#A29BFE" />
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showcaseDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="showcaseStore.mutating" @click="submitShowcase">
+        <el-button type="primary" class="btn-accent" :loading="showcaseStore.mutating" @click="submitShowcase">
           保存
         </el-button>
       </template>
     </el-dialog>
 
-    <!-- 从谷仓添加 -->
-    <el-drawer v-model="addDrawerVisible" title="从谷仓添加谷子" direction="rtl" size="420px">
-      <div class="add-drawer">
-        <div class="add-toolbar">
-          <el-input v-model="addSearch" placeholder="按名称/IP/关键词搜索（search）" clearable @keyup.enter="fetchAddGoods(1)" />
-          <el-button type="primary" :loading="addLoading" @click="fetchAddGoods(1)">搜索</el-button>
+    <el-drawer
+      v-model="addDrawerVisible"
+      title="从谷仓选购"
+      direction="rtl"
+      :size="isMobile ? '100%' : '480px'"
+      class="add-drawer-panel"
+    >
+      <div class="add-container full-height">
+        <div class="search-bar">
+          <el-input
+            v-model="addSearch"
+            placeholder="搜索名称/IP..."
+            clearable
+            :prefix-icon="Search"
+            @keyup.enter="fetchAddGoods(1)"
+          >
+            <template #append>
+              <el-button @click="fetchAddGoods(1)" :loading="addLoading">搜索</el-button>
+            </template>
+          </el-input>
         </div>
 
-        <div class="add-hint">
-          勾选后点击“加入展柜”。（一次加入一条，避免误操作；后续可扩展批量）
-        </div>
+        <div class="search-results scroll-content">
+          <div v-if="addError" class="state-box">
+            <el-alert :title="addError" type="error" :closable="false" />
+          </div>
 
-        <div v-if="addError" class="panel-error">
-          <el-alert :title="addError" type="error" :closable="false" />
-        </div>
+          <div v-else-if="addLoading && addList.length === 0" class="state-box">
+            <el-skeleton :rows="5" animated />
+          </div>
 
-        <div v-else-if="addLoading && addList.length === 0" class="panel-loading">
-          <el-skeleton :rows="8" animated />
-        </div>
+          <div v-else-if="addList.length === 0" class="state-box">
+            <el-empty description="没有找到相关谷子" image-size="80" />
+          </div>
 
-        <div v-else-if="addList.length === 0" class="panel-empty">
-          <el-empty description="暂无结果" />
-        </div>
-
-        <div v-else class="add-list">
-          <div v-for="g in addList" :key="g.id" class="add-item">
-            <div class="add-item-main" @click="openGoodsDetailFromAdd(g.id)">
-              <el-image v-if="g.main_photo" :src="g.main_photo" fit="cover" class="add-thumb" />
-              <div v-else class="add-thumb placeholder"></div>
-              <div class="add-meta">
-                <div class="add-name">{{ g.name }}</div>
-                <div class="add-sub">{{ g.ip.name }} · {{ g.characters.map(c => c.name).join('、') }}</div>
+          <div v-else class="add-list">
+            <div v-for="g in addList" :key="g.id" class="add-item-card">
+              <div class="add-item-left" @click="openGoodsDetailFromAdd(g.id)">
+                <el-image :src="g.main_photo || ''" fit="cover" class="add-thumb">
+                  <template #error><div class="placeholder-img"></div></template>
+                </el-image>
+                <div class="add-info">
+                  <div class="add-name">{{ g.name }}</div>
+                  <div class="add-tags">
+                    <el-tag size="small" type="info" effect="plain">{{ g.ip.name }}</el-tag>
+                  </div>
+                </div>
               </div>
-            </div>
-
-            <div class="add-item-actions">
               <el-button
                 type="primary"
                 size="small"
+                circle
+                class="btn-icon-only"
                 :loading="showcaseStore.mutating"
                 @click="handleAddToShowcase(g.id)"
               >
-                加入展柜
+                <el-icon><Plus /></el-icon>
               </el-button>
             </div>
           </div>
 
-          <div class="pager">
+          <div class="pager-container">
             <el-pagination
               v-if="addPagination.count > 0"
               v-model:current-page="addPagination.page"
               :page-size="addPagination.page_size"
               :total="addPagination.count"
-              layout="prev, pager, next"
+              layout="prev, next"
+              small
               @current-change="fetchAddGoods"
             />
           </div>
@@ -245,13 +292,33 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  Plus,
+  Search,
+  Delete,
+  Top,
+  Bottom,
+  MoreFilled,
+  ArrowRight,
+  ArrowLeft,
+  Collection,
+  Picture,
+  Goods,
+} from '@element-plus/icons-vue'
 import GoodsCard from '@/components/GoodsCard.vue'
 import GoodsDrawer from '@/components/GoodsDrawer.vue'
 import { useShowcaseStore } from '@/stores/showcase'
 import { getGoodsList } from '@/api/goods'
-import type { GoodsListItem, PaginatedResponse, ShowcaseGoods } from '@/api/types'
+import type { GoodsListItem, PaginatedResponse } from '@/api/types'
+
+const isMobile = ref(window.innerWidth < 768)
+const handleResize = () => {
+  isMobile.value = window.innerWidth < 768
+}
+onMounted(() => window.addEventListener('resize', handleResize))
+onUnmounted(() => window.removeEventListener('resize', handleResize))
 
 const showcaseStore = useShowcaseStore()
 
@@ -261,25 +328,24 @@ const showCurrentPage = computed({
     showcaseStore.fetchList({ page: val, page_size: showcaseStore.pagination.page_size })
   },
 })
-
 const showcaseCurrentPage = showCurrentPage
+
+const backToList = () => {
+  showcaseStore.activeShowcaseId = null
+}
 
 const goodsDrawerVisible = ref(false)
 const selectedGoodsId = ref<string>('')
-
 const handleOpenGoodsDetail = (goods: GoodsListItem) => {
   selectedGoodsId.value = goods.id
   goodsDrawerVisible.value = true
 }
-
 const openGoodsDetailFromAdd = (id: string) => {
   selectedGoodsId.value = id
   goodsDrawerVisible.value = true
 }
-
 const noop = () => {}
 
-// 展柜 dialog
 const showcaseDialogVisible = ref(false)
 const showcaseDialogMode = ref<'create' | 'edit'>('create')
 const showcaseForm = reactive<{ id?: string; name: string; description: string; is_public: boolean }>({
@@ -287,71 +353,59 @@ const showcaseForm = reactive<{ id?: string; name: string; description: string; 
   description: '',
   is_public: true,
 })
-
 const showcaseDialogTitle = computed(() => (showcaseDialogMode.value === 'create' ? '新建展柜' : '编辑展柜'))
 
 const openCreateShowcase = () => {
   showcaseDialogMode.value = 'create'
-  showcaseForm.id = undefined
-  showcaseForm.name = ''
-  showcaseForm.description = ''
-  showcaseForm.is_public = true
+  Object.assign(showcaseForm, { id: undefined, name: '', description: '', is_public: true })
   showcaseDialogVisible.value = true
 }
-
 const openEditShowcase = () => {
   if (!showcaseStore.activeShowcase) return
   showcaseDialogMode.value = 'edit'
-  showcaseForm.id = showcaseStore.activeShowcase.id
-  showcaseForm.name = showcaseStore.activeShowcase.name
-  showcaseForm.description = showcaseStore.activeShowcase.description || ''
-  showcaseForm.is_public = showcaseStore.activeShowcase.is_public ?? true
+  const { id, name, description, is_public } = showcaseStore.activeShowcase
+  Object.assign(showcaseForm, { id, name, description: description || '', is_public: is_public ?? true })
   showcaseDialogVisible.value = true
 }
 
 const submitShowcase = async () => {
-  if (!showcaseForm.name.trim()) {
-    ElMessage.warning('请输入展柜名称')
-    return
+  if (!showcaseForm.name.trim()) return ElMessage.warning('请输入展柜名称')
+  const payload = {
+    name: showcaseForm.name.trim(),
+    description: showcaseForm.description?.trim() || null,
+    is_public: showcaseForm.is_public,
   }
+  let success = false
   if (showcaseDialogMode.value === 'create') {
-    const created = await showcaseStore.createOne({
-      name: showcaseForm.name.trim(),
-      description: showcaseForm.description?.trim() || null,
-      is_public: showcaseForm.is_public,
-    })
-    if (created) {
-      ElMessage.success('展柜已创建')
-      showcaseDialogVisible.value = false
-    }
+    const created = await showcaseStore.createOne(payload)
+    success = !!created
   } else {
-    if (!showcaseForm.id) return
-    const updated = await showcaseStore.updateOne(showcaseForm.id, {
-      name: showcaseForm.name.trim(),
-      description: showcaseForm.description?.trim() || null,
-      is_public: showcaseForm.is_public,
-    })
-    if (updated) {
-      ElMessage.success('展柜已更新')
-      showcaseDialogVisible.value = false
+    if (showcaseForm.id) {
+      const updated = await showcaseStore.updateOne(showcaseForm.id, payload)
+      success = !!updated
     }
+  }
+  if (success) {
+    ElMessage.success(showcaseDialogMode.value === 'create' ? '展柜已创建' : '展柜已更新')
+    showcaseDialogVisible.value = false
   }
 }
 
 const handleDeleteShowcase = async () => {
-  const id = showcaseStore.activeShowcaseId
-  if (!id || !showcaseStore.activeShowcase) return
+  if (!showcaseStore.activeShowcaseId) return
   try {
-    await ElMessageBox.confirm(`确认删除展柜「${showcaseStore.activeShowcase.name}」吗？`, '删除确认', {
+    await ElMessageBox.confirm('确认删除该展柜吗？里面的谷子不会被删除，仅解除关联。', '删除警告', {
       type: 'warning',
-      confirmButtonText: '删除',
+      confirmButtonText: '确认删除',
       cancelButtonText: '取消',
     })
-    const ok = await showcaseStore.removeOne(id)
-    if (ok) ElMessage.success('已删除')
-  } catch (e: any) {
-    if (e === 'cancel' || e === 'close') return
-    ElMessage.error('删除失败')
+    const ok = await showcaseStore.removeOne(showcaseStore.activeShowcaseId)
+    if (ok) {
+      ElMessage.success('已删除')
+      if (isMobile.value) backToList()
+    }
+  } catch {
+    /* ignore */
   }
 }
 
@@ -359,7 +413,6 @@ const handleSelectShowcase = async (id: string) => {
   await showcaseStore.setActive(id)
 }
 
-// 添加抽屉（从谷仓搜索）
 const addDrawerVisible = ref(false)
 const addSearch = ref('')
 const addLoading = ref(false)
@@ -368,7 +421,7 @@ const addList = ref<GoodsListItem[]>([])
 const addPagination = reactive<PaginatedResponse<GoodsListItem>>({
   count: 0,
   page: 1,
-  page_size: 18,
+  page_size: 10,
   next: null,
   previous: null,
   results: [],
@@ -376,6 +429,7 @@ const addPagination = reactive<PaginatedResponse<GoodsListItem>>({
 
 const openAddGoods = async () => {
   addDrawerVisible.value = true
+  addSearch.value = ''
   await fetchAddGoods(1)
 }
 
@@ -388,16 +442,11 @@ const fetchAddGoods = async (page: number) => {
       page,
       page_size: addPagination.page_size,
     })
-    addPagination.count = data.count
-    addPagination.page = data.page
-    addPagination.page_size = data.page_size
-    addPagination.next = data.next
-    addPagination.previous = data.previous
-    addPagination.results = data.results
+    Object.assign(addPagination, data)
     addList.value = data.results
-  } catch (e: any) {
-    addError.value = e?.message || '加载谷仓数据失败'
-    addList.value = []
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    addError.value = err?.message || '加载失败'
   } finally {
     addLoading.value = false
   }
@@ -406,77 +455,54 @@ const fetchAddGoods = async (page: number) => {
 const handleAddToShowcase = async (goodsId: string) => {
   const showcaseId = showcaseStore.activeShowcaseId
   if (!showcaseId) return
-  const created = await showcaseStore.addGoods({
-    showcaseId,
-    goodsId,
-  })
-  if (created) {
-    ElMessage.success('已加入展柜')
-    return
-  }
-  // 友好提示：避免左侧出现 400 报错字样影响体验
-  if (showcaseStore.mutationStatus === 400) {
-    ElMessage.info(showcaseStore.mutationMessage || '该谷子已在此展柜中')
-  }
+  const created = await showcaseStore.addGoods({ showcaseId, goodsId })
+  if (created) ElMessage.success('已加入展柜')
+  else if (showcaseStore.mutationStatus === 400) ElMessage.info(showcaseStore.mutationMessage || '该谷子已在展柜中')
 }
 
 const handleRemoveFromShowcase = async (goodsId: string) => {
   const showcaseId = showcaseStore.activeShowcaseId
   if (!showcaseId) return
-  try {
-    await ElMessageBox.confirm('确认从展柜移除该谷子吗？', '移除确认', {
-      type: 'warning',
-      confirmButtonText: '移除',
-      cancelButtonText: '取消',
-    })
-    const ok = await showcaseStore.removeGoods({ showcaseId, goodsId })
-    if (ok) ElMessage.success('已移除')
-  } catch (e: any) {
-    if (e === 'cancel' || e === 'close') return
-    ElMessage.error('移除失败')
-  }
+  const ok = await showcaseStore.removeGoods({ showcaseId, goodsId })
+  if (ok) ElMessage.success('已移除')
 }
 
-// 排序：用相邻锚点 before/after 实现
-const findInList = (goodsId: string): { items: ShowcaseGoods[]; index: number } | null => {
+const findInList = (goodsId: string) => {
   const items = showcaseStore.sortedShowcaseGoods
   const index = items.findIndex((x) => x.goods.id === goodsId)
-  if (index < 0) return null
-  return { items, index }
+  return index > -1 ? { items, index } : null
+}
+const isFirst = (id: string) => {
+  const f = findInList(id)
+  return f ? f.index === 0 : true
+}
+const isLast = (id: string) => {
+  const f = findInList(id)
+  return f ? f.index >= f.items.length - 1 : true
 }
 
 const moveUp = async (goodsId: string) => {
   const showcaseId = showcaseStore.activeShowcaseId
-  if (!showcaseId) return
   const found = findInList(goodsId)
-  if (!found) return
-  if (found.index === 0) {
-    ElMessage.info('已经是第一项')
-    return
-  }
-  const anchor = found.items[found.index - 1]
-  if (!anchor) return
+  if (!showcaseId || !found || found.index === 0) return
+  const prev = found.items[found.index - 1]
+  if (!prev) return
   await showcaseStore.moveGoods(showcaseId, {
     goods_id: goodsId,
-    anchor_goods_id: anchor.goods.id,
+    anchor_goods_id: prev.goods.id,
     position: 'before',
   })
 }
 
 const moveDown = async (goodsId: string) => {
   const showcaseId = showcaseStore.activeShowcaseId
-  if (!showcaseId) return
   const found = findInList(goodsId)
-  if (!found) return
-  if (found.index >= found.items.length - 1) {
-    ElMessage.info('已经是最后一项')
-    return
-  }
-  const anchor = found.items[found.index + 1]
-  if (!anchor) return
+  if (!showcaseId || !found || found.index >= found.items.length - 1) return
+  const next = found.items[found.index + 1]
+  if (!next) return
   await showcaseStore.moveGoods(showcaseId, {
     goods_id: goodsId,
-    anchor_goods_id: anchor.goods.id,
+    anchor_goods_id: next.goods.id,
     position: 'after',
   })
 }
@@ -491,299 +517,482 @@ onMounted(async () => {
 
 <style scoped>
 .showcase-manager {
+  --c-brand: #d4af37;
+  --c-brand-light: rgba(212, 175, 55, 0.1);
+  --c-accent: #a29bfe;
+  --c-accent-hover: #8e86fa;
+  --c-bg: #f5f5f7;
+  --c-text-main: #2c3e50;
+  --c-text-sub: #909399;
+  --radius-lg: 16px;
+  --radius-md: 12px;
+
+  /*
+   * 优化后的阴影系统（更“悬浮”、更“柔和”）：
+   * - 大模糊 + 负扩散（negative spread）收缩阴影，消除边缘生硬感
+   * - 多层叠加形成弥散云端质感
+   */
+  --shadow-float:
+    0 10px 40px -10px rgba(0, 0, 0, 0.08),
+    0 2px 10px -2px rgba(0, 0, 0, 0.04);
+
+  /* 更通透的玻璃边框色，减少黑边感 */
+  --c-border-glass: rgba(255, 255, 255, 0.6);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+
   width: 100%;
+  min-height: calc(100vh - 80px);
+  position: relative;
+  /* 只允许垂直滚动，禁止横向滚动避免底部滑动条 */
+  overflow-x: hidden;
+  overflow-y: auto;
+  font-family: 'PingFang SC', 'Helvetica Neue', sans-serif;
+}
+
+.bg-decoration {
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(circle, rgba(162, 155, 254, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .layout {
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 16px;
-  align-items: start;
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 10px;
+  position: relative;
+  z-index: 1;
 }
 
-.panel {
-  border-radius: var(--card-radius);
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: var(--shadow-sm);
+.panel-container {
+  display: flex;
+  flex-direction: column;
+  align-self: flex-start;
+}
+
+.left-panel {
+  width: 340px;
+  flex-shrink: 0;
+  transition: transform 0.3s ease;
+}
+
+.right-panel {
+  flex: 1;
+  min-width: 0;
+}
+
+.glass-card {
+  /* 核心布局 */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* 确保内容不溢出圆角 */
+
+  /* 视觉样式 */
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--c-border-glass);
+
+  /* 背景与毛玻璃 */
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px); /* 稍微增加模糊度提升质感 */
+  -webkit-backdrop-filter: blur(16px);
+
+  /* 关键优化：背景裁切，防止背景色溢出圆角造成直角伪影 */
+  background-clip: padding-box;
+
+  /* 应用优化后的柔和阴影 */
+  box-shadow: var(--shadow-float);
+
+  /* 消除可能的渲染层级问题 */
+  transform: translateZ(0);
+}
+
+/* Element Plus Card：隐藏组件自带边框，避免与玻璃边框叠加 */
+:deep(.el-card) {
+  border: none;
+}
+
+/* 桌面端：内容少时缩短，内容多时最大高度 + 内部滚动 */
+.adaptive-card {
+  height: fit-content;
+  max-height: calc(100vh - 100px);
+}
+
+:deep(.el-card__body) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+:deep(.el-card__header) {
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+/* 更轻盈的 Header 分割线（覆盖默认值） */
+::deep(.el-card__header) {
+  padding: 18px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
 }
 
 .panel-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+}
+/* Header 轻分割线（最终覆盖，避免旧值残留） */
+::deep(.el-card__header) {
+  padding: 18px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
 }
 
 .panel-title {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
-  color: var(--text-dark);
-}
-
-.panel-actions {
+  color: var(--c-text-main);
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: 8px;
+}
+.btn-accent {
+  background-color: var(--c-accent);
+  border-color: var(--c-accent);
+  color: #fff;
+}
+.btn-accent:hover {
+  background-color: var(--c-accent-hover);
+  border-color: var(--c-accent-hover);
 }
 
-.panel-loading,
-.panel-error,
-.panel-empty {
+.scroll-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+.scroll-content::-webkit-scrollbar {
+  width: 6px;
+}
+.scroll-content::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+.state-box {
   padding: 12px 0;
+}
+.state-box.empty {
+  padding: 24px 0;
 }
 
 .showcase-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
-
 .showcase-item {
-  display: grid;
-  grid-template-columns: 54px 1fr;
-  gap: 10px;
+  display: flex;
   align-items: center;
   padding: 10px;
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.5);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all 0.2s ease;
 }
-
 .showcase-item:hover {
-  border-color: rgba(212, 175, 55, 0.6);
-  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
-
 .showcase-item.active {
-  border-color: var(--primary-gold);
-  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.12);
+  border-color: var(--c-brand);
+  background: linear-gradient(to right, rgba(212, 175, 55, 0.05), rgba(162, 155, 254, 0.05));
 }
-
 .showcase-cover {
-  width: 54px;
-  height: 54px;
-  border-radius: 12px;
+  width: 50px;
+  height: 50px;
+  border-radius: 8px;
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(245, 245, 247, 0.9);
-}
-
-.cover-img {
-  width: 54px;
-  height: 54px;
-}
-
-.cover-placeholder {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, rgba(212, 175, 55, 0.12), rgba(162, 155, 254, 0.12));
-}
-
-.showcase-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.showcase-name {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-dark);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.showcase-desc {
-  font-size: 12px;
-  color: var(--text-light);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.pager {
-  display: flex;
-  justify-content: center;
-  margin-top: 8px;
-}
-
-.detail-empty {
-  padding: 24px 0;
-}
-
-.detail-head {
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.detail-name {
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--text-dark);
-}
-
-.detail-desc {
-  margin-top: 6px;
-  color: var(--text-light);
-  font-size: 13px;
-  line-height: 1.6;
-  max-width: 720px;
-}
-
-.category-section {
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.category-block {
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 14px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.65);
-}
-
-.category-head {
+  flex-shrink: 0;
+  background: #f0f0f0;
+  border: 1px solid rgba(0, 0, 0, 0.05);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
+  justify-content: center;
 }
-
-.category-title {
+.cover-img {
+  width: 100%;
+  height: 100%;
+}
+.cover-placeholder {
+  color: #ccc;
+  font-size: 20px;
+}
+.showcase-info {
+  flex: 1;
+  margin-left: 12px;
+  min-width: 0;
+}
+.showcase-name {
   font-size: 14px;
-  font-weight: 800;
-  color: var(--text-dark);
-}
-
-.category-sub {
   font-weight: 600;
-  margin-left: 6px;
-  color: var(--text-light);
+  color: var(--c-text-main);
+}
+.showcase-desc {
+  font-size: 12px;
+  color: var(--c-text-sub);
+  margin-top: 4px;
+}
+.active-icon {
+  color: var(--c-brand);
+  font-size: 16px;
+  margin-left: 8px;
+}
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.category-actions {
+.pager-container {
   display: flex;
-  gap: 6px;
+  justify-content: center;
+  padding: 10px 0 0;
 }
 
-.category-empty {
+.detail-header .header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.detail-empty-state {
+  padding: 24px 0;
+}
+.detail-loading {
+  padding: 16px;
+}
+.detail-info-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   padding: 8px 0;
+  gap: 20px;
+}
+.detail-name {
+  font-size: 24px;
+  color: var(--c-text-main);
+  margin: 0;
+  font-weight: 800;
+}
+.detail-desc {
+  color: var(--c-text-sub);
+  font-size: 14px;
+  margin: 8px 0;
+  line-height: 1.5;
+}
+.custom-divider {
+  margin: 20px 0;
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+.section-header {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 16px;
+}
+.section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--c-text-main);
+}
+.section-count {
+  margin-left: 8px;
+  font-size: 13px;
+  color: var(--c-text-sub);
+}
+.goods-empty {
+  padding: 16px 0;
 }
 
 .goods-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
+}
+.goods-wrapper {
+  position: relative;
+  transition: transform 0.2s;
+}
+.goods-wrapper:hover {
+  transform: translateY(-4px);
+  z-index: 2;
+}
+.goods-control {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  transition: opacity 0.2s;
+  cursor: pointer;
+}
+.goods-wrapper:hover .goods-control {
+  opacity: 1;
+}
+@media (hover: none) {
+  .goods-control {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.7);
+  }
 }
 
-.goods-item {
+.text-danger {
+  color: #f56c6c;
+}
+
+.add-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  height: 100%;
 }
-
-.goods-actions {
-  display: flex;
-  justify-content: flex-end;
+.search-bar {
+  padding: 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
-
-.add-drawer {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.search-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
 }
-
-.add-toolbar {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-}
-
-.add-hint {
-  font-size: 12px;
-  color: var(--text-light);
-}
-
 .add-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-
-.add-item {
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 12px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.7);
+.add-item-card {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid #f0f0f0;
 }
-
-.add-item-main {
-  display: grid;
-  grid-template-columns: 54px 1fr;
+.add-item-left {
+  display: flex;
   gap: 10px;
   align-items: center;
+  flex: 1;
   cursor: pointer;
 }
-
 .add-thumb {
-  width: 54px;
-  height: 54px;
-  border-radius: 12px;
-  overflow: hidden;
-  background: rgba(245, 245, 247, 0.9);
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: #fafafa;
+  flex-shrink: 0;
 }
-
-.add-thumb.placeholder {
+.placeholder-img {
+  width: 100%;
+  height: 100%;
   background: linear-gradient(135deg, rgba(212, 175, 55, 0.12), rgba(162, 155, 254, 0.12));
 }
-
-.add-meta {
+.add-info {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
-
 .add-name {
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--text-dark);
-  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.add-sub {
-  font-size: 12px;
-  color: var(--text-light);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+.add-tags {
+  margin-top: 4px;
+}
+.btn-icon-only {
+  width: 32px;
+  height: 32px;
+  background: var(--c-accent);
+  border-color: var(--c-accent);
 }
 
-.add-item-actions {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
+.switch-row {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
+  width: 100%;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 768px) {
+  .showcase-manager {
+    min-height: calc(100vh - 50px);
+    height: calc(100vh - 50px);
+  }
   .layout {
-    grid-template-columns: 1fr;
+    gap: 0;
+    padding: 0;
+    display: block;
+    height: 100%;
+  }
+
+  .left-panel,
+  .right-panel {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    align-self: unset;
+  }
+
+  .panel-container {
+    height: 100%;
+  }
+
+  .glass-card {
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+  }
+
+  /* 移动端恢复卡片填满可用高度 */
+  .adaptive-card {
+    height: 100%;
+    max-height: none;
+  }
+
+  .detail-info-banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .add-goods-btn {
+    width: 100%;
+  }
+
+  .goods-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .right-panel {
+    z-index: 10;
+    background: var(--c-bg);
   }
 }
 </style>

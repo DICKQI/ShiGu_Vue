@@ -19,7 +19,7 @@
           </template>
 
           <div class="scroll-content">
-            <div v-if="showcaseStore.error" class="state-box">
+            <div v-if="showcaseStore.error && showcaseStore.list.length === 0" class="state-box">
               <el-alert :title="showcaseStore.error" type="error" :closable="false" show-icon />
             </div>
 
@@ -38,6 +38,7 @@
                 class="showcase-item"
                 :class="{ active: s.id === showcaseStore.activeShowcaseId }"
                 @click="handleSelectShowcase(s.id)"
+                @contextmenu.prevent.stop="openShowcaseContextMenu(s.id, $event)"
               >
                 <div class="showcase-cover">
                   <el-image
@@ -85,21 +86,6 @@
                 </el-button>
                 <div class="panel-title">展柜详情</div>
               </div>
-              <div class="panel-actions">
-                <el-button text bg size="small" :disabled="!showcaseStore.activeShowcaseId" @click="openEditShowcase">
-                  编辑
-                </el-button>
-                <el-button
-                  type="danger"
-                  text
-                  bg
-                  size="small"
-                  :disabled="!showcaseStore.activeShowcaseId"
-                  @click="handleDeleteShowcase"
-                >
-                  删除
-                </el-button>
-              </div>
             </div>
           </template>
 
@@ -146,39 +132,59 @@
                   v-for="item in showcaseStore.sortedShowcaseGoods"
                   :key="item.id"
                   class="goods-wrapper"
+                  @contextmenu.prevent.stop="openGoodsContextMenuFromDom(item.goods.id, $event)"
                 >
                   <GoodsCard
                     :goods="item.goods"
+                    :show-menu="false"
                     class="mini-goods-card"
                     @click="handleOpenGoodsDetail"
                     @location-click="noop"
-                    @context-menu="noop"
+                    @context-menu="openGoodsContextMenu"
                   />
-                  <div class="goods-control">
-                    <el-dropdown trigger="click" size="small">
-                      <span class="el-dropdown-link">
-                        <el-icon><MoreFilled /></el-icon>
-                      </span>
-                      <template #dropdown>
-                        <el-dropdown-menu>
-                          <el-dropdown-item @click="moveUp(item.goods.id)" :disabled="isFirst(item.goods.id)">
-                            <el-icon><Top /></el-icon> 上移
-                          </el-dropdown-item>
-                          <el-dropdown-item @click="moveDown(item.goods.id)" :disabled="isLast(item.goods.id)">
-                            <el-icon><Bottom /></el-icon> 下移
-                          </el-dropdown-item>
-                          <el-dropdown-item divided @click="handleRemoveFromShowcase(item.goods.id)" class="text-danger">
-                            <el-icon><Delete /></el-icon> 移除
-                          </el-dropdown-item>
-                        </el-dropdown-menu>
-                      </template>
-                    </el-dropdown>
-                  </div>
                 </div>
               </div>
             </div>
           </div>
         </el-card>
+      </div>
+    </div>
+
+    <!-- 右键菜单（谷子/展柜共用遮罩） -->
+    <div v-if="contextMenu.visible" class="context-menu-overlay" @click="closeContextMenu" @contextmenu.prevent>
+      <div
+        class="context-menu"
+        :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+        @click.stop
+        @contextmenu.prevent
+      >
+        <!-- 谷子卡片右键菜单 -->
+        <template v-if="contextMenu.type === 'goods'">
+          <div class="context-menu-item" :class="{ 'is-disabled': isFirst(contextMenu.goodsId!) }" @click="ctxMoveUp">
+            <el-icon class="context-menu-icon"><Top /></el-icon>
+            上移
+          </div>
+          <div class="context-menu-item" :class="{ 'is-disabled': isLast(contextMenu.goodsId!) }" @click="ctxMoveDown">
+            <el-icon class="context-menu-icon"><Bottom /></el-icon>
+            下移
+          </div>
+          <div class="context-menu-item context-menu-item-danger" @click="ctxRemoveFromShowcase">
+            <el-icon class="context-menu-icon"><Delete /></el-icon>
+            移除
+          </div>
+        </template>
+
+        <!-- 左侧展柜右键菜单 -->
+        <template v-else-if="contextMenu.type === 'showcase'">
+          <div class="context-menu-item" @click="ctxEditShowcase">
+            <el-icon class="context-menu-icon"><Edit /></el-icon>
+            编辑
+          </div>
+          <div class="context-menu-item context-menu-item-danger" @click="ctxDeleteShowcase">
+            <el-icon class="context-menu-icon"><Delete /></el-icon>
+            删除
+          </div>
+        </template>
       </div>
     </div>
 
@@ -197,6 +203,22 @@
         </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="showcaseForm.description" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="写点什么..." />
+        </el-form-item>
+        <el-form-item label="封面图片（可选）">
+          <el-upload
+            v-model:file-list="showcaseCoverFileList"
+            list-type="picture-card"
+            :auto-upload="false"
+            :limit="1"
+            :on-change="handleCoverChange"
+            :on-remove="handleCoverRemove"
+            :http-request="dummyUpload"
+            accept="image/*"
+            :class="{ 'hide-upload-trigger': showcaseCoverFileList.length >= 1 }"
+          >
+            <el-icon><Plus /></el-icon>
+          </el-upload>
+          <div class="cover-tip">建议使用 1:1 或 4:3 比例图片；大小不限，后端会自动压缩到合适体积。</div>
         </el-form-item>
         <el-form-item>
           <div class="switch-row">
@@ -293,14 +315,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type UploadFile } from 'element-plus'
 import {
   Plus,
   Search,
   Delete,
+  Edit,
   Top,
   Bottom,
-  MoreFilled,
   ArrowRight,
   ArrowLeft,
   Collection,
@@ -311,6 +333,7 @@ import GoodsCard from '@/components/GoodsCard.vue'
 import GoodsDrawer from '@/components/GoodsDrawer.vue'
 import { useShowcaseStore } from '@/stores/showcase'
 import { getGoodsList } from '@/api/goods'
+import { uploadShowcaseCoverImage } from '@/api/showcase'
 import type { GoodsListItem, PaginatedResponse } from '@/api/types'
 
 const isMobile = ref(window.innerWidth < 768)
@@ -346,6 +369,68 @@ const openGoodsDetailFromAdd = (id: string) => {
 }
 const noop = () => {}
 
+const contextMenu = reactive<{
+  visible: boolean
+  type: 'goods' | 'showcase' | null
+  x: number
+  y: number
+  goodsId: string | null
+  showcaseId: string | null
+}>({
+  visible: false,
+  type: null,
+  x: 0,
+  y: 0,
+  goodsId: null,
+  showcaseId: null,
+})
+
+const clampMenuPosition = (x: number, y: number) => {
+  // 估一个菜单尺寸，避免贴边溢出（不要求精确）
+  const w = 180
+  const h = 140
+  const maxX = Math.max(8, window.innerWidth - w - 8)
+  const maxY = Math.max(8, window.innerHeight - h - 8)
+  return { x: Math.min(Math.max(8, x), maxX), y: Math.min(Math.max(8, y), maxY) }
+}
+
+const closeContextMenu = () => {
+  contextMenu.visible = false
+  contextMenu.type = null
+  contextMenu.goodsId = null
+  contextMenu.showcaseId = null
+}
+
+const openGoodsContextMenu = (payload: { goods: GoodsListItem; x: number; y: number }) => {
+  const pos = clampMenuPosition(payload.x, payload.y)
+  contextMenu.visible = true
+  contextMenu.type = 'goods'
+  contextMenu.x = pos.x
+  contextMenu.y = pos.y
+  contextMenu.goodsId = payload.goods.id
+  contextMenu.showcaseId = null
+}
+
+const openGoodsContextMenuFromDom = (goodsId: string, event: MouseEvent) => {
+  const pos = clampMenuPosition(event.clientX, event.clientY)
+  contextMenu.visible = true
+  contextMenu.type = 'goods'
+  contextMenu.x = pos.x
+  contextMenu.y = pos.y
+  contextMenu.goodsId = goodsId
+  contextMenu.showcaseId = null
+}
+
+const openShowcaseContextMenu = (showcaseId: string, event: MouseEvent) => {
+  const pos = clampMenuPosition(event.clientX, event.clientY)
+  contextMenu.visible = true
+  contextMenu.type = 'showcase'
+  contextMenu.x = pos.x
+  contextMenu.y = pos.y
+  contextMenu.showcaseId = showcaseId
+  contextMenu.goodsId = null
+}
+
 const showcaseDialogVisible = ref(false)
 const showcaseDialogMode = ref<'create' | 'edit'>('create')
 const showcaseForm = reactive<{ id?: string; name: string; description: string; is_public: boolean }>({
@@ -355,10 +440,44 @@ const showcaseForm = reactive<{ id?: string; name: string; description: string; 
 })
 const showcaseDialogTitle = computed(() => (showcaseDialogMode.value === 'create' ? '新建展柜' : '编辑展柜'))
 
+// 展柜封面本地状态
+const showcaseCoverFile = ref<File | null>(null)
+const showcaseCoverFileList = ref<UploadFile[]>([])
+
+const resetShowcaseCoverState = () => {
+  showcaseCoverFile.value = null
+  showcaseCoverFileList.value = []
+}
+
+const dummyUpload = () => Promise.resolve()
+
+const handleCoverChange = (file: UploadFile, fileList: UploadFile[]) => {
+  if (file.raw) {
+    showcaseCoverFile.value = file.raw
+    // 仅保留一条记录，使用当前选择的文件作为预览
+    showcaseCoverFileList.value = [
+      {
+        name: file.name || 'cover_image',
+        url: file.url,
+        status: 'success',
+      } as UploadFile,
+    ]
+  } else {
+    showcaseCoverFile.value = null
+    showcaseCoverFileList.value = []
+  }
+}
+
+const handleCoverRemove = () => {
+  showcaseCoverFile.value = null
+  showcaseCoverFileList.value = []
+}
+
 const openCreateShowcase = () => {
   showcaseDialogMode.value = 'create'
   Object.assign(showcaseForm, { id: undefined, name: '', description: '', is_public: true })
   showcaseDialogVisible.value = true
+  resetShowcaseCoverState()
 }
 const openEditShowcase = () => {
   if (!showcaseStore.activeShowcase) return
@@ -366,6 +485,19 @@ const openEditShowcase = () => {
   const { id, name, description, is_public } = showcaseStore.activeShowcase
   Object.assign(showcaseForm, { id, name, description: description || '', is_public: is_public ?? true })
   showcaseDialogVisible.value = true
+  // 预填现有封面预览（不把远端封面当作待上传文件，仅做展示）
+  if (showcaseStore.activeShowcase.cover_image) {
+    showcaseCoverFile.value = null
+    showcaseCoverFileList.value = [
+      {
+        name: 'current_cover',
+        url: showcaseStore.activeShowcase.cover_image,
+        status: 'success',
+      } as UploadFile,
+    ]
+  } else {
+    resetShowcaseCoverState()
+  }
 }
 
 const submitShowcase = async () => {
@@ -376,18 +508,40 @@ const submitShowcase = async () => {
     is_public: showcaseForm.is_public,
   }
   let success = false
+  let targetId: string | undefined
   if (showcaseDialogMode.value === 'create') {
     const created = await showcaseStore.createOne(payload)
     success = !!created
+    if (created) {
+      targetId = created.id
+    }
   } else {
     if (showcaseForm.id) {
       const updated = await showcaseStore.updateOne(showcaseForm.id, payload)
       success = !!updated
+      if (updated) {
+        targetId = updated.id
+      }
     }
   }
   if (success) {
+    // 如有选择新的封面文件，调用封面上传 / 更新接口
+    if (targetId && showcaseCoverFile.value) {
+      try {
+        await uploadShowcaseCoverImage(targetId, showcaseCoverFile.value)
+        // 上传封面后刷新当前展柜详情和列表，保证左侧缩略图与详情封面同步
+        await Promise.all([
+          showcaseStore.fetchDetail(targetId),
+          showcaseStore.fetchList({ page: showcaseStore.pagination.page, page_size: showcaseStore.pagination.page_size }),
+        ])
+      } catch (err: any) {
+        ElMessage.error('封面上传失败：' + (err?.message || '未知错误'))
+      }
+    }
     ElMessage.success(showcaseDialogMode.value === 'create' ? '展柜已创建' : '展柜已更新')
     showcaseDialogVisible.value = false
+    // 提交完成后清理本地封面选择状态
+    resetShowcaseCoverState()
   }
 }
 
@@ -409,6 +563,23 @@ const handleDeleteShowcase = async () => {
   }
 }
 
+const handleDeleteShowcaseById = async (id: string) => {
+  try {
+    await ElMessageBox.confirm('确认删除该展柜吗？里面的谷子不会被删除，仅解除关联。', '删除警告', {
+      type: 'warning',
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+    })
+    const ok = await showcaseStore.removeOne(id)
+    if (ok) {
+      ElMessage.success('已删除')
+      if (isMobile.value) backToList()
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 const handleSelectShowcase = async (id: string) => {
   await showcaseStore.setActive(id)
 }
@@ -421,7 +592,7 @@ const addList = ref<GoodsListItem[]>([])
 const addPagination = reactive<PaginatedResponse<GoodsListItem>>({
   count: 0,
   page: 1,
-  page_size: 10,
+  page_size: 18,
   next: null,
   previous: null,
   results: [],
@@ -507,11 +678,44 @@ const moveDown = async (goodsId: string) => {
   })
 }
 
+const ctxMoveUp = async () => {
+  const id = contextMenu.goodsId
+  if (!id || isFirst(id)) return
+  closeContextMenu()
+  await moveUp(id)
+}
+const ctxMoveDown = async () => {
+  const id = contextMenu.goodsId
+  if (!id || isLast(id)) return
+  closeContextMenu()
+  await moveDown(id)
+}
+const ctxRemoveFromShowcase = async () => {
+  const id = contextMenu.goodsId
+  if (!id) return
+  closeContextMenu()
+  await handleRemoveFromShowcase(id)
+}
+
+const ctxEditShowcase = async () => {
+  const id = contextMenu.showcaseId
+  if (!id) return
+  closeContextMenu()
+  await showcaseStore.setActive(id)
+  openEditShowcase()
+}
+
+const ctxDeleteShowcase = async () => {
+  const id = contextMenu.showcaseId
+  if (!id) return
+  closeContextMenu()
+  await handleDeleteShowcaseById(id)
+}
+
 onMounted(async () => {
+  showcaseStore.activeShowcaseId = null
+  showcaseStore.activeShowcase = null
   await showcaseStore.fetchList()
-  if (showcaseStore.activeShowcaseId) {
-    await showcaseStore.fetchDetail(showcaseStore.activeShowcaseId)
-  }
 })
 </script>
 
@@ -863,6 +1067,56 @@ onMounted(async () => {
   color: #f56c6c;
 }
 
+/* 右键菜单（复用谷仓风格） */
+.context-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: transparent;
+}
+.context-menu {
+  position: fixed;
+  min-width: 170px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  color: var(--c-text-main);
+}
+.context-menu-icon {
+  font-size: 16px;
+  color: #606266;
+}
+.context-menu-item:hover {
+  background: rgba(162, 155, 254, 0.12);
+}
+.context-menu-item.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.context-menu-item.is-disabled:hover {
+  background: transparent;
+}
+.context-menu-item-danger {
+  color: #f56c6c;
+}
+.context-menu-item-danger .context-menu-icon {
+  color: #f56c6c;
+}
+
 .add-container {
   display: flex;
   flex-direction: column;
@@ -936,6 +1190,11 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   width: 100%;
+}
+
+/* 选中一张封面后隐藏新增按钮（只保留已选卡片） */
+.hide-upload-trigger :deep(.el-upload--picture-card) {
+  display: none;
 }
 
 @media (max-width: 768px) {

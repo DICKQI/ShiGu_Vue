@@ -308,7 +308,7 @@ const handleMove = async (direction: 'forward' | 'backward') => {
 
   try {
     let anchorId = ''
-    let position: 'before' | 'after' = direction === 'forward' ? 'before' : 'after'
+    const position: 'before' | 'after' = direction === 'forward' ? 'before' : 'after'
 
     if (direction === 'forward') {
       if (idx > 0) {

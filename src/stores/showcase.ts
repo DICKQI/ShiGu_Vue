@@ -62,9 +62,6 @@ export const useShowcaseStore = defineStore('showcase', () => {
       const data = await getShowcaseList({ page, page_size })
       pagination.value = data
       list.value = data.results || []
-      if (!activeShowcaseId.value && list.value.length) {
-        activeShowcaseId.value = list.value[0]?.id ?? null
-      }
     } catch (e: any) {
       error.value = e?.message || '加载展柜列表失败'
       list.value = []

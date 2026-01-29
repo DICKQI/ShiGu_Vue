@@ -42,8 +42,8 @@
         x{{ goods.quantity }}
       </div>
 
-      <!-- 更多按钮 -->
-      <div class="menu-button" @click.stop="handleMenuButtonClick">
+      <!-- 更多按钮（某些页面会在外层自定义右上角操作区，避免重复显示） -->
+      <div v-if="showMenu" class="menu-button" @click.stop="handleMenuButtonClick">
         <el-icon><MoreFilled /></el-icon>
       </div>
     </div>
@@ -97,9 +97,18 @@ import type { GoodsListItem } from '@/api/types'
 
 interface Props {
   goods: GoodsListItem
+  /**
+   * 是否显示卡片右上角的“更多”按钮。
+   * 默认显示；当外层页面已自定义右上角操作区时可关闭，避免冲突/重叠。
+   */
+  showMenu?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  showMenu: true,
+})
+
+const showMenu = computed(() => props.showMenu)
 
 const emit = defineEmits<{
   click: [goods: GoodsListItem]

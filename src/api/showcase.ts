@@ -34,6 +34,13 @@ export function deleteShowcase(id: string) {
   return request.delete(`/api/showcases/${id}/`)
 }
 
+// 展柜封面上传 / 更新
+export function uploadShowcaseCoverImage(id: string, file: File) {
+  const formData = new FormData()
+  formData.append('cover_image', file)
+  return request.post<Showcase>(`/api/showcases/${id}/upload-cover-image/`, formData)
+}
+
 // ==================== 展柜内谷子管理 ====================
 
 export function getShowcaseGoods(showcaseId: string, params?: { category_id?: string }) {

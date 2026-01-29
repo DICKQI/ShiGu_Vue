@@ -2,7 +2,7 @@
   <div class="cloud-showcase">
     <!-- 顶部 Tab：云展柜 / 谷仓 / 统计 -->
     <el-tabs v-model="activeTab" class="cloud-tabs">
-      <el-tab-pane label="云展柜" name="showcase" />
+      <el-tab-pane label="展柜" name="showcase" />
       <el-tab-pane label="谷仓" name="barn" />
       <el-tab-pane label="统计看板" name="stats" />
     </el-tabs>
@@ -436,11 +436,11 @@ const checkScrollBottom = () => {
   const scrollTop = window.pageYOffset || document.documentElement.scrollTop
   const windowHeight = window.innerHeight
   const documentHeight = document.documentElement.scrollHeight
-  
+
   // 当距离底部小于等于 100px 时显示分页器
   const threshold = 100
   const distanceToBottom = documentHeight - (scrollTop + windowHeight)
-  
+
   showPagination.value = distanceToBottom <= threshold
 }
 
@@ -497,14 +497,14 @@ onMounted(() => {
 
   // 将当前 Tab 同步给布局层（用于控制右下角 + 号显示）
   window.dispatchEvent(new CustomEvent('cloud-showcase:tab-changed', { detail: { tab: activeTab.value } }))
-  
+
   // 初始化分页器显示状态
   if (isMobile.value) {
     checkScrollBottom()
   } else {
     showPagination.value = true
   }
-  
+
   // 添加滚动监听
   window.addEventListener('scroll', checkScrollBottom, { passive: true })
   window.addEventListener('resize', handleResize)
@@ -611,7 +611,7 @@ watch(
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 12px;
   }
-  
+
   .cloud-showcase {
     padding-bottom: 120px; /* 移动端预留更多空间 */
   }
@@ -660,18 +660,18 @@ watch(
     opacity: 0;
     transition: transform 0.3s ease, opacity 0.3s ease;
   }
-  
+
   .pagination-container.pagination-visible {
     transform: translateY(0);
     opacity: 1;
   }
-  
+
   .pagination-wrapper {
     padding: 6px 10px;
     border-radius: 12px;
     /* 移除 width 设置，让分页器根据内容自适应宽度 */
   }
-  
+
   /* 兼容不支持 safe-area-inset-bottom 的环境 */
   @supports not (bottom: env(safe-area-inset-bottom)) {
     .pagination-container {

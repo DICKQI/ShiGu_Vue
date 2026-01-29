@@ -4,57 +4,60 @@
     <div class="bg-decoration"></div>
 
     <div class="layout single-page">
-      <!-- 列表页 -->
-      <div v-if="viewMode === 'list'" class="panel-container full-panel">
-        <el-card shadow="never" class="glass-card adaptive-card">
-          <template #header>
-            <div class="panel-header">
-              <div class="panel-title">
-                <el-icon><Collection /></el-icon> 我的展柜
+      <!-- 列表 / 详情页切换过渡 -->
+      <Transition name="detail-fade" mode="out-in">
+        <!-- 列表页 -->
+        <div v-if="viewMode === 'list'" key="list" class="panel-container full-panel">
+          <el-card shadow="never" class="glass-card adaptive-card">
+            <template #header>
+              <div class="panel-header">
+                <div class="panel-title">
+                  <el-icon><Collection /></el-icon> 我的展柜
+                </div>
+                <el-button type="primary" circle class="btn-accent" @click="openCreateShowcase">
+                  <el-icon><Plus /></el-icon>
+                </el-button>
               </div>
-              <el-button type="primary" circle class="btn-accent" @click="openCreateShowcase">
-                <el-icon><Plus /></el-icon>
-              </el-button>
+            </template>
+
+            <div class="scroll-content">
+              <ShowcaseListView
+                :showcases="showcaseStore.list"
+                :loading="showcaseStore.listLoading"
+                :error="showcaseStore.error"
+                :pagination="{
+                  total: showcaseStore.pagination.count,
+                  page: showcaseStore.pagination.page,
+                  pageSize: showcaseStore.pagination.page_size,
+                }"
+                :get-preview-photos="showcaseStore.getPreviewPhotos"
+                :is-preview-loading="showcaseStore.isPreviewLoading"
+                @select="handleEnterShowcaseDetail"
+                @context-menu="openShowcaseContextMenu"
+                @page-change="handleListPageChange"
+              />
             </div>
-          </template>
+          </el-card>
+        </div>
 
-          <div class="scroll-content">
-            <ShowcaseListView
-              :showcases="showcaseStore.list"
-              :loading="showcaseStore.listLoading"
-              :error="showcaseStore.error"
-              :pagination="{
-                total: showcaseStore.pagination.count,
-                page: showcaseStore.pagination.page,
-                pageSize: showcaseStore.pagination.page_size,
-              }"
-              :get-preview-photos="showcaseStore.getPreviewPhotos"
-              :is-preview-loading="showcaseStore.isPreviewLoading"
-              @select="handleEnterShowcaseDetail"
-              @context-menu="openShowcaseContextMenu"
-              @page-change="handleListPageChange"
-            />
-          </div>
-        </el-card>
-      </div>
-
-      <!-- 详情页 -->
-      <div v-else class="panel-container full-panel">
-        <el-card shadow="never" class="glass-card adaptive-card detail-card">
-          <div class="scroll-content">
-            <ShowcaseDetailView
-              :loading="showcaseStore.detailLoading"
-              :showcase="showcaseStore.activeShowcase"
-              :goods="showcaseStore.sortedShowcaseGoods"
-              @back="backToList"
-              @add-goods="openAddGoods"
-              @open-goods="handleOpenGoodsDetail"
-              @goods-context-menu="openGoodsContextMenu"
-              @goods-context-menu-from-dom="openGoodsContextMenuFromDom"
-            />
-          </div>
-        </el-card>
-      </div>
+        <!-- 详情页 -->
+        <div v-else key="detail" class="panel-container full-panel">
+          <el-card shadow="never" class="glass-card adaptive-card detail-card">
+            <div class="scroll-content">
+              <ShowcaseDetailView
+                :loading="showcaseStore.detailLoading"
+                :showcase="showcaseStore.activeShowcase"
+                :goods="showcaseStore.sortedShowcaseGoods"
+                @back="backToList"
+                @add-goods="openAddGoods"
+                @open-goods="handleOpenGoodsDetail"
+                @goods-context-menu="openGoodsContextMenu"
+                @goods-context-menu-from-dom="openGoodsContextMenuFromDom"
+              />
+            </div>
+          </el-card>
+        </div>
+      </Transition>
     </div>
 
     <!-- 右键菜单（谷子/展柜共用遮罩） -->
@@ -267,9 +270,15 @@ const handleListPageChange = (page: number) => {
   showcaseCurrentPage.value = page
 }
 
-const backToList = () => {
+const backToList = async () => {
+  // 先清空当前选中的展柜
   showcaseStore.activeShowcaseId = null
   showcaseStore.activeShowcase = null
+  // 返回「我的展柜」列表时，强制刷新一次列表数据
+  await showcaseStore.fetchList({
+    page: showcaseStore.pagination.page,
+    page_size: showcaseStore.pagination.page_size,
+  })
   viewMode.value = 'list'
 }
 
@@ -926,6 +935,38 @@ watch(
   align-items: flex-start;
   padding: 8px 0;
   gap: 20px;
+}
+.detail-name {
+  font-size: 24px;
+  color: var(--c-text-main);
+  margin: 0;
+  font-weight: 800;
+}
+.detail-desc {
+  color: var(--c-text-sub);
+  font-size: 14px;
+  margin: 8px 0;
+  line-height: 1.5;
+}
+.custom-divider {
+  margin: 20px 0;
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+/* 列表 / 详情切换过渡动画，参考 CloudShowcase.vue 中 tab-fade */
+.detail-fade-enter-active,
+.detail-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.detail-fade-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.detail-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 .detail-name {
   font-size: 24px;

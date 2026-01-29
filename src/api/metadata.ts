@@ -4,7 +4,7 @@ import type { IP, Character, Category } from './types'
 // ==================== IP作品 CRUD ====================
 
 // 获取所有IP列表
-export function getIPList(params?: { 
+export function getIPList(params?: {
   name?: string
   search?: string
   subject_type?: number
@@ -164,7 +164,28 @@ export function deleteTheme(id: number) {
 
 // ==================== BGM角色导入 ====================
 
-import type { BGMSearchResponse, BGMCreateCharactersResponse, BGMCreateCharacterItem } from './types'
+import type {
+  BGMSearchResponse,
+  BGMCreateCharactersResponse,
+  BGMCreateCharacterItem,
+  BGMSearchSubjectsResponse,
+  BGMGetCharactersResponse
+} from './types'
+
+// 搜索BGM IP作品列表
+export function searchBGMSubjects(keyword: string, subjectType?: number) {
+  return request.post<BGMSearchSubjectsResponse>('/api/bgm/search-subjects/', {
+    keyword,
+    ...(subjectType !== undefined && { subject_type: subjectType }),
+  })
+}
+
+// 根据BGM作品ID获取角色列表
+export function getBGMCharactersBySubjectId(subjectId: number) {
+  return request.post<BGMGetCharactersResponse>('/api/bgm/get-characters-by-id/', {
+    subject_id: subjectId,
+  })
+}
 
 // 搜索BGM IP作品并获取角色列表
 export function searchBGMCharacters(ipName: string, subjectType?: number) {

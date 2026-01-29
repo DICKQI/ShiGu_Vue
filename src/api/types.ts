@@ -418,3 +418,25 @@ export interface BGMCreateCharactersResponse {
   details: BGMCreateCharacterResult[]
 }
 
+// BGM作品信息
+export interface BGMSubject {
+  id: number
+  name: string
+  name_cn: string
+  type: number
+  type_name: string
+  image: string
+}
+
+// 搜索作品响应
+export interface BGMSearchSubjectsResponse {
+  subjects: BGMSubject[]
+}
+
+// 根据ID获取角色响应
+export interface BGMGetCharactersResponse {
+  subject_id: number
+  subject_name: string
+  characters: BGMCharacter[]
+}
+

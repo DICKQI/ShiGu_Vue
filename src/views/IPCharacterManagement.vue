@@ -451,6 +451,54 @@
           </div>
         </div>
 
+        <!-- 作品列表展示 -->
+        <div v-if="bgmStep === 'subjects'" class="bgm-step-subjects">
+          <div class="results-header">
+            <h3>选择作品</h3>
+            <p class="results-subtitle">找到 {{ bgmSubjects.length }} 个相关作品，请点击选择一个</p>
+          </div>
+          <div class="bgm-subjects-list">
+             <div 
+               v-for="subject in bgmSubjects" 
+               :key="subject.id" 
+               class="bgm-subject-item" 
+               @click="handleBGMSelectSubject(subject)"
+             >
+                <el-image 
+                  :src="subject.image" 
+                  class="bgm-subject-cover" 
+                  fit="cover" 
+                  loading="lazy"
+                >
+                  <template #error>
+                    <div class="image-slot">
+                      <el-icon><Picture /></el-icon>
+                    </div>
+                  </template>
+                </el-image>
+                <div class="bgm-subject-info">
+                  <h4 class="subject-name" :title="subject.name">{{ subject.name }}</h4>
+                  <div class="subject-meta">
+                    <el-tag size="small" type="info">{{ subject.type_name }}</el-tag>
+                    <span class="subject-cn" v-if="subject.name_cn && subject.name_cn !== subject.name">{{ subject.name_cn }}</span>
+                  </div>
+                </div>
+                <div class="bgm-subject-arrow">
+                  <el-icon><ArrowRight /></el-icon>
+                </div>
+             </div>
+          </div>
+        </div>
+
+        <!-- 获取角色中等待页面 -->
+        <div v-if="bgmStep === 'loading-characters'" class="bgm-step-searching">
+          <div class="searching-content">
+            <el-icon class="searching-icon"><Loading /></el-icon>
+            <h3>正在获取角色列表...</h3>
+            <p>正在从Bangumi API获取选中作品的角色信息</p>
+          </div>
+        </div>
+
         <!-- 搜索结果展示 -->
         <div v-if="bgmStep === 'results'" class="bgm-step-results">
           <div class="results-header">
@@ -557,11 +605,12 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button v-if="bgmStep === 'search'" @click="bgmDialogVisible = false">取消</el-button>
+          <el-button v-if="bgmStep === 'subjects'" @click="handleBGMReset">返回搜索</el-button>
           <el-button
             v-if="bgmStep === 'results'"
-            @click="handleBGMReset"
+            @click="bgmStep = 'subjects'"
           >
-            重新搜索
+            返回作品列表
           </el-button>
           <el-button
             v-if="bgmStep === 'results'"
@@ -691,6 +740,7 @@ import {
   Collection,
   Link,
   Top,
+  Picture,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules, UploadFile } from 'element-plus'
@@ -706,6 +756,8 @@ import {
   deleteCharacter,
   searchBGMCharacters,
   createBGMCharacters,
+  searchBGMSubjects,
+  getBGMCharactersBySubjectId,
 } from '@/api/metadata'
 import type {
   IP,
@@ -713,6 +765,7 @@ import type {
   CharacterGender,
   BGMSearchResponse,
   BGMCreateCharactersResponse,
+  BGMSubject,
 } from '@/api/types'
 
 // 窗口宽度响应式
@@ -912,12 +965,13 @@ const characterFormRules: FormRules = {
 
 // BGM导入相关
 const bgmDialogVisible = ref(false)
-type BGMStep = 'search' | 'searching' | 'results' | 'importing' | 'imported'
+type BGMStep = 'search' | 'searching' | 'subjects' | 'loading-characters' | 'results' | 'importing' | 'imported'
 const bgmStep = ref<BGMStep>('search')
 const bgmSearchInput = ref('')
 const bgmSubjectType = ref<number | undefined>(undefined)
 const bgmSearching = ref(false)
 const bgmCharacterKeyword = ref('')
+const bgmSubjects = ref<BGMSubject[]>([])
 const bgmSearchResult = ref<BGMSearchResponse | null>(null)
 const bgmSelectedCharacters = ref<number[]>([])
 const bgmImporting = ref(false)
@@ -1320,14 +1374,15 @@ const handleBGMReset = () => {
   bgmSearchInput.value = ''
   bgmSubjectType.value = undefined
   bgmCharacterKeyword.value = ''
+  bgmSubjects.value = []
   bgmSearchResult.value = null
   bgmSelectedCharacters.value = []
   bgmImportResult.value = null
 }
 
 const handleBGMSearch = async () => {
-  const ipName = bgmSearchInput.value.trim()
-  if (!ipName) {
+  const keyword = bgmSearchInput.value.trim()
+  if (!keyword) {
     ElMessage.warning('请输入IP作品名称')
     return
   }
@@ -1336,20 +1391,37 @@ const handleBGMSearch = async () => {
   bgmStep.value = 'searching'
 
   try {
-    const result = await searchBGMCharacters(ipName, bgmSubjectType.value)
-    bgmSearchResult.value = result
+    const response = await searchBGMSubjects(keyword, bgmSubjectType.value)
+    bgmSubjects.value = response.subjects
+    if (bgmSubjects.value.length === 0) {
+      ElMessage.warning('未找到相关作品')
+      bgmStep.value = 'search'
+    } else {
+      bgmStep.value = 'subjects'
+    }
+  } catch (err: any) {
+    ElMessage.error(err.message || '搜索失败')
+    bgmStep.value = 'search'
+  } finally {
+    bgmSearching.value = false
+  }
+}
+
+const handleBGMSelectSubject = async (subject: BGMSubject) => {
+  bgmStep.value = 'loading-characters'
+  try {
+    const response = await getBGMCharactersBySubjectId(subject.id)
+    // 转换响应格式以适配现有逻辑
+    bgmSearchResult.value = {
+      ip_name: response.subject_name,
+      characters: response.characters
+    }
     bgmCharacterKeyword.value = ''
     bgmSelectedCharacters.value = [] 
     bgmStep.value = 'results'
   } catch (err: any) {
-    if (err.response?.status === 404) {
-      ElMessage.error(err.response?.data?.detail || '未找到相关作品')
-    } else {
-      ElMessage.error(err.message || '搜索失败')
-    }
-    bgmStep.value = 'search'
-  } finally {
-    bgmSearching.value = false
+    ElMessage.error(err.message || '获取角色列表失败')
+    bgmStep.value = 'subjects'
   }
 }
 
@@ -2421,10 +2493,130 @@ const handleBGMClose = () => {
   font-size: 12px;
 }
 
+/* 作品列表样式 */
+.bgm-subjects-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  overflow-y: auto;
+  max-height: 500px;
+  padding: 4px 4px 12px 4px; /* 底部增加padding防止阴影被切 */
+}
+
+.bgm-subject-item {
+  display: flex;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #ebeef5;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 110px;
+  position: relative;
+}
+
+.bgm-subject-item:hover {
+  border-color: #a396ff;
+  box-shadow: 0 8px 16px -4px rgba(163, 150, 255, 0.2);
+  transform: translateY(-2px);
+  z-index: 1;
+}
+
+.bgm-subject-cover {
+  width: 80px;
+  height: 100%;
+  flex-shrink: 0;
+  background: #f5f7fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid #f2f6fc;
+}
+
+.bgm-subject-cover :deep(img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+
+.bgm-subject-item:hover .bgm-subject-cover :deep(img) {
+  transform: scale(1.05);
+}
+
+.bgm-subject-cover .image-slot {
+  font-size: 24px;
+  color: #909399;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.bgm-subject-info {
+  flex: 1;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.subject-name {
+  margin: 0 0 8px;
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: #303133;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subject-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.subject-cn {
+  font-size: 12px;
+  color: #909399;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.bgm-subject-arrow {
+  width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #dcdfe6;
+  transition: all 0.2s;
+}
+
+.bgm-subject-item:hover .bgm-subject-arrow {
+  color: #a396ff;
+  transform: translateX(-2px);
+}
+
 /* 响应式适配 */
 @media (max-width: 768px) {
   .bgm-dialog :deep(.el-dialog) {
     width: 95% !important;
+  }
+  
+  .bgm-subjects-list {
+    grid-template-columns: 1fr;
+  }
+
+  /* 移动端列表高度自动适配 */
+  .bgm-subjects-list {
+    max-height: 60vh;
   }
 
   .results-actions-top {

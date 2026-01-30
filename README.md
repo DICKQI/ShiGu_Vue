@@ -171,7 +171,10 @@ ShiGu_vue/
 
 | 功能模块 | 说明 | 详细文档 |
 |---------|------|----------|
-| 🎨 **云展柜** | 智能搜索、多维筛选、响应式展示、排序功能 | [功能特性文档](docs/FEATURES.md#-云展柜cloud-showcase) |
+| 🎨 **云展柜** | 整合「展柜」「谷仓」「统计看板」三大子模块的核心首页 | [功能特性文档](docs/FEATURES.md#-云展柜cloud-showcase) |
+| ├─ 展柜 | 云展柜展示与编排，支持自定义展示布局 | - |
+| ├─ 谷仓 | 智能搜索、多维筛选、响应式列表、排序功能 | - |
+| └─ 统计看板 | 资产规模与结构可视化统计（状态/官谷/IP/品类等分布） | [统计看板](docs/FEATURES.md#-统计看板stats-dashboard) |
 | 📍 **位置管理** | 树形导航、位置 CRUD、层级管理 | [功能特性文档](docs/FEATURES.md#-位置管理location-management) |
 | 📝 **资产录入** | 表单校验、图片上传、联动选择 | [功能特性文档](docs/FEATURES.md#-资产录入goods-form) |
 | 🎭 **IP与角色管理** | BGM 批量导入、关键词管理 | [功能特性文档](docs/FEATURES.md#-ip作品与角色管理ip--character-management) |

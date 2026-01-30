@@ -6,7 +6,27 @@
 
 **路由**：`/showcase` | **默认首页**
 
-核心检索与展示功能，提供"云展柜式"的浏览体验。
+云展柜是拾谷的核心首页，通过顶部 Tab 将能力拆分为三个子模块：
+
+| Tab | 功能定位 | 主要组件 |
+|-----|---------|---------|
+| **展柜** | 云展柜展示与编排，支持自定义展柜文件夹和展示布局 | `ShowcaseManager` |
+| **谷仓** | 谷子资产检索与列表展示（搜索 + 筛选 + 分页） | `SearchBar` + `FilterPanel` + `GoodsCard` |
+| **统计看板** | 资产统计与可视化分析 | `StatsDashboard` |
+
+### 展柜 Tab
+
+展柜模块用于创建和管理个性化的云展柜，支持：
+- 创建多个展柜文件夹
+- 将谷仓中的谷子添加到展柜
+- 自定义展柜封面与描述
+- 预览展柜内容马赛克缩略图
+
+**组件依赖**：`ShowcaseManager.vue`、`ShowcaseFolderCard.vue`、`ShowcaseListView.vue`、`ShowcaseDetailView.vue`、`ShowcasePreviewMosaic.vue`
+
+### 谷仓 Tab
+
+谷仓模块是原有的谷子检索与列表展示功能：
 
 | 功能 | 说明 | 技术实现 |
 |------|------|----------|
@@ -18,45 +38,73 @@
 | ⚡ **快捷操作** | 右键菜单提供编辑、删除、前移/后移排序等快捷操作 | 自定义右键菜单组件 |
 | 🔄 **排序功能** | 支持谷子前移/后移排序，支持跨页排序，智能边界检测 | `moveGoods` API + 跨页锚点机制 |
 | 🔗 **位置跳转** | 点击位置路径跳转到位置管理页并高亮 | Vue Router 编程式导航 |
-| 🔃 **刷新功能** | 悬浮刷新按钮，一键刷新当前搜索结果 | Pinia Store 刷新方法 |
-| ➕ **悬浮按钮组** | 云展柜页面右下角悬浮按钮组：刷新按钮（紫色渐变）+ 新增按钮（金色渐变），移动端自动适配安全区域 | 固定定位 + 渐变背景 + 动画效果 |
 
-**组件依赖**：
-- `SearchBar.vue` - 搜索栏组件
-- `FilterPanel.vue` - 筛选面板组件
-- `GoodsCard.vue` - 谷子卡片组件
-- `GoodsDrawer.vue` - 详情抽屉组件（支持移动端拖拽手势）
-- `MobileBottomNav.vue` - 移动端底部导航栏（仅在移动端显示）
+**组件依赖**：`SearchBar.vue`、`FilterPanel.vue`、`GoodsCard.vue`、`GoodsDrawer.vue`
 
-**界面展示**：
+### 通用交互
+
+| 功能 | 说明 | 技术实现 |
+|------|------|----------|
+| 🔃 **刷新功能** | 悬浮刷新按钮，根据当前 Tab 刷新对应数据 | Pinia Store 刷新方法 + 事件总线 |
+| ➕ **悬浮按钮组** | 云展柜页面右下角悬浮按钮组：刷新按钮（紫色渐变）+ 新增按钮（仅谷仓 Tab 显示，金色渐变），移动端自动适配安全区域 | 固定定位 + 渐变背景 + 动画效果 |
+| 📱 **移动端底部导航** | 移动端底部固定导航栏，快速切换主要页面 | `MobileBottomNav.vue` |
+
+---
+
+## 📊 统计看板（Stats Dashboard）
+
+**位置**：`/showcase` 页面顶部 Tab 中的「统计看板」
+
+针对当前筛选条件，对谷子资产进行多维度统计与可视化展示。
+
+| 功能 | 说明 | 技术实现 |
+|------|------|----------|
+| 📈 **资产概览指标** | 展示谷子件数、总数量、估算总金额等核心指标 | `GoodsStatsOverview` + 概览卡片组件 |
+| 🔎 **多维统计筛选** | 支持按时间粒度（按日/周/月）、Top N、官谷/同人、状态、IP、品类、入手日期、录入日期等维度筛选 | 组合表单 + `GoodsStatsParams` 查询参数 |
+| 🧩 **状态分布图** | 展示在馆/出街中/已售出占比 | ECharts 环形图（状态分布） |
+| 🎭 **官谷/同人结构** | 统计官谷与同人占比 | ECharts 环形图（`is_official` 分布） |
+| 🎬 **作品类型结构** | 统计动画/游戏/书籍等不同作品类型的分布 | ECharts 柱状图（`ip_subject_type` 分布） |
+| 🏆 **IP Top N** | 按件数统计 IP Top N，支持调整 N（3-30） | 横向条形图（`ip_top`） |
+| 📦 **品类 Top N** | 按件数统计品类 Top N，支持展示品类路径名 | 横向条形图（`category_top`） |
+| 🔄 **自动与手动刷新** | 筛选条件变更自动刷新；云展柜右下刷新按钮在「统计看板」Tab 下会触发整体重算 | `getGoodsStats` 接口 + 事件总线（`cloud-showcase:stats-refresh` 等） |
+
+**关键交互说明**：
+
+- 在「统计看板」Tab 下，云展柜右下角的刷新按钮会触发整套统计数据重算，并在完成后反馈至上层布局（`cloud-showcase:stats-refresh-complete` → `cloud-showcase:refresh-complete`）
+- 筛选条件（时间粒度、Top N、状态、IP、品类、日期区间等）变更时，会自动以 300ms 简单防抖重新请求统计数据，避免频繁请求
+- 当当前筛选条件下没有任何统计数据时，会给出「暂无统计数据」的友好提示
+
+---
+
+### 云展柜界面展示
 
 <div align="center">
 
-#### PC 端界面
+#### PC 端界面（谷仓 Tab）
 
-![PC端首页展示](../../screenshot/PC端首页展示.jpeg)
+![PC端首页展示](../screenshot/PC端首页展示.jpeg)
 
-*PC 端云展柜主界面 - 网格展示与多维筛选*
+*PC 端云展柜 - 谷仓 Tab 网格展示与多维筛选*
 
 </div>
 
 <div align="center">
 
-#### 移动端界面
+#### 移动端界面（谷仓 Tab）
 
 <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
 
 <div>
 
-![移动端首页展示](../../screenshot/移动端首页展示.jpeg)
+![移动端首页展示](../screenshot/移动端首页展示.jpeg)
 
-*移动端首页 - 卡片式展示*
+*移动端谷仓 - 卡片式展示*
 
 </div>
 
 <div>
 
-![移动端首页筛选](../../screenshot/移动端首页筛选.jpeg)
+![移动端首页筛选](../screenshot/移动端首页筛选.jpeg)
 
 *移动端筛选面板 - 多维筛选器*
 
@@ -119,7 +167,7 @@
 
 <div>
 
-![PC端新增谷子](../../screenshot/PC端新增谷子.jpeg)
+![PC端新增谷子](../screenshot/PC端新增谷子.jpeg)
 
 *PC 端资产录入表单*
 
@@ -127,7 +175,7 @@
 
 <div>
 
-![移动端新增谷子](../../screenshot/移动端新增谷子.jpeg)
+![移动端新增谷子](../screenshot/移动端新增谷子.jpeg)
 
 *移动端资产录入表单 - 响应式布局*
 
@@ -171,7 +219,7 @@
 
 #### PC 端界面
 
-![PC端IP管理](../../screenshot/PC端IP管理.jpeg)
+![PC端IP管理](../screenshot/PC端IP管理.jpeg)
 
 *PC 端 IP 作品与角色管理 - 表格展示与展开/折叠*
 
@@ -185,7 +233,7 @@
 
 <div>
 
-![移动端IP管理](../../screenshot/移动端IP管理.jpeg)
+![移动端IP管理](../screenshot/移动端IP管理.jpeg)
 
 *移动端 IP 管理 - 卡片式展示*
 
@@ -193,7 +241,7 @@
 
 <div>
 
-![移动端IP与角色展示](../../screenshot/移动端IP与角色展示.jpeg)
+![移动端IP与角色展示](../screenshot/移动端IP与角色展示.jpeg)
 
 *移动端角色列表展示 - 展开查看角色详情*
 
@@ -207,7 +255,7 @@
 
 <div>
 
-![移动端bgm搜索IP](../../screenshot/移动端bgm搜索IP.jpeg)
+![移动端bgm搜索IP](../screenshot/移动端bgm搜索IP.jpeg)
 
 *步骤 1：搜索 Bangumi 作品*
 
@@ -215,7 +263,7 @@
 
 <div>
 
-![移动端bgm导入角色](../../screenshot/移动端bgm导入角色.jpeg)
+![移动端bgm导入角色](../screenshot/移动端bgm导入角色.jpeg)
 
 *步骤 2：选择角色并批量导入*
 
@@ -301,7 +349,7 @@
 
 <div align="center">
 
-![移动端品类管理](../../screenshot/移动端品类管理.jpeg)
+![移动端品类管理](../screenshot/移动端品类管理.jpeg)
 
 *移动端品类管理界面 - 表格展示与搜索功能*
 

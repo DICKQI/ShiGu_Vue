@@ -7,6 +7,7 @@
 | 方法 | 路径 | 说明 | 封装文件 |
 |------|------|------|----------|
 | `GET` | `/api/goods/` | 列表查询（支持分页、筛选、搜索） | `src/api/goods.ts` |
+| `GET` | `/api/goods/stats/` | 统计看板数据（多维聚合、TopN、概览指标等） | `src/api/goods.ts` |
 | `GET` | `/api/goods/{id}/` | 详情查询 | `src/api/goods.ts` |
 | `POST` | `/api/goods/` | 创建谷子 | `src/api/goods.ts` |
 | `PUT` | `/api/goods/{id}/` | 更新谷子 | `src/api/goods.ts` |
@@ -30,6 +31,22 @@
 - `search` - 搜索关键词（模糊匹配）
 - `page` - 页码（默认 1）
 - `page_size` - 每页数量（默认 20）
+
+### 统计看板查询参数（`GET /api/goods/stats/`）
+
+统计接口在复用列表筛选能力（IP、角色、品类、状态、`status__in`、`is_official`、位置、搜索词等）的基础上，额外支持以下参数：
+
+- `top` - Top N 数量（默认 10，范围建议为 3-30）
+- `group_by` - 时间粒度（`month`/`week`/`day`）
+- `purchase_start` / `purchase_end` - 按入手日期过滤区间（`YYYY-MM-DD`）
+- `created_start` / `created_end` - 按录入日期过滤区间（`YYYY-MM-DD`）
+
+返回体结构参考 `GoodsStatsResponse`，包含：
+
+- `meta` - 查询元信息（粒度、时间区间、Top N 等）
+- `overview` - 概览指标（件数、总数量、估算金额等）
+- `distributions` - 各类分布数据（状态分布、官谷/同人分布、作品类型、IP TopN、品类 TopN 等）
+- `trends` - 趋势数据（按入手日期、录入日期的时间序列汇总）
 
 ### 排序功能（`POST /api/goods/{id}/move/`）
 

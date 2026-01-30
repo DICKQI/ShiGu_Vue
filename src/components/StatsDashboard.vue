@@ -5,9 +5,18 @@
         <div class="stats-filter-header">
           <span>统计筛选</span>
           <div class="stats-filter-actions">
-            <el-button text size="small" @click="handleResetFilters">
-              重置
-            </el-button>
+            <el-tooltip content="重置筛选" placement="top">
+              <el-button
+                text
+                circle
+                size="small"
+                @click="handleResetFilters"
+              >
+                <el-icon>
+                  <RefreshLeft />
+                </el-icon>
+              </el-button>
+            </el-tooltip>
           </div>
         </div>
       </template>
@@ -194,6 +203,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { RefreshLeft } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { getGoodsStats } from '@/api/goods'
 import { getIPList, getCategoryTree } from '@/api/metadata'

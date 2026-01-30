@@ -62,9 +62,14 @@
     <!-- 移动端底部导航栏 -->
     <MobileBottomNav v-if="isMobile" />
 
-    <!-- 悬浮按钮组（仅云展柜页面展示） -->
+    <!-- 悬浮按钮组（仅云展柜页面展示；统计看板隐藏刷新按钮） -->
     <div v-if="showFab" class="fab-group" :class="{ 'fab-mobile': isMobile }">
-      <div class="fab-btn refresh-fab" @click="handleRefresh" :class="{ loading: refreshLoading }">
+      <div
+        v-if="showRefreshFab"
+        class="fab-btn refresh-fab"
+        @click="handleRefresh"
+        :class="{ loading: refreshLoading }"
+      >
         <Transition name="fab-icon" mode="out-in">
           <el-icon v-if="!refreshLoading" key="refresh">
             <Refresh />
@@ -123,8 +128,11 @@ const goToSettings = () => {
   router.push('/settings')
 }
 
-// 仅在云展柜页面显示“新增谷子”悬浮按钮
+// 仅在云展柜页面显示悬浮按钮
 const showFab = computed(() => route.path.startsWith('/showcase'))
+// 统计看板 Tab 下隐藏刷新按钮
+const showRefreshFab = computed(() => showFab.value && showcaseActiveTab.value !== 'stats')
+// 仅在“谷仓” Tab 下显示“新增谷子”按钮
 const showAddFab = computed(() => showFab.value && showcaseActiveTab.value === 'barn')
 
 const goToAdd = () => {

@@ -392,6 +392,25 @@
           </div>
         </div>
 
+        <!-- 图像调整 -->
+        <div class="image-filters">
+          <div class="filter-item">
+            <span class="filter-label">亮度</span>
+            <el-slider v-model="filterState.brightness" :min="0" :max="200" :format-tooltip="(val: number) => val + '%'" />
+          </div>
+          <div class="filter-item">
+            <span class="filter-label">对比度</span>
+            <el-slider v-model="filterState.contrast" :min="0" :max="200" :format-tooltip="(val: number) => val + '%'" />
+          </div>
+          <div class="filter-item">
+            <span class="filter-label">饱和度</span>
+            <el-slider v-model="filterState.saturation" :min="0" :max="200" :format-tooltip="(val: number) => val + '%'" />
+          </div>
+          <div class="filter-reset">
+             <el-button type="text" size="small" @click="resetFilters">重置滤镜</el-button>
+          </div>
+        </div>
+
         <!-- 裁切组件 -->
         <div class="cropper-wrapper" :class="{ 'circle-crop': selectedAspectRatio === 'circle' }">
           <vue-picture-cropper
@@ -406,6 +425,7 @@
             }"
             :img="cropImageSrc"
             :options="cropperOptions"
+            :style="cropperStyle"
           />
         </div>
       </div>
@@ -484,6 +504,28 @@ const aspectRatios = [
   { label: '3:4', value: '3:4' },
   { label: '9:16', value: '9:16' },
 ]
+
+// 图像滤镜状态
+const filterState = ref({
+  brightness: 100,
+  contrast: 100,
+  saturation: 100
+})
+
+const resetFilters = () => {
+  filterState.value = {
+    brightness: 100,
+    contrast: 100,
+    saturation: 100
+  }
+}
+
+// 动态计算滤镜样式，用于预览
+const cropperStyle = computed(() => {
+  return {
+    filter: `brightness(${filterState.value.brightness}%) contrast(${filterState.value.contrast}%) saturate(${filterState.value.saturation}%)`
+  }
+})
 
 // 计算是否为移动端
 const isMobile = computed(() => {
@@ -649,9 +691,9 @@ const handleThemeCreate = async (themeName: string) => {
     pendingThemeName.value = null
     return
   }
-  
+
   const trimmedName = themeName.trim()
-  
+
   try {
     // 检查是否已存在同名主题
     const existingTheme = allThemes.value.find(t => t.name === trimmedName)
@@ -661,7 +703,7 @@ const handleThemeCreate = async (themeName: string) => {
       ElMessage.info('该主题已存在，已自动选择')
       return
     }
-    
+
     // 创建新主题
     const newTheme = await createTheme({ name: trimmedName })
     allThemes.value.push(newTheme)
@@ -684,12 +726,12 @@ const ensureThemeCreated = async (): Promise<number | null> => {
   if (typeof formData.value.theme === 'number') {
     return formData.value.theme
   }
-  
+
   // 如果 theme 是字符串（新创建的主题名），或者 pendingThemeName 有值
-  const themeNameToCreate = typeof formData.value.theme === 'string' 
-    ? formData.value.theme.trim() 
+  const themeNameToCreate = typeof formData.value.theme === 'string'
+    ? formData.value.theme.trim()
     : (pendingThemeName.value ? pendingThemeName.value.trim() : null)
-  
+
   if (themeNameToCreate) {
     try {
       // 再次检查是否已存在同名主题（可能在其他地方创建了）
@@ -699,7 +741,7 @@ const ensureThemeCreated = async (): Promise<number | null> => {
         pendingThemeName.value = null
         return existingTheme.id
       }
-      
+
       // 创建新主题
       const newTheme = await createTheme({ name: themeNameToCreate })
       allThemes.value.push(newTheme)
@@ -712,7 +754,7 @@ const ensureThemeCreated = async (): Promise<number | null> => {
       throw err
     }
   }
-  
+
   // 如果没有主题，返回null
   return null
 }
@@ -741,7 +783,7 @@ const setMainPhotoFromFile = (file: File, previewUrl?: string) => {
   if (oldFile && oldFile.url && oldFile.url.startsWith('blob:')) {
     URL.revokeObjectURL(oldFile.url)
   }
-  
+
   mainPhotoFile.value = file
   formData.value.main_photo = ''
   mainPhotoList.value = [
@@ -831,6 +873,7 @@ const openCropDialog = (file: File, previewUrl?: string) => {
   }
   cropDialogVisible.value = true
   selectedAspectRatio.value = 'free' // 重置为自由比例
+  resetFilters() // 重置滤镜
 }
 
 // 编辑模式：把原主图拉进裁切器重新编辑
@@ -865,11 +908,11 @@ const getCropperInstance = () => {
   if (cropper && (typeof cropper.getDataURL === 'function' || typeof cropper.getBlob === 'function' || typeof cropper.getFile === 'function')) {
     return cropper
   }
-  
+
   // 如果工具实例不可用，尝试从组件获取
   if (pictureCropperRef.value) {
     const component = pictureCropperRef.value
-    
+
     // 尝试多种方式获取实例
     if (component.$refs && component.$refs.cropper) {
       return component.$refs.cropper
@@ -884,7 +927,7 @@ const getCropperInstance = () => {
       return (component as any).__cropper
     }
   }
-  
+
   return null
 }
 
@@ -1024,10 +1067,10 @@ const handleCropConfirm = async () => {
     // 方法4: 尝试访问底层 cropper 实例的 getCroppedCanvas
     if (!croppedFile) {
       // 尝试从组件实例中获取底层 cropper
-      const nativeCropper = pictureCropperRef.value.cropper || 
-                           pictureCropperRef.value.$cropper || 
+      const nativeCropper = pictureCropperRef.value.cropper ||
+                           pictureCropperRef.value.$cropper ||
                            (cropperInstance.cropper ? cropperInstance.cropper : null)
-      
+
       if (nativeCropper && typeof nativeCropper.getCroppedCanvas === 'function') {
         try {
           const canvas = nativeCropper.getCroppedCanvas({
@@ -1081,8 +1124,17 @@ const handleCropConfirm = async () => {
       }
     }
 
+    // 应用滤镜到最终图片
+    const filteredFile = await applyFiltersToImage(croppedFile)
+
     // 设置主图
-    setMainPhotoFromFile(croppedFile, previewUrl)
+    const finalPreviewUrl = URL.createObjectURL(filteredFile)
+    setMainPhotoFromFile(filteredFile, finalPreviewUrl)
+
+    // 释放旧的 cropFile 预览（如果有）
+    if (previewUrl && previewUrl !== finalPreviewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl)
+    }
 
     // 关闭对话框
     cropDialogVisible.value = false
@@ -1093,6 +1145,44 @@ const handleCropConfirm = async () => {
     ElMessage.error('裁切失败：' + (err?.message || '未知错误'))
     cropping.value = false
   }
+
+}
+
+// 将滤镜应用到图片文件
+const applyFiltersToImage = async (file: File): Promise<File> => {
+  // 如果没有做任何修改，直接返回原文件
+  if (
+    filterState.value.brightness === 100 &&
+    filterState.value.contrast === 100 &&
+    filterState.value.saturation === 100
+  ) {
+    return file
+  }
+
+  const bitmapOrImg = await blobToImageBitmap(file)
+  const width = (bitmapOrImg as any).width
+  const height = (bitmapOrImg as any).height
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 不可用')
+
+  // 应用滤镜
+  ctx.filter = `brightness(${filterState.value.brightness}%) contrast(${filterState.value.contrast}%) saturate(${filterState.value.saturation}%)`
+
+  ctx.drawImage(bitmapOrImg as any, 0, 0, width, height)
+
+  // 重置 filter 以免影响后续操作（虽然这里是一次性的）
+  ctx.filter = 'none'
+
+  const mime = file.type || 'image/png'
+  const outBlob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('应用滤镜失败'))), mime, 0.92)
+  })
+
+  return new File([outBlob], file.name, { type: mime })
 }
 
 // 取消裁切
@@ -1145,7 +1235,7 @@ const handleRemoveExistingPhoto = async (photoId: number) => {
         cancelButtonText: '取消',
         type: 'warning',
       })
-      
+
       const goodsId = route.params.id as string
       await deleteAdditionalPhoto(goodsId, photoId)
       existingAdditionalPhotos.value = existingAdditionalPhotos.value.filter((p) => p.id !== photoId)
@@ -1192,7 +1282,7 @@ const handleSubmit = async () => {
     try {
       // 确保主题已创建（如果是新主题，先创建获取ID）
       const themeId = await ensureThemeCreated()
-      
+
       const { main_photo, theme, ...restForm } = formData.value
       const submitData: import('@/api/types').GoodsInput = {
         ...restForm,
@@ -1210,30 +1300,30 @@ const handleSubmit = async () => {
       if (route.params.id) {
         const id = route.params.id as string
         await updateGoods(id, submitData)
-        
+
         // 上传主图（如果有新文件）
         if (mainPhotoFile.value) {
           await uploadMainPhoto(id, mainPhotoFile.value)
         }
-        
+
         // 处理附件图片
         await handleAdditionalPhotosUpload(id)
-        
+
         ElMessage.success('更新成功')
       } else {
         const result = await createGoods(submitData)
         const id = result.id
-        
+
         // 上传主图（可选）
         if (mainPhotoFile.value) {
           await uploadMainPhoto(id, mainPhotoFile.value)
         }
-        
+
         // 上传附件图片（如果有）
         if (newAdditionalPhotoFiles.value.length > 0) {
           await handleAdditionalPhotosUpload(id)
         }
-        
+
         ElMessage.success('创建成功')
       }
 
@@ -1326,7 +1416,7 @@ onMounted(async () => {
       if (data.main_photo) {
         mainPhotoList.value = [{ url: data.main_photo, name: 'main_photo' } as UploadFile]
       }
-      
+
       // 加载附件图片
       if (data.additional_photos && data.additional_photos.length > 0) {
         existingAdditionalPhotos.value = data.additional_photos.map((photo) => ({
@@ -1599,11 +1689,78 @@ onUnmounted(() => {
   gap: 8px;
 }
 
+.image-filters {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f8f8f8;
+  border-radius: 4px;
+}
+
+.filter-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.filter-label {
+  width: 60px;
+  font-size: 14px;
+  color: #606266;
+  white-space: nowrap;
+}
+
+.filter-item .el-slider {
+  flex: 1;
+  margin-left: 12px;
+  margin-right: 12px;
+}
+
+.filter-reset {
+  text-align: right;
+  margin-top: -5px;
+}
+
+/* 强制应用 CSS filter 到 cropper 的预览图 */
+/* 注意：vue-picture-cropper 内部结构可能比较复杂，通常需要作用于 img 元素 */
+:deep(.vue-picture-cropper-wrap img),
+:deep(.cropper-view-box img),
+:deep(.cropper-canvas img) {
+  transition: filter 0.2s;
+  /* 这里使用 v-bind 绑定 CSS 变量或者直接通过 js 动态修改 style，
+     上面的 :style="cropperStyle" 其实只能加到最外层容器，
+     往往不能直接继承到内部 img。
+     所以我们需要一个更强力的方法：使用 CSS 变量或者通过父级 class 渗透。
+  */
+  /* 由于 CSS 变量在 scoped 样式中绑定到 :style 可能有作用域问题，
+     这里我们采用直接在 template 中给 vue-picture-cropper 绑 style 的方式，
+     但是 vue-picture-cropper 根元素可能不是 img。
+
+     修正方案：
+     Vue Picture Cropper 接受 style 属性，会应用到根 div。
+     我们需要利用 CSS 继承或者选中内部 img。
+     Cropper.js 的 img 不会自动继承父级 filter。
+
+     更好的做法是利用 CSS 变量。
+  */
+}
+
+/* 尝试利用 CSS 变量穿透 */
+.cropper-wrapper {
+  --brightness: v-bind('filterState.brightness + "%"');
+  --contrast: v-bind('filterState.contrast + "%"');
+  --saturate: v-bind('filterState.saturation + "%"');
+}
+
+:deep(.cropper-canvas img),
+:deep(.cropper-view-box img) {
+  filter: brightness(var(--brightness)) contrast(var(--contrast)) saturate(var(--saturate)) !important;
+}
+
 @media (max-width: 768px) {
   .ratio-buttons {
     gap: 6px;
   }
-  
+
   .ratio-buttons .el-button {
     font-size: 12px;
     padding: 8px 12px;
@@ -1627,18 +1784,18 @@ onUnmounted(() => {
     margin: 5vh auto 0;
     max-height: 90vh;
   }
-  
+
   .crop-dialog :deep(.el-dialog__body) {
     padding: 15px;
     max-height: calc(90vh - 120px);
     overflow-y: auto;
   }
-  
+
   .aspect-ratio-selector {
     padding: 12px;
     margin-bottom: 15px;
   }
-  
+
   .ratio-label {
     font-size: 13px;
     margin-bottom: 10px;
@@ -1655,7 +1812,7 @@ onUnmounted(() => {
   .dialog-footer {
     gap: 8px;
   }
-  
+
   .dialog-footer .el-button {
     flex: 1;
   }

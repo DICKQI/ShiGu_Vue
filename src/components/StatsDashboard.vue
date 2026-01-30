@@ -331,14 +331,14 @@ const updateCharts = () => {
   }
 
   const palette = [
-    theme.gold,
-    theme.purple,
-    theme.goldLight,
-    theme.purpleLight,
-    '#67C23A',
-    '#E6A23C',
-    '#F56C6C',
-    theme.textSub,
+    '#F6D365', // Bright Sunshine Gold
+    '#A29BFE', // Lavender
+    '#FF9A9E', // Sakura Pink
+    '#84FAB0', // Soft Cyan
+    '#FDA085', // Peach
+    '#D4AF37', // Classic Gold
+    '#C4B5FD', // Light Purple
+    '#FFD1FF', // Soft Pink
   ]
 
   const baseTextStyle = { color: theme.text }
@@ -800,7 +800,7 @@ watch(createdDateRange, () => triggerAutoFetch())
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 8px;
-  background: linear-gradient(45deg, var(--primary-gold), var(--primary-gold-light));
+  background: linear-gradient(135deg, #F6D365 0%, #FF9A9E 50%, #A29BFE 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -826,7 +826,7 @@ watch(createdDateRange, () => triggerAutoFetch())
 :deep(.el-segmented) {
   --el-segmented-color: var(--text-dark);
   --el-segmented-bg-color: rgba(245, 245, 247, 0.9);
-  --el-segmented-item-selected-bg-color: rgba(212, 175, 55, 0.18);
+  --el-segmented-item-selected-bg-color: rgba(255, 154, 158, 0.25);
 }
 
 :deep(.el-card) {

@@ -234,8 +234,6 @@ export interface GoodsStatsDistributions {
   ip_subject_type?: GoodsSubjectTypeDistributionItem[]
   category_top?: GoodsCategoryTopItem[]
   ip_top?: GoodsIPTopItem[]
-  // 角色 / 位置 Top 在需要时再补充完整类型
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any
 }
 

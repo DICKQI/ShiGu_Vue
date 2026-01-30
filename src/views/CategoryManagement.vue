@@ -33,7 +33,7 @@
 
     <div v-loading="loading" class="content-body">
       <!-- 下拉刷新容器 -->
-      <div 
+      <div
         class="category-list-wrapper pull-refresh-wrapper"
         ref="scrollContainerRef"
         @touchstart="handleTouchStart"
@@ -53,7 +53,7 @@
 
         <!-- 内容区域 -->
         <div class="category-list-inner" :style="{ transform: `translateY(${pullDistance}px)` }">
-          
+
           <!-- 【PC端视图】 -->
           <div class="hidden-xs-only">
             <el-table
@@ -166,7 +166,7 @@
               </div>
             </div>
           </div>
-          
+
           <el-empty v-if="!loading && flatDisplayedList.length === 0" description="暂无品类数据" />
         </div>
       </div>
@@ -302,8 +302,8 @@ const scrollContainerRef = ref<HTMLElement | null>(null)
 const startY = ref(0)
 const pullDistance = ref(0)
 const isRefreshing = ref(false)
-const MAX_PULL = 80       
-const TRIGGER_DIST = 50   
+const MAX_PULL = 80
+const TRIGGER_DIST = 50
 
 // ================== 核心修复逻辑开始 ==================
 
@@ -313,7 +313,7 @@ const getScrollTop = () => {
 
 const handleTouchStart = (e: TouchEvent) => {
   if (!isMobile.value || isRefreshing.value || isSorting.value) return
-  
+
   // 核心修改：检测 window 的滚动高度，只有在页面最顶端时才记录触摸点
   if (getScrollTop() > 0) {
     startY.value = 0 // 确保非顶端时不记录有效起始点
@@ -328,7 +328,7 @@ const handleTouchStart = (e: TouchEvent) => {
 const handleTouchMove = (e: TouchEvent) => {
   // 如果起始点无效（说明开始触摸时不在顶部），直接忽略
   if (!isMobile.value || isRefreshing.value || isSorting.value || startY.value === 0) return
-  
+
   // 双重保险：移动过程中如果页面被卷下去了，也不处理
   if (getScrollTop() > 0) return
 
@@ -352,7 +352,7 @@ const handleTouchEnd = async () => {
   if (!isMobile.value || isRefreshing.value || isSorting.value) return
   if (pullDistance.value >= TRIGGER_DIST) {
     isRefreshing.value = true
-    pullDistance.value = TRIGGER_DIST 
+    pullDistance.value = TRIGGER_DIST
     try {
       await fetchCategoryList()
       ElMessage.success('刷新成功')
@@ -386,25 +386,37 @@ const dialogTitle = computed(() => isEdit.value ? '🏷️ 修改品类' : '✨ 
 
 const buildCategoryTree = (list: Category[]): CategoryNode[] => {
   const map = new Map<number, CategoryNode>()
+  // 1. 初始化节点映射，暂不计算深度
   list.forEach((item) => {
-    map.set(item.id, { ...item, children: [], depth: 1 })
+    map.set(item.id, { ...item, children: [] })
   })
+
   const roots: CategoryNode[] = []
+
+  // 2. 构建树形结构
   map.forEach((node) => {
     if (node.parent !== null && map.has(node.parent)) {
       const parent = map.get(node.parent)!
-      node.depth = (parent.depth || 1) + 1
       parent.children!.push(node)
     } else {
       roots.push(node)
     }
   })
-  // 同级按 order + name 排序
-  const sortTree = (nodes: Category[]) => {
+
+  // 3. 递归计算深度并排序
+  const processNode = (nodes: CategoryNode[], depth: number) => {
+    // 排序：优先按 order 升序，其次按 name 排序
     nodes.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name))
-    nodes.forEach((n) => n.children && sortTree(n.children))
+
+    nodes.forEach((node) => {
+      node.depth = depth
+      if (node.children && node.children.length > 0) {
+        processNode(node.children, depth + 1)
+      }
+    })
   }
-  sortTree(roots)
+
+  processNode(roots, 1)
   return roots
 }
 
@@ -637,20 +649,20 @@ const fetchCategoryList = async () => {
 
 const handleSearch = () => fetchCategoryList()
 const handleRefresh = () => fetchCategoryList()
-const handleAdd = () => { 
+const handleAdd = () => {
   isEdit.value = false
   editingId.value = null
   formData.value = { name: '', parent: null, color_tag: '', order: 0 }
   dialogVisible.value = true
 }
-const handleEdit = (row: Category) => { 
+const handleEdit = (row: Category) => {
   isEdit.value = true
   editingId.value = row.id
-  formData.value = { 
-    name: row.name, 
-    parent: row.parent, 
-    color_tag: row.color_tag || '', 
-    order: row.order ?? 0 
+  formData.value = {
+    name: row.name,
+    parent: row.parent,
+    color_tag: row.color_tag || '',
+    order: row.order ?? 0
   }
   dialogVisible.value = true
 }
@@ -735,11 +747,11 @@ onUnmounted(() => {
 
 <style scoped>
 /* =========== PC/通用基础样式 =========== */
-.category-management-container { 
-  padding: 20px; 
-  max-width: 1400px; 
-  margin: 0 auto; 
-  min-height: calc(100vh - 64px); 
+.category-management-container {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+  min-height: calc(100vh - 64px);
 }
 .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .page-title { font-size: 22px; font-weight: 600; color: #303133; margin: 0; }
@@ -757,9 +769,9 @@ onUnmounted(() => {
 .header-actions { display: flex; align-items: center; gap: 8px; }
 
 /* PC端列表外壳 */
-.category-list-wrapper { 
-  background: #fff; 
-  border-radius: 12px; 
+.category-list-wrapper {
+  background: #fff;
+  border-radius: 12px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.04);
   position: relative;
   min-height: 200px;
@@ -863,7 +875,7 @@ onUnmounted(() => {
 
 .mobile-list-container {
   padding: 0;
-  background-color: transparent; 
+  background-color: transparent;
   border-radius: 0;
 }
 
@@ -1060,17 +1072,17 @@ onUnmounted(() => {
   .add-btn span { display: none; }
   .add-btn { width: 40px; height: 40px; border-radius: 50%; padding: 0; justify-content: center; }
 
-  .sub-title { 
-    font-size: 12px; 
-    display: block; 
-    margin-top: 4px; 
+  .sub-title {
+    font-size: 12px;
+    display: block;
+    margin-top: 4px;
     line-height: 1.4;
     color: #909399;
     max-width: 260px;
-  } 
-  
+  }
+
   .hidden-xs-only { display: none !important; }
-  
+
   .category-list-wrapper {
     box-shadow: none !important;
     background: transparent !important;

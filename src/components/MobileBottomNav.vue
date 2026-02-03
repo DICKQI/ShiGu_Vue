@@ -41,7 +41,7 @@ const navItems: NavItem[] = [
   },
   {
     path: '/ipcharacter',
-    label: 'IP作品与角色',
+    label: 'IP与角色',
     icon: Collection
   },
   {

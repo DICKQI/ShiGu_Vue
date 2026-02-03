@@ -33,7 +33,7 @@
 
     <div v-loading="loading" class="content-body">
       <!-- 下拉刷新容器 -->
-      <div 
+      <div
         class="theme-list-wrapper pull-refresh-wrapper"
         ref="scrollContainerRef"
         @touchstart="handleTouchStart"
@@ -53,7 +53,7 @@
 
         <!-- 内容区域 -->
         <div class="theme-list-inner" :style="{ transform: `translateY(${pullDistance}px)` }">
-          
+
           <!-- 【PC端视图】 -->
           <div class="hidden-xs-only desktop-view">
             <el-table
@@ -117,7 +117,7 @@
               </div>
             </div>
           </div>
-          
+
           <el-empty v-if="!loading && filteredThemeList.length === 0" description="暂无主题数据" />
         </div>
       </div>
@@ -133,11 +133,11 @@
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="400px" class="custom-dialog" align-center>
       <el-form :model="formData" :rules="formRules" ref="formRef" label-position="top">
         <el-form-item label="主题名称" prop="name">
-          <el-input 
-            v-model="formData.name" 
-            placeholder="请输入主题名称，如：夏日主题" 
-            maxlength="100" 
-            show-word-limit 
+          <el-input
+            v-model="formData.name"
+            placeholder="请输入主题名称，如：夏日主题"
+            maxlength="100"
+            show-word-limit
           />
         </el-form-item>
 
@@ -219,8 +219,8 @@ const scrollContainerRef = ref<HTMLElement | null>(null)
 const startY = ref(0)
 const pullDistance = ref(0)
 const isRefreshing = ref(false)
-const MAX_PULL = 80       
-const TRIGGER_DIST = 50   
+const MAX_PULL = 80
+const TRIGGER_DIST = 50
 
 const getScrollTop = () => {
   return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
@@ -228,7 +228,7 @@ const getScrollTop = () => {
 
 const handleTouchStart = (e: TouchEvent) => {
   if (!isMobile.value || isRefreshing.value) return
-  
+
   if (getScrollTop() > 0) {
     startY.value = 0
     return
@@ -241,7 +241,7 @@ const handleTouchStart = (e: TouchEvent) => {
 
 const handleTouchMove = (e: TouchEvent) => {
   if (!isMobile.value || isRefreshing.value || startY.value === 0) return
-  
+
   if (getScrollTop() > 0) return
 
   const firstTouch = e.touches?.[0]
@@ -261,7 +261,7 @@ const handleTouchEnd = async () => {
   if (!isMobile.value || isRefreshing.value) return
   if (pullDistance.value >= TRIGGER_DIST) {
     isRefreshing.value = true
-    pullDistance.value = TRIGGER_DIST 
+    pullDistance.value = TRIGGER_DIST
     try {
       await fetchThemeList()
       ElMessage.success('刷新成功')
@@ -300,8 +300,8 @@ const dialogTitle = computed(() => isEdit.value ? '✨ 修改主题' : '✨ 新�
 const filteredThemeList = computed(() => {
   const keyword = searchText.value.trim().toLowerCase()
   if (!keyword) return allThemes.value
-  
-  return allThemes.value.filter(theme => 
+
+  return allThemes.value.filter(theme =>
     theme.name.toLowerCase().includes(keyword) ||
     (theme.description && theme.description.toLowerCase().includes(keyword))
   )
@@ -337,18 +337,18 @@ const fetchThemeList = async () => {
 const handleSearch = () => fetchThemeList()
 const handleRefresh = () => fetchThemeList()
 
-const handleAdd = () => { 
+const handleAdd = () => {
   isEdit.value = false
   editingId.value = null
-  formData.value = { name: '', description: '' }
+  formData.value = { name: '', description: '店铺：\n工艺：\n画师：\n主题：' }
   dialogVisible.value = true
 }
 
-const handleEdit = (row: Theme) => { 
+const handleEdit = (row: Theme) => {
   isEdit.value = true
   editingId.value = row.id
-  formData.value = { 
-    name: row.name, 
+  formData.value = {
+    name: row.name,
     description: row.description || ''
   }
   dialogVisible.value = true
@@ -437,11 +437,11 @@ onUnmounted(() => {
 
 <style scoped>
 /* =========== PC/通用基础样式 =========== */
-.theme-management-container { 
-  padding: 20px; 
-  max-width: 1400px; 
-  margin: 0 auto; 
-  min-height: calc(100vh - 64px); 
+.theme-management-container {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+  min-height: calc(100vh - 64px);
 }
 .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .page-title { font-size: 22px; font-weight: 600; color: #303133; margin: 0; }
@@ -459,8 +459,8 @@ onUnmounted(() => {
 .header-actions { display: flex; align-items: center; gap: 8px; }
 
 /* PC端列表外壳 */
-.theme-list-wrapper { 
-  background: transparent; 
+.theme-list-wrapper {
+  background: transparent;
   position: relative;
   min-height: 200px;
 }
@@ -554,7 +554,7 @@ onUnmounted(() => {
 
 .mobile-list-container {
   padding: 0;
-  background-color: transparent; 
+  background-color: transparent;
   border-radius: 0;
 }
 
@@ -702,17 +702,17 @@ onUnmounted(() => {
   .add-btn span { display: none; }
   .add-btn { width: 40px; height: 40px; border-radius: 50%; padding: 0; justify-content: center; }
 
-  .sub-title { 
-    font-size: 12px; 
-    display: block; 
-    margin-top: 4px; 
+  .sub-title {
+    font-size: 12px;
+    display: block;
+    margin-top: 4px;
     line-height: 1.4;
     color: #909399;
     max-width: 260px;
-  } 
-  
+  }
+
   .hidden-xs-only { display: none !important; }
-  
+
   .theme-list-wrapper {
     box-shadow: none !important;
     background: transparent !important;

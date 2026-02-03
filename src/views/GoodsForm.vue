@@ -681,6 +681,12 @@ const handleThemeChange = (value: number | string | null) => {
   // 数字ID，直接使用
   formData.value.theme = value
   pendingThemeName.value = null
+
+  // 当选择已有主题时，自动将主题的description信息填入备注栏
+  const selectedTheme = allThemes.value.find(theme => theme.id === value)
+  if (selectedTheme && selectedTheme.description) {
+    formData.value.notes = selectedTheme.description
+  }
 }
 
 // 创建新主题（由el-select的@create事件触发，用户输入新名称后按回车或选择创建选项时触发）

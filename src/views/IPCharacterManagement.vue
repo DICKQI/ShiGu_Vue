@@ -88,12 +88,25 @@
       <!-- 修改点：data绑定sortedIpList，添加sort-change事件 -->
       <div class="desktop-view">
         <el-table
+          ref="tableRef"
           :data="sortedIpList"
           border-radius="12"
           style="width: 100%"
+          row-key="id"
           @expand-change="handleTableExpandChange"
           @sort-change="handleSortChange"
         >
+          <el-table-column label="排序" width="80" align="center">
+            <template #default>
+              <div class="drag-handle" @click.stop>
+                <svg viewBox="0 0 16 16" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column type="expand" width="50">
             <template #default="{ row }">
               <div class="character-expand-section">
@@ -225,7 +238,7 @@
 
         <!-- 内容区域 -->
         <!-- 修改点：遍历 sortedIpList，保持顺序一致 -->
-        <div class="mobile-view-inner">
+        <div class="mobile-view-inner" ref="mobileListRef">
           <div v-for="item in sortedIpList" :key="item.id" class="ip-card-item">
             <div class="card-main" @click="toggleExpand(item.id)">
               <div class="card-info">
@@ -244,6 +257,13 @@
                 <el-icon :class="{ rotated: expandedIPs.includes(item.id) }">
                   <ArrowRight />
                 </el-icon>
+              </div>
+              <div class="card-drag-handle mobile-drag-handle" @click.stop>
+                <svg viewBox="0 0 16 16" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
               </div>
             </div>
 
@@ -723,7 +743,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import {
   Plus,
   Edit,
@@ -751,6 +771,7 @@ import {
   updateIP,
   deleteIP,
   getIPCharacters,
+  batchUpdateIPOrder,
   createCharacter,
   updateCharacter,
   deleteCharacter,
@@ -759,6 +780,7 @@ import {
   searchBGMSubjects,
   getBGMCharactersBySubjectId,
 } from '@/api/metadata'
+import Sortable from 'sortablejs'
 import type {
   IP,
   Character,
@@ -783,6 +805,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateWindowWidth)
+  destroySortables()
 })
 
 // 下拉刷新相关状态
@@ -794,6 +817,13 @@ const isDragging = ref(false)
 const MAX_PULL = 80
 const TRIGGER_DIST = 50
 
+// 拖拽排序相关
+const tableRef = ref()
+const mobileListRef = ref<HTMLElement | null>(null)
+let sortableTable: ReturnType<typeof Sortable.create> | null = null
+let sortableMobile: ReturnType<typeof Sortable.create> | null = null
+const isSorting = ref(false)
+
 // 修复：获取页面滚动高度的辅助函数
 const getScrollTop = () => {
   return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
@@ -801,7 +831,7 @@ const getScrollTop = () => {
 
 // 下拉刷新逻辑
 const handleTouchStart = (e: TouchEvent) => {
-  if (!isMobile.value || isRefreshing.value) return
+  if (!isMobile.value || isRefreshing.value || isSorting.value) return
   
   // 核心修复：检查 window 的滚动高度，只有在页面最顶端时才记录触摸点
   if (getScrollTop() > 0) {
@@ -817,7 +847,7 @@ const handleTouchStart = (e: TouchEvent) => {
 }
 
 const handleTouchMove = (e: TouchEvent) => {
-  if (!isMobile.value || isRefreshing.value || startY.value === 0 || !isDragging.value) return
+  if (!isMobile.value || isRefreshing.value || isSorting.value || startY.value === 0 || !isDragging.value) return
   
   // 双重保险：移动过程中如果页面被卷下去了，也不处理
   if (getScrollTop() > 0) return
@@ -837,7 +867,7 @@ const handleTouchMove = (e: TouchEvent) => {
 
 const handleTouchEnd = async () => {
   isDragging.value = false
-  if (!isMobile.value || isRefreshing.value) return
+  if (!isMobile.value || isRefreshing.value || isSorting.value) return
   
   if (pullDistance.value >= TRIGGER_DIST) {
     isRefreshing.value = true
@@ -897,7 +927,7 @@ const handleSortChange = ({ prop, order }: { prop: string, order: string }) => {
 
 // 纯前端排序计算属性
 const sortedIpList = computed(() => {
-  const list = [...ipList.value]
+  const list = [...ipList.value].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.id - b.id)
   if (!sortState.value.prop || !sortState.value.order) return list
 
   return list.sort((a, b) => {
@@ -923,6 +953,95 @@ const sortedIpList = computed(() => {
     return sortState.value.order === 'descending' ? -result : result
   })
 })
+
+const destroySortables = () => {
+  if (sortableTable) {
+    sortableTable.destroy()
+    sortableTable = null
+  }
+  if (sortableMobile) {
+    sortableMobile.destroy()
+    sortableMobile = null
+  }
+}
+
+const handleRowReorder = async (oldIndex: number, newIndex: number) => {
+  if (oldIndex === newIndex) return
+  if (sortState.value.prop) {
+    ElMessage.warning('请清空表格排序后再进行拖拽排序')
+    await fetchIPList()
+    return
+  }
+
+  const list = [...sortedIpList.value]
+  const moved = list[oldIndex]
+  const target = list[newIndex]
+  if (!moved || !target) return
+
+  list.splice(oldIndex, 1)
+  list.splice(newIndex, 0, moved)
+
+  const items = list.map((item, index) => ({
+    id: item.id,
+    order: index * 10,
+  }))
+
+  const orderMap = new Map(items.map((i) => [i.id, i.order]))
+  ipList.value = list.map((item) => ({
+    ...item,
+    order: orderMap.get(item.id) ?? item.order,
+  }))
+
+  await nextTick()
+  initDragSort()
+
+  try {
+    await batchUpdateIPOrder(items)
+    ElMessage.success('排序已更新')
+  } catch (err: any) {
+    ElMessage.error(err?.message || '排序更新失败，已回滚')
+    await fetchIPList()
+  }
+}
+
+const initDragSort = () => {
+  destroySortables()
+  if (typeof window === 'undefined') return
+
+  const tableEl = tableRef.value?.$el as HTMLElement | undefined
+  const tbody = tableEl?.querySelector('.el-table__body-wrapper tbody') as HTMLElement | null
+  if (tbody) {
+    sortableTable = Sortable.create(tbody, {
+      handle: '.drag-handle',
+      draggable: '.el-table__row',
+      filter: '.el-table__expanded-row',
+      animation: 150,
+      onStart: () => {
+        isSorting.value = true
+      },
+      onEnd: (evt: any) => {
+        isSorting.value = false
+        handleRowReorder(evt.oldIndex ?? 0, evt.newIndex ?? 0)
+      },
+    })
+  }
+
+  const mobileListEl = mobileListRef.value
+  if (mobileListEl) {
+    sortableMobile = Sortable.create(mobileListEl, {
+      handle: '.mobile-drag-handle',
+      draggable: '.ip-card-item',
+      animation: 150,
+      onStart: () => {
+        isSorting.value = true
+      },
+      onEnd: (evt: any) => {
+        isSorting.value = false
+        handleRowReorder(evt.oldIndex ?? 0, evt.newIndex ?? 0)
+      },
+    })
+  }
+}
 
 // IP相关
 const ipDialogVisible = ref(false)
@@ -1050,6 +1169,8 @@ const fetchIPList = async () => {
     ipList.value = data
     characterMap.value = {}
     expandedIPs.value = []
+    await nextTick()
+    initDragSort()
   } catch (err: any) {
     ElMessage.error(err.message || '加载失败')
   } finally {
@@ -1863,6 +1984,7 @@ const handleBGMClose = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   cursor: pointer;
   outline: none;
   -webkit-tap-highlight-color: transparent;
@@ -1927,6 +2049,42 @@ const handleBGMClose = () => {
 
 .card-arrow .rotated {
   transform: rotate(90deg);
+}
+
+.drag-handle,
+.card-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #909399;
+  cursor: grab;
+  user-select: none;
+}
+
+.drag-handle {
+  width: 100%;
+  padding: 6px 0;
+}
+
+.drag-handle:hover,
+.card-drag-handle:hover {
+  color: #606266;
+}
+
+.drag-handle svg,
+.card-drag-handle svg {
+  pointer-events: none;
+}
+
+.card-drag-handle {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #f5f7fa;
+}
+
+.mobile-drag-handle {
+  touch-action: none;
 }
 
 /* 角色列表展开区域（移动端） */

@@ -23,6 +23,7 @@ export interface IP {
   name: string
   short_name?: string
   keywords?: IPKeyword[]
+  order?: number
   /**
    * 作品类型：1=书籍, 2=动画, 3=音乐, 4=游戏, 6=三次元/特摄
    */

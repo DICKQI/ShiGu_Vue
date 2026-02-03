@@ -13,6 +13,17 @@ export function getIPList(params?: {
   return request.get<IP[]>('/api/ips/', { params })
 }
 
+// 批量更新 IP 排序
+export function batchUpdateIPOrder(items: { id: number; order: number }[]) {
+  return request.post<{
+    detail: string
+    updated_count: number
+    ips: IP[]
+  }>('/api/ips/batch-update-order/', {
+    items,
+  })
+}
+
 // 获取IP详情
 export function getIPDetail(id: number) {
   return request.get<IP>(`/api/ips/${id}/`)

@@ -216,6 +216,8 @@ onUnmounted(() => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  /* 防止轻微阴影或误差造成横向滚动条 */
+  overflow-x: hidden;
 }
 
 .navbar {
@@ -501,6 +503,27 @@ onUnmounted(() => {
     width: 50px;
     height: 50px;
     font-size: 24px;
+  }
+
+  /* 移动端顶部导航使用 fixed，始终固定在视口顶部 */
+  .navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+  }
+
+  /* 为主内容区域在移动端预留顶部导航高度，避免内容被遮挡 */
+  .main-content {
+    min-height: 100vh;
+    padding-top: calc(64px + env(safe-area-inset-top));
+  }
+
+  @supports not (padding-top: env(safe-area-inset-top)) {
+    .main-content {
+      padding-top: 64px;
+    }
   }
 }
 </style>

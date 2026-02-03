@@ -620,8 +620,11 @@ onUnmounted(() => {
   color: #666;
   margin-bottom: 4px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* 移动端长描述多行截断，最多显示两行 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
 }
 
 .card-time {

@@ -87,6 +87,9 @@ const handleNavClick = (path: string) => {
   bottom: 0;
   left: 0;
   right: 0;
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
   background-color: #FFFFFF;
   border-top: 1px solid #F5F5F7;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.04);
@@ -96,6 +99,7 @@ const handleNavClick = (path: string) => {
   padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
   z-index: 1000;
   height: calc(64px + env(safe-area-inset-bottom));
+  overflow-x: hidden;
 }
 
 /* 兼容不支持 safe-area-inset-bottom 的环境 */

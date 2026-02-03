@@ -1,6 +1,11 @@
 <template>
   <div class="stats-dashboard">
-    <el-card class="stats-filter-card" shadow="never">
+    <el-card
+      class="stats-filter-card"
+      :class="{ 'stats-filter-card--collapsed': collapsed }"
+      shadow="never"
+      :body-style="statsFilterCardBodyStyle"
+    >
       <template #header>
         <div class="stats-filter-header">
           <span>统计筛选</span>
@@ -17,20 +22,26 @@
                 </el-icon>
               </el-button>
             </el-tooltip>
+            <el-tooltip :content="collapsed ? '展开筛选' : '收起筛选'" placement="top">
+              <el-button
+                text
+                circle
+                size="small"
+                class="stats-filter-toggle-btn"
+                @click="toggleStatsFilterCollapsed"
+              >
+                <el-icon :class="['stats-filter-toggle-icon', { expanded: !collapsed }]">
+                  <ArrowDown />
+                </el-icon>
+              </el-button>
+            </el-tooltip>
           </div>
         </div>
       </template>
 
-      <div class="stats-filter-grid">
-        <div class="stats-filter-item">
-          <label>时间粒度</label>
-          <el-segmented
-            v-model="filters.group_by"
-            :options="groupByOptions"
-            size="small"
-          />
-        </div>
-
+      <transition name="stats-filter-collapse">
+        <div v-show="!collapsed" class="stats-filter-collapse-wrapper">
+          <div class="stats-filter-grid">
         <div class="stats-filter-item">
           <label>Top N</label>
           <div class="topn-control">
@@ -127,26 +138,28 @@
             size="small"
           />
         </div>
-      </div>
+          </div>
+        </div>
+      </transition>
     </el-card>
 
     <div class="stats-content" v-loading="loading">
       <el-row :gutter="16" class="overview-row">
-        <el-col :xs="24" :sm="12" :md="8">
+        <el-col :xs="8" :sm="12" :md="8">
           <el-card class="overview-card" shadow="hover">
             <div class="overview-label">谷子件数</div>
             <div class="overview-value">{{ overview?.goods_count ?? 0 }}</div>
             <div class="overview-sub">不同 Asset 记录数</div>
           </el-card>
         </el-col>
-        <el-col :xs="24" :sm="12" :md="8">
+        <el-col :xs="8" :sm="12" :md="8">
           <el-card class="overview-card" shadow="hover">
             <div class="overview-label">总数量</div>
             <div class="overview-value">{{ overview?.quantity_sum ?? 0 }}</div>
             <div class="overview-sub">合计 quantity</div>
           </el-card>
         </el-col>
-        <el-col :xs="24" :sm="12" :md="8">
+        <el-col :xs="8" :sm="12" :md="8">
           <el-card class="overview-card" shadow="hover">
             <div class="overview-label">估算总金额</div>
             <div class="overview-value">
@@ -203,7 +216,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { RefreshLeft } from '@element-plus/icons-vue'
+import { RefreshLeft, ArrowDown } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { getGoodsStats } from '@/api/goods'
 import { getIPList, getCategoryTree } from '@/api/metadata'
@@ -220,8 +233,15 @@ import type {
 const loading = ref(false)
 const statsData = ref<GoodsStatsResponse | null>(null)
 
+// 筛选面板折叠状态（PC 默认展开，移动端默认收起，与谷仓页一致）
+const isStatsFilterMobile = ref(false)
+const collapsed = ref(false)
+const statsFilterCardBodyStyle = computed(() => ({}))
+const toggleStatsFilterCollapsed = () => {
+  collapsed.value = !collapsed.value
+}
+
 const filters = reactive<GoodsStatsParams>({
-  group_by: 'month',
   top: 10,
 })
 
@@ -240,12 +260,6 @@ const formattedValueSum = computed(() => {
   if (Number.isNaN(num)) return overview.value.value_sum
   return num.toFixed(2)
 })
-
-const groupByOptions = [
-  { label: '按月', value: 'month' },
-  { label: '按周', value: 'week' },
-  { label: '按日', value: 'day' },
-] as const
 
 // 基础数据（IP / 品类树 / 位置树）
 const ipOptions = ref<IP[]>([])
@@ -328,6 +342,7 @@ const updateCharts = () => {
   if (!statsData.value) return
 
   const { distributions } = statsData.value
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768
 
   const theme = {
     text: getCssVar('--text-dark', '#303133'),
@@ -449,66 +464,92 @@ const updateCharts = () => {
     })
   }
 
-  // IP TopN 横向条形
+  // IP TopN 横向条形（移动端：预留 Y 轴标签空间并截断长文本）
   const ipTopChart = initChart(ipTopChartRef.value)
   if (ipTopChart) {
     const items = (distributions.ip_top || []).slice().reverse()
+    const yAxisLabelMaxLen = isMobile ? 6 : undefined
     ipTopChart.setOption({
       color: palette,
       textStyle: baseTextStyle,
       tooltip: { ...baseTooltip, trigger: 'axis', axisPointer: { type: 'shadow' } },
-      grid: { left: 110, right: 18, top: 24, bottom: 24, containLabel: true },
+      grid: isMobile
+        ? { left: '38%', right: '10%', top: 16, bottom: 16, containLabel: false }
+        : { left: 110, right: 18, top: 24, bottom: 24, containLabel: true },
       xAxis: {
         type: 'value',
         axisLine: { show: false },
         splitLine: { lineStyle: { color: 'rgba(0,0,0,0.05)' } },
-        axisLabel: { color: theme.textSub },
+        axisLabel: {
+          color: theme.textSub,
+          fontSize: isMobile ? 10 : undefined,
+        },
       },
       yAxis: {
         type: 'category',
         data: items.map((i) => i.ip__name),
         axisLine: { lineStyle: { color: theme.grid } },
         axisTick: { show: false },
-        axisLabel: { color: theme.textSub },
+        axisLabel: {
+          color: theme.textSub,
+          fontSize: isMobile ? 10 : undefined,
+          formatter: yAxisLabelMaxLen
+            ? (value: string) =>
+                value.length > yAxisLabelMaxLen ? value.slice(0, yAxisLabelMaxLen) + '…' : value
+            : undefined,
+        },
       },
       series: [
         {
           type: 'bar',
           data: items.map((i) => i.goods_count),
-          barMaxWidth: 18,
+          barMaxWidth: isMobile ? 14 : 18,
           itemStyle: { borderRadius: [0, 10, 10, 0] },
         },
       ],
     })
   }
 
-  // 品类 TopN 横向条形
+  // 品类 TopN 横向条形（移动端：预留 Y 轴标签空间并截断长文本）
   const categoryTopChart = initChart(categoryTopChartRef.value)
   if (categoryTopChart) {
     const items = (distributions.category_top || []).slice().reverse()
+    const yAxisLabelMaxLen = isMobile ? 8 : undefined
     categoryTopChart.setOption({
       color: palette,
       textStyle: baseTextStyle,
       tooltip: { ...baseTooltip, trigger: 'axis', axisPointer: { type: 'shadow' } },
-      grid: { left: 130, right: 18, top: 24, bottom: 24, containLabel: true },
+      grid: isMobile
+        ? { left: '42%', right: '10%', top: 16, bottom: 16, containLabel: false }
+        : { left: 130, right: 18, top: 24, bottom: 24, containLabel: true },
       xAxis: {
         type: 'value',
         axisLine: { show: false },
         splitLine: { lineStyle: { color: 'rgba(0,0,0,0.05)' } },
-        axisLabel: { color: theme.textSub },
+        axisLabel: {
+          color: theme.textSub,
+          fontSize: isMobile ? 10 : undefined,
+        },
       },
       yAxis: {
         type: 'category',
         data: items.map((i) => i.category__path_name || i.category__name),
         axisLine: { lineStyle: { color: theme.grid } },
         axisTick: { show: false },
-        axisLabel: { color: theme.textSub },
+        axisLabel: {
+          color: theme.textSub,
+          fontSize: isMobile ? 10 : undefined,
+          formatter: yAxisLabelMaxLen
+            ? (value: string) =>
+                value.length > yAxisLabelMaxLen ? value.slice(0, yAxisLabelMaxLen) + '…' : value
+            : undefined,
+        },
       },
       series: [
         {
           type: 'bar',
           data: items.map((i) => i.goods_count),
-          barMaxWidth: 18,
+          barMaxWidth: isMobile ? 14 : 18,
           itemStyle: { borderRadius: [0, 10, 10, 0] },
         },
       ],
@@ -520,7 +561,6 @@ const updateCharts = () => {
 
 const buildRequestParams = (): GoodsStatsParams => {
   const params: GoodsStatsParams = {
-    group_by: filters.group_by,
     top: filters.top,
     ip: filters.ip,
     category: filters.category,
@@ -578,7 +618,6 @@ const fetchStats = async () => {
 }
 
 const handleResetFilters = () => {
-  filters.group_by = 'month'
   filters.top = 10
   filters.ip = undefined
   filters.category = undefined
@@ -601,8 +640,13 @@ const initMetadata = async () => {
   locationStore.fetchNodes()
 }
 
+let resizeTimer: number | null = null
 const handleResize = () => {
-  chartInstances.forEach((c) => c.resize())
+  if (resizeTimer !== null) window.clearTimeout(resizeTimer)
+  resizeTimer = window.setTimeout(() => {
+    resizeTimer = null
+    updateCharts()
+  }, 150)
 }
 
 const handleStatsRefresh = async () => {
@@ -612,6 +656,8 @@ const handleStatsRefresh = async () => {
 }
 
 onMounted(async () => {
+  isStatsFilterMobile.value = window.innerWidth < 768
+  collapsed.value = isStatsFilterMobile.value
   await initMetadata()
   await fetchStats()
   window.addEventListener('resize', handleResize)
@@ -648,7 +694,6 @@ const triggerAutoFetch = () => {
 
 watch(
   () => [
-    filters.group_by,
     filters.top,
     filters.ip,
     filters.category,
@@ -686,6 +731,10 @@ watch(createdDateRange, () => triggerAutoFetch())
   box-shadow: var(--shadow-sm);
 }
 
+.stats-filter-card--collapsed :deep(.el-card__header) {
+  border-bottom: none;
+}
+
 .stats-filter-header {
   display: flex;
   justify-content: space-between;
@@ -696,19 +745,67 @@ watch(createdDateRange, () => triggerAutoFetch())
 
 .stats-filter-actions {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 4px;
 }
 
+.stats-filter-toggle-btn {
+  padding: 4px;
+  min-height: auto;
+}
+
+.stats-filter-toggle-icon {
+  transition: transform var(--transition-fast, 0.2s ease);
+}
+
+.stats-filter-toggle-icon.expanded {
+  transform: rotate(180deg);
+}
+
+/* 展开/收起外层：使用 grid-template-rows 实现高性能动画（与谷仓页一致） */
+.stats-filter-collapse-wrapper {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.3s ease, opacity 0.2s ease;
+  overflow: hidden;
+}
+
+.stats-filter-collapse-wrapper > .stats-filter-grid {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 展开/收起动画 */
+.stats-filter-collapse-enter-active,
+.stats-filter-collapse-leave-active {
+  transition: grid-template-rows 0.3s ease, opacity 0.2s ease;
+}
+
+.stats-filter-collapse-enter-from,
+.stats-filter-collapse-leave-to {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.stats-filter-collapse-enter-to,
+.stats-filter-collapse-leave-from {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+/* PC 端：固定 2 行，第一行 5 项，第二行 2 个日期各占 2 列 */
 .stats-filter-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px 16px;
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
+  gap: 16px 20px;
+  align-items: start;
 }
 
 .stats-filter-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
 }
 
 .stats-filter-item--range {
@@ -719,25 +816,60 @@ watch(createdDateRange, () => triggerAutoFetch())
   font-size: 12px;
   color: var(--text-light);
   font-weight: 500;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .stats-filter-grid {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+
+  .stats-filter-item--range {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-filter-item--range {
+    grid-column: span 1;
+  }
 }
 
 .topn-control {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
+}
+
+.topn-control .el-slider {
+  flex: 1;
 }
 
 .topn-value {
-  width: 32px;
+  width: 28px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  font-size: 13px;
   color: var(--text-dark);
+  flex-shrink: 0;
 }
 
 .status-group {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
+}
+
+.stats-filter-item :deep(.el-select),
+.stats-filter-item :deep(.el-tree-select),
+.stats-filter-item :deep(.el-date-editor) {
+  width: 100%;
 }
 
 .stats-content {
@@ -774,6 +906,42 @@ watch(createdDateRange, () => triggerAutoFetch())
 .overview-sub {
   font-size: 12px;
   color: var(--text-light);
+}
+
+/* 移动端：三张概览卡一行排布时的紧凑样式 */
+@media (max-width: 768px) {
+  .overview-row {
+    margin-bottom: 4px;
+  }
+
+  .overview-row :deep(.el-col) {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .overview-card :deep(.el-card__body) {
+    padding: 10px 8px;
+  }
+
+  .overview-label {
+    font-size: 11px;
+    margin-bottom: 2px;
+  }
+
+  .overview-value {
+    font-size: 16px;
+    margin-bottom: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .overview-sub {
+    font-size: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .overview-progress-group {
@@ -833,10 +1001,14 @@ watch(createdDateRange, () => triggerAutoFetch())
   border-bottom: 1px solid var(--border-color);
 }
 
-:deep(.el-segmented) {
-  --el-segmented-color: var(--text-dark);
-  --el-segmented-bg-color: rgba(245, 245, 247, 0.9);
-  --el-segmented-item-selected-bg-color: rgba(255, 154, 158, 0.25);
+:deep(.el-card__body) {
+  padding: 20px;
+  transition: padding 0.3s;
+}
+
+.stats-filter-card--collapsed :deep(.el-card__body) {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 :deep(.el-card) {

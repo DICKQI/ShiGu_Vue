@@ -173,6 +173,54 @@ export function deleteTheme(id: number) {
   return request.delete(`/api/themes/${id}/`)
 }
 
+// 上传或更新主题附加图片
+export function uploadThemeImages(
+  themeId: number,
+  files?: File[],
+  options?: { photoIds?: number[]; label?: string }
+) {
+  const formData = new FormData()
+  if (files && files.length > 0) {
+    files.forEach((file) => {
+      formData.append('additional_photos', file)
+    })
+  }
+  if (options?.photoIds && options.photoIds.length > 0) {
+    options.photoIds.forEach((photoId) => {
+      formData.append('photo_ids', photoId.toString())
+    })
+  }
+  if (options?.label !== undefined) {
+    formData.append('label', options.label)
+  }
+  return request.post<Theme>(`/api/themes/${themeId}/upload-images/`, formData)
+}
+
+// 仅更新主题附加图片标签
+export function updateThemeImageLabel(
+  themeId: number,
+  photoIds: number[],
+  label?: string
+) {
+  return uploadThemeImages(themeId, undefined, {
+    photoIds,
+    label: label ?? '',
+  })
+}
+
+// 删除单张主题附加图片
+export function deleteThemeImage(themeId: number, photoId: number) {
+  return request.delete<Theme>(`/api/themes/${themeId}/images/${photoId}/`)
+}
+
+// 批量删除主题附加图片
+export function deleteThemeImages(themeId: number, photoIds: number[]) {
+  const photoIdsStr = photoIds.join(',')
+  return request.delete<Theme>(`/api/themes/${themeId}/images/`, {
+    params: { photo_ids: photoIdsStr },
+  })
+}
+
 // ==================== BGM角色导入 ====================
 
 import type {

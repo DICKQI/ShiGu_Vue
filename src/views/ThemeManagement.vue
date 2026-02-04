@@ -130,7 +130,13 @@
     </div>
 
     <!-- 弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="400px" class="custom-dialog" align-center>
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      :width="isEdit && editingId ? '560px' : '400px'"
+      class="custom-dialog"
+      align-center
+    >
       <el-form :model="formData" :rules="formRules" ref="formRef" label-position="top">
         <el-form-item label="主题名称" prop="name">
           <el-input
@@ -150,6 +156,104 @@
             maxlength="500"
             show-word-limit
           />
+        </el-form-item>
+
+        <!-- 主题附加图片（仅编辑模式显示） -->
+        <el-form-item v-if="isEdit && editingId" label="主题附加图片">
+          <div v-loading="loadingThemeDetail" class="theme-additional-photos-section">
+            <!-- 已有图片 -->
+              <div v-if="existingThemeImages.length > 0" class="existing-theme-photos">
+                <div
+                  v-for="(photo, index) in existingThemeImages"
+                  :key="photo.id"
+                  class="theme-photo-item"
+                >
+                  <el-image
+                    :src="photo.image"
+                    fit="cover"
+                    class="theme-photo-preview"
+                    :preview-src-list="existingThemeImages.map((p) => p.image)"
+                    :initial-index="index"
+                  >
+                    <template #error>
+                      <div class="theme-image-error">
+                        <el-icon><Picture /></el-icon>
+                      </div>
+                    </template>
+                  </el-image>
+                  <div class="theme-photo-actions">
+                    <el-input
+                      v-model="photo.label"
+                      placeholder="图片标签（可选）"
+                      size="small"
+                      class="theme-photo-label-input"
+                      @blur="handleThemePhotoLabelChange(photo)"
+                    />
+                    <el-button
+                      type="danger"
+                      size="small"
+                      :icon="Delete"
+                      circle
+                      @click="handleRemoveExistingThemePhoto(photo.id)"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- 待上传的新图片 -->
+              <div v-if="newThemePhotoFiles.length > 0" class="new-theme-photos">
+                <div
+                  v-for="(file, index) in newThemePhotoFiles"
+                  :key="index"
+                  class="theme-photo-item"
+                >
+                  <el-image
+                    :src="file.preview"
+                    fit="cover"
+                    class="theme-photo-preview"
+                  >
+                    <template #error>
+                      <div class="theme-image-error">
+                        <el-icon><Picture /></el-icon>
+                      </div>
+                    </template>
+                  </el-image>
+                  <div class="theme-photo-actions">
+                    <el-input
+                      v-model="file.label"
+                      placeholder="图片标签（可选）"
+                      size="small"
+                      class="theme-photo-label-input"
+                    />
+                    <el-button
+                      type="danger"
+                      size="small"
+                      :icon="Delete"
+                      circle
+                      @click="handleRemoveNewThemePhoto(index)"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- 上传按钮 -->
+              <el-upload
+                v-model:file-list="themeImageUploadList"
+                list-type="picture-card"
+                :auto-upload="false"
+                :on-change="handleThemePhotoChange"
+                :on-remove="handleThemePhotoUploadRemove"
+                :http-request="dummyThemeUpload"
+                :show-file-list="false"
+                accept="image/*"
+                multiple
+                class="theme-photo-upload"
+              >
+                <template #trigger>
+                  <el-icon><Plus /></el-icon>
+                </template>
+              </el-upload>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -187,11 +291,33 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Plus, Search, Star, Refresh, Loading, Top, MoreFilled, Edit, Delete } from '@element-plus/icons-vue'
+import { Plus, Search, Star, Refresh, Loading, Top, MoreFilled, Edit, Delete, Picture } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { getThemeList, createTheme, updateTheme, deleteTheme } from '@/api/metadata'
-import type { Theme } from '@/api/types'
+import type { UploadFile } from 'element-plus'
+import {
+  getThemeList,
+  getThemeDetail,
+  createTheme,
+  updateTheme,
+  deleteTheme,
+  uploadThemeImages,
+  updateThemeImageLabel,
+  deleteThemeImage,
+} from '@/api/metadata'
+import type { Theme, ThemeImage } from '@/api/types'
+
+// 主题附加图片：已有图项（带原始标签用于判断是否修改）
+interface ExistingThemeImage extends ThemeImage {
+  label?: string
+  originalLabel?: string
+}
+// 待上传的新图项
+interface NewThemePhotoFile {
+  file: File
+  preview: string
+  label?: string
+}
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -285,6 +411,14 @@ const formData = ref({
   description: '',
 })
 
+// 主题附加图片状态（仅编辑时使用）
+const existingThemeImages = ref<ExistingThemeImage[]>([])
+const newThemePhotoFiles = ref<NewThemePhotoFile[]>([])
+const themeImageUploadList = ref<UploadFile[]>([])
+const loadingThemeDetail = ref(false)
+
+const dummyThemeUpload = () => {}
+
 const formRules: FormRules = {
   name: [
     { required: true, message: '主题名称不能为空', trigger: 'blur' },
@@ -341,17 +475,34 @@ const handleAdd = () => {
   isEdit.value = false
   editingId.value = null
   formData.value = { name: '', description: '店铺：\n工艺：\n画师：\n主题：' }
+  existingThemeImages.value = []
+  newThemePhotoFiles.value = []
   dialogVisible.value = true
 }
 
-const handleEdit = (row: Theme) => {
+const handleEdit = async (row: Theme) => {
   isEdit.value = true
   editingId.value = row.id
   formData.value = {
     name: row.name,
     description: row.description || ''
   }
+  existingThemeImages.value = []
+  newThemePhotoFiles.value = []
   dialogVisible.value = true
+  loadingThemeDetail.value = true
+  try {
+    const detail = await getThemeDetail(row.id)
+    existingThemeImages.value = (detail.images || []).map((img) => ({
+      ...img,
+      label: img.label ?? '',
+      originalLabel: img.label ?? '',
+    }))
+  } catch {
+    ElMessage.error('加载主题详情失败')
+  } finally {
+    loadingThemeDetail.value = false
+  }
 }
 
 const handleDelete = async (row: Theme) => {
@@ -398,6 +549,63 @@ const handleMobileDelete = () => {
   }
 }
 
+// 主题附加图片：标签失焦保存
+const handleThemePhotoLabelChange = async (photo: ExistingThemeImage) => {
+  if (!editingId.value || photo.originalLabel === photo.label) return
+  try {
+    const label = photo.label?.trim() ?? ''
+    await updateThemeImageLabel(editingId.value, [photo.id], label)
+    photo.originalLabel = photo.label
+    ElMessage.success('标签已更新')
+  } catch (err: any) {
+    photo.label = photo.originalLabel
+    ElMessage.error('标签更新失败：' + (err?.message || '未知错误'))
+  }
+}
+
+// 主题附加图片：删除已有图
+const handleRemoveExistingThemePhoto = async (photoId: number) => {
+  if (!editingId.value) return
+  try {
+    await ElMessageBox.confirm('确定要删除这张图片吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+    await deleteThemeImage(editingId.value, photoId)
+    existingThemeImages.value = existingThemeImages.value.filter((p) => p.id !== photoId)
+    ElMessage.success('已删除')
+  } catch (err: any) {
+    if (err !== 'cancel') {
+      ElMessage.error('删除失败：' + (err?.message || '未知错误'))
+    }
+  }
+}
+
+// 主题附加图片：选择新文件
+const handleThemePhotoChange = (uploadFile: UploadFile) => {
+  const file = uploadFile.raw
+  if (file) {
+    newThemePhotoFiles.value.push({
+      file,
+      preview: URL.createObjectURL(file),
+      label: '',
+    })
+  }
+  themeImageUploadList.value = []
+}
+
+const handleThemePhotoUploadRemove = () => {
+  themeImageUploadList.value = []
+}
+
+// 主题附加图片：移除待上传的新图
+const handleRemoveNewThemePhoto = (index: number) => {
+  const item = newThemePhotoFiles.value[index]
+  if (item?.preview) URL.revokeObjectURL(item.preview)
+  newThemePhotoFiles.value.splice(index, 1)
+}
+
 const handleSubmit = async () => {
   if (!formRef.value) return
   await formRef.value.validate(async (valid) => {
@@ -410,6 +618,16 @@ const handleSubmit = async () => {
       }
       if (isEdit.value && editingId.value) {
         await updateTheme(editingId.value, payload)
+        // 上传本次添加的新附加图片
+        for (const photo of newThemePhotoFiles.value) {
+          await uploadThemeImages(editingId.value!, [photo.file], {
+            label: photo.label?.trim() ?? '',
+          })
+        }
+        newThemePhotoFiles.value.forEach((p) => {
+          if (p.preview) URL.revokeObjectURL(p.preview)
+        })
+        newThemePhotoFiles.value = []
         ElMessage.success('更新成功')
       } else {
         await createTheme(payload)
@@ -432,6 +650,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateWindowWidth)
+  newThemePhotoFiles.value.forEach((p) => {
+    if (p.preview) URL.revokeObjectURL(p.preview)
+  })
 })
 </script>
 
@@ -697,6 +918,83 @@ onUnmounted(() => {
 
 .sheet-cancel:active {
   background: #f5f5f5;
+}
+
+/* 主题附加图片区块 */
+.theme-additional-photos-section {
+  width: 100%;
+}
+
+.existing-theme-photos,
+.new-theme-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.theme-photo-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.theme-photo-preview {
+  width: 100%;
+  height: 120px;
+  border-radius: 4px;
+  border: 1px solid var(--el-border-color);
+  overflow: hidden;
+}
+
+.theme-image-error {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f7fa;
+  color: #c0c4cc;
+  font-size: 24px;
+}
+
+.theme-photo-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.theme-photo-label-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.theme-photo-upload :deep(.el-upload--picture-card) {
+  width: 120px;
+  height: 120px;
+  border-radius: 4px;
+  border: 1px dashed var(--el-border-color);
+}
+
+.theme-photo-upload :deep(.el-upload--picture-card:hover) {
+  border-color: #8e7dff;
+}
+
+@media (max-width: 768px) {
+  .existing-theme-photos,
+  .new-theme-photos {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 12px;
+  }
+
+  .theme-photo-preview {
+    height: 100px;
+  }
+
+  .theme-photo-upload :deep(.el-upload--picture-card) {
+    width: 100px;
+    height: 100px;
+  }
 }
 
 /* 响应式断点控制 */

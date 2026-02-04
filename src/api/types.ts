@@ -57,12 +57,21 @@ export interface Category {
   children?: Category[]
 }
 
+// 主题附加图片（与 GuziImage 结构一致）
+export interface ThemeImage {
+  id: number
+  image: string
+  label?: string | null
+}
+
 // 主题信息
 export interface Theme {
   id: number
   name: string
   description?: string | null
   created_at?: string | null
+  /** 主题附加图片列表，仅详情接口返回 */
+  images?: ThemeImage[]
 }
 
 // 谷子状态

@@ -176,6 +176,7 @@
                 :limit="1"
                 :on-change="handleMainPhotoChange"
                 :on-remove="handleMainPhotoRemove"
+                :on-preview="handlePictureCardPreview"
                 :http-request="dummyUpload"
                 :show-file-list="true"
                 :class="{ 'hide-upload-trigger': mainPhotoList.length >= 1 }"
@@ -274,6 +275,8 @@
                       :src="file.preview"
                       fit="cover"
                       class="photo-preview"
+                      :preview-src-list="newAdditionalPhotoFiles.map(f => f.preview)"
+                      :initial-index="index"
                     >
                       <template #error>
                         <div class="image-error">
@@ -439,6 +442,13 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 图片预览 (使用 el-image-viewer 以匹配附件图片预览效果) -->
+    <el-image-viewer
+      v-if="previewVisible"
+      :url-list="[previewImage]"
+      @close="previewVisible = false"
+    />
   </div>
 </template>
 
@@ -487,6 +497,13 @@ const formData = ref({
 
 const mainPhotoFile = ref<File | null>(null)
 const mainPhotoList = ref<UploadFile[]>([])
+const previewVisible = ref(false)
+const previewImage = ref('')
+
+const handlePictureCardPreview = (uploadFile: UploadFile) => {
+  previewImage.value = uploadFile.url!
+  previewVisible.value = true
+}
 
 // 图片裁切相关状态
 const cropDialogVisible = ref(false)

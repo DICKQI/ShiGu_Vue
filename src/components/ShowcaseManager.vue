@@ -715,7 +715,7 @@ watch(
   right: -20%;
   width: 800px;
   height: 800px;
-  background: radial-gradient(circle, rgba(162, 155, 254, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(162, 155, 254, 0.15) 0%, transparent 20%);
   pointer-events: none;
   z-index: 0;
 }

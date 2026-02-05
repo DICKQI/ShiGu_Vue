@@ -21,7 +21,7 @@
                   </el-radio-group>
                 </div>
                 <el-button
-                  v-if="showcaseStore.scope === 'private'"
+                  :style="{ visibility: showcaseStore.scope === 'private' ? 'visible' : 'hidden' }"
                   type="primary" circle class="btn-accent" @click="openCreateShowcase">
                   <el-icon><Plus /></el-icon>
                 </el-button>
@@ -787,6 +787,7 @@ watch(
 /* 桌面端：内容少时缩短，内容多时最大高度 + 内部滚动 */
 .adaptive-card {
   height: fit-content;
+  min-height: 500px;
   max-height: calc(100vh - 100px);
 }
 

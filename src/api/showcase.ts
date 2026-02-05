@@ -18,6 +18,14 @@ export function getShowcaseList(params?: ShowcaseListParams) {
   return request.get<PaginatedShowcaseResponse>('/api/showcases/', { params })
 }
 
+export function getPublicShowcases(params?: ShowcaseListParams) {
+  return request.get<PaginatedShowcaseResponse>('/api/showcases/public/', { params })
+}
+
+export function getPrivateShowcases(params?: ShowcaseListParams) {
+  return request.get<PaginatedShowcaseResponse>('/api/showcases/private/', { params })
+}
+
 export function getShowcaseDetail(id: string) {
   return request.get<Showcase>(`/api/showcases/${id}/`)
 }

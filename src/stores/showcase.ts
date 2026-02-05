@@ -12,6 +12,8 @@ import {
   deleteShowcase,
   getShowcaseDetail,
   getShowcaseList,
+  getPublicShowcases,
+  getPrivateShowcases,
   moveShowcaseGoods,
   patchShowcase,
   removeGoodsFromShowcase,
@@ -45,6 +47,9 @@ export const useShowcaseStore = defineStore('showcase', () => {
   const activeShowcaseId = ref<string | null>(null)
   const activeShowcase = ref<Showcase | null>(null)
 
+  // 列表作用域：public=公共展柜，private=我的展柜
+  const scope = ref<'public' | 'private'>('private')
+
   const showcaseGoods = computed<ShowcaseGoods[]>(() => activeShowcase.value?.showcase_goods || [])
 
   const sortedShowcaseGoods = computed<ShowcaseGoods[]>(() => {
@@ -59,7 +64,10 @@ export const useShowcaseStore = defineStore('showcase', () => {
     try {
       const page = opts?.page ?? pagination.value.page
       const page_size = opts?.page_size ?? pagination.value.page_size
-      const data = await getShowcaseList({ page, page_size })
+
+      const apiFunc = scope.value === 'public' ? getPublicShowcases : getPrivateShowcases
+      const data = await apiFunc({ page, page_size })
+
       pagination.value = data
       const results = data.results || []
       list.value = results
@@ -304,6 +312,7 @@ export const useShowcaseStore = defineStore('showcase', () => {
     error,
     mutationStatus,
     mutationMessage,
+    scope,
     list,
     pagination,
     activeShowcaseId,

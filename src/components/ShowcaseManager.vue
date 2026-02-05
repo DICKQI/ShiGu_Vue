@@ -11,10 +11,18 @@
           <el-card shadow="never" class="glass-card adaptive-card">
             <template #header>
               <div class="panel-header">
-                <div class="panel-title">
-                  <el-icon><Collection /></el-icon> 我的展柜
+                <div class="header-left">
+                  <div class="panel-title">
+                    <el-icon><Collection /></el-icon>
+                  </div>
+                  <el-radio-group v-model="showcaseStore.scope" size="small" @change="handleScopeChange" class="scope-switch">
+                    <el-radio-button label="private">我的展柜</el-radio-button>
+                    <el-radio-button label="public">公共展柜</el-radio-button>
+                  </el-radio-group>
                 </div>
-                <el-button type="primary" circle class="btn-accent" @click="openCreateShowcase">
+                <el-button
+                  v-if="showcaseStore.scope === 'private'"
+                  type="primary" circle class="btn-accent" @click="openCreateShowcase">
                   <el-icon><Plus /></el-icon>
                 </el-button>
               </div>
@@ -268,6 +276,14 @@ const showcaseCurrentPage = showCurrentPage
 const handleListPageChange = (page: number) => {
   // computed ref 在 template 里有自动解包，但这里显式写，避免歧义
   showcaseCurrentPage.value = page
+}
+
+const handleScopeChange = async () => {
+  showcaseStore.pagination.page = 1
+  showcaseStore.error = null
+  showcaseStore.activeShowcaseId = null
+  showcaseStore.activeShowcase = null
+  await showcaseStore.fetchList({ page: 1 })
 }
 
 const backToList = async () => {
@@ -797,6 +813,11 @@ watch(
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.panel-header .header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 /* Header 轻分割线（最终覆盖，避免旧值残留） */
 ::deep(.el-card__header) {

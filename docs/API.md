@@ -2,6 +2,15 @@
 
 本文档详细介绍了前端 API 接口封装和类型定义。
 
+## 🔐 身份认证（Auth）
+
+| 方法 | 路径 | 说明 | 封装文件 |
+|------|------|------|----------|
+| `POST` | `/api/auth/login/` | 用户登录 | `src/api/auth.ts` |
+| `GET` | `/api/auth/me/` | 获取当前用户信息 | `src/api/auth.ts` |
+
+---
+
 ## 谷子相关（Goods）
 
 | 方法 | 路径 | 说明 | 封装文件 |
@@ -13,10 +22,10 @@
 | `PUT` | `/api/goods/{id}/` | 更新谷子 | `src/api/goods.ts` |
 | `DELETE` | `/api/goods/{id}/` | 删除谷子 | `src/api/goods.ts` |
 | `POST` | `/api/goods/{id}/upload-main-photo/` | 上传/更新主图 | `src/api/goods.ts` |
-| `POST` | `/api/goods/{id}/upload-additional-photos/` | 上传/更新补充图片（支持批量上传、标签管理） | `src/api/goods.ts` |
+| `POST` | `/api/goods/{id}/upload-additional-photos/` | 上传/更新补充图片 | `src/api/goods.ts` |
 | `DELETE` | `/api/goods/{id}/additional-photos/{photoId}/` | 删除单张补充图片 | `src/api/goods.ts` |
 | `DELETE` | `/api/goods/{id}/additional-photos/` | 批量删除补充图片 | `src/api/goods.ts` |
-| `POST` | `/api/goods/{id}/move/` | 移动谷子排序（支持跨页锚点） | `src/api/goods.ts` |
+| `POST` | `/api/goods/{id}/move/` | 移动谷子排序 | `src/api/goods.ts` |
 
 ### 查询参数（`GET /api/goods/`）
 
@@ -24,13 +33,14 @@
 - `character` - 角色 ID
 - `characters__in` - 多角色过滤（如：`5,6`）
 - `category` - 品类 ID
+- `theme` - 主题 ID
 - `status` - 状态（`in_cabinet`、`outdoor`、`sold`）
 - `status__in` - 多状态过滤（如：`in_cabinet,sold`）
-- `is_official` - 是否官谷筛选（`true`=只看官谷，`false`=只看非官谷，不传=不过滤）
+- `is_official` - 是否官谷筛选（`true`=只看官谷，`false`=只看非官谷）
 - `location` - 位置 ID
-- `search` - 搜索关键词（模糊匹配）
-- `page` - 页码（默认 1）
-- `page_size` - 每页数量（默认 20）
+- `search` - 搜索关键词
+- `page` - 页码
+- `page_size` - 每页数量
 
 ### 统计看板查询参数（`GET /api/goods/stats/`）
 
@@ -101,6 +111,7 @@
 | `PUT` | `/api/ips/{id}/` | 更新 IP 作品 | `src/api/metadata.ts` |
 | `DELETE` | `/api/ips/{id}/` | 删除 IP 作品 | `src/api/metadata.ts` |
 | `GET` | `/api/ips/{id}/characters/` | 获取 IP 下的角色列表 | `src/api/metadata.ts` |
+| `POST` | `/api/ips/batch-update-order/` | 批量更新 IP 排序 | `src/api/metadata.ts` |
 
 ### 角色（Character）
 
@@ -181,6 +192,36 @@
 - 品类管理页面拖拽排序后，批量提交排序变更
 - 仅支持同一父级内部的排序调整
 
+## 🎨 展柜相关（Showcase）
+
+| 方法 | 路径 | 说明 | 封装文件 |
+|------|------|------|----------|
+| `GET` | `/api/showcases/` | 展柜列表 | `src/api/showcase.ts` |
+| `GET` | `/api/showcases/{id}/` | 展柜详情 | `src/api/showcase.ts` |
+| `POST` | `/api/showcases/` | 创建展柜 | `src/api/showcase.ts` |
+| `PATCH` | `/api/showcases/{id}/` | 更新展柜 | `src/api/showcase.ts` |
+| `DELETE` | `/api/showcases/{id}/` | 删除展柜 | `src/api/showcase.ts` |
+| `POST` | `/api/showcases/{id}/upload-cover-image/` | 上传展柜封面 | `src/api/showcase.ts` |
+| `GET` | `/api/showcases/{id}/goods/` | 获取展柜内谷子列表 | `src/api/showcase.ts` |
+| `POST` | `/api/showcases/{id}/add-goods/` | 添加谷子到展柜 | `src/api/showcase.ts` |
+| `POST` | `/api/showcases/{id}/remove-goods/` | 从展柜移除谷子 | `src/api/showcase.ts` |
+| `POST` | `/api/showcases/{id}/move-goods/` | 移动展柜内谷子排序 | `src/api/showcase.ts` |
+
+---
+
+## 🌈 主题相关（Theme）
+
+| 方法 | 路径 | 说明 | 封装文件 |
+|------|------|------|----------|
+| `GET` | `/api/themes/` | 主题列表 | `src/api/metadata.ts` |
+| `GET` | `/api/themes/{id}/` | 主题详情 | `src/api/metadata.ts` |
+| `POST` | `/api/themes/` | 创建主题 | `src/api/metadata.ts` |
+| `PUT` | `/api/themes/{id}/` | 更新主题 | `src/api/metadata.ts` |
+| `DELETE` | `/api/themes/{id}/` | 删除主题 | `src/api/metadata.ts` |
+| `POST` | `/api/themes/{id}/upload-images/` | 上传主题展示图 | `src/api/metadata.ts` |
+| `PATCH` | `/api/themes/images/{id}/` | 更新主题图标签 | `src/api/metadata.ts` |
+| `DELETE` | `/api/themes/images/{id}/` | 删除主题图 | `src/api/metadata.ts` |
+
 ---
 
 ## 类型定义
@@ -193,6 +234,8 @@
 - `IP` - IP 作品
 - `Character` - 角色
 - `Category` - 品类
+- `Theme` - 主题
+- `Showcase` - 展柜
 - `PaginatedResponse<T>` - 分页响应
 - `BGMSearchResponse` - BGM 搜索响应
 - `BGMCreateCharactersResponse` - BGM 批量创建响应

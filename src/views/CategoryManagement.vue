@@ -264,6 +264,7 @@ import { Plus, Search, CollectionTag, Refresh, Loading, Top, MoreFilled, Edit, D
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { useMetadataStore } from '@/stores/metadata'
 import { getCategoryList, getCategoryTree, createCategory, updateCategory, deleteCategory, batchUpdateCategoryOrder } from '@/api/metadata'
 import type { Category } from '@/api/types'
 import Sortable from 'sortablejs'
@@ -299,6 +300,7 @@ const updateWindowWidth = () => {
 }
 
 const authStore = useAuthStore()
+const metadataStore = useMetadataStore()
 
 // 下拉刷新相关状态
 const scrollContainerRef = ref<HTMLElement | null>(null)
@@ -357,7 +359,7 @@ const handleTouchEnd = async () => {
     isRefreshing.value = true
     pullDistance.value = TRIGGER_DIST
     try {
-      await fetchCategoryList()
+      await fetchCategoryList(true)
       ElMessage.success('刷新成功')
     } catch (error) {
       ElMessage.error('刷新失败')
@@ -634,12 +636,10 @@ const toggleRowExpand = (row: CategoryNode) => {
   }
 }
 
-const fetchCategoryList = async () => {
+const fetchCategoryList = async (force = false) => {
   loading.value = true
   try {
-    const keyword = searchText.value.trim()
-    // 优先拉取树接口，支持多层结构与颜色标签
-    const data = keyword ? await getCategoryList({ search: keyword }) : await getCategoryTree()
+    const data = await metadataStore.fetchCategories(force)
     allCategories.value = data
 
     // 数据更新后，初始化/更新拖拽
@@ -651,7 +651,7 @@ const fetchCategoryList = async () => {
 }
 
 const handleSearch = () => fetchCategoryList()
-const handleRefresh = () => fetchCategoryList()
+const handleRefresh = () => fetchCategoryList(true)
 const handleAdd = () => {
   isEdit.value = false
   editingId.value = null
@@ -675,7 +675,7 @@ const handleDelete = async (row: Category) => {
     await ElMessageBox.confirm(`确定删除品类《${row.name}》吗？`, '提示')
     await deleteCategory(row.id)
     ElMessage.success('已删除')
-    fetchCategoryList()
+    fetchCategoryList(true)
   } catch {}
 }
 
@@ -727,7 +727,7 @@ const handleSubmit = async () => {
         await createCategory(payload)
       }
       dialogVisible.value = false
-      fetchCategoryList()
+      fetchCategoryList(true)
     } finally {
       submitting.value = false
     }

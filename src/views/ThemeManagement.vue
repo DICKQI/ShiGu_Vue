@@ -295,6 +295,8 @@ import { Plus, Search, Star, Refresh, Loading, Top, MoreFilled, Edit, Delete, Pi
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { UploadFile } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
+import { useMetadataStore } from '@/stores/metadata'
 import {
   getThemeList,
   getThemeDetail,
@@ -339,6 +341,9 @@ const currentActionRow = ref<Theme | null>(null)
 const updateWindowWidth = () => {
   windowWidth.value = window.innerWidth
 }
+
+const authStore = useAuthStore()
+const metadataStore = useMetadataStore()
 
 // 下拉刷新相关状态
 const scrollContainerRef = ref<HTMLElement | null>(null)
@@ -389,7 +394,7 @@ const handleTouchEnd = async () => {
     isRefreshing.value = true
     pullDistance.value = TRIGGER_DIST
     try {
-      await fetchThemeList()
+      await fetchThemeList(true)
       ElMessage.success('刷新成功')
     } catch (error) {
       ElMessage.error('刷新失败')
@@ -457,11 +462,10 @@ const formatDate = (dateStr: string | null | undefined) => {
   }
 }
 
-const fetchThemeList = async () => {
+const fetchThemeList = async (force = false) => {
   loading.value = true
   try {
-    const keyword = searchText.value.trim()
-    const data = await getThemeList(keyword ? { search: keyword } : undefined)
+    const data = await metadataStore.fetchThemes(force)
     allThemes.value = data
   } finally {
     loading.value = false
@@ -469,7 +473,7 @@ const fetchThemeList = async () => {
 }
 
 const handleSearch = () => fetchThemeList()
-const handleRefresh = () => fetchThemeList()
+const handleRefresh = () => fetchThemeList(true)
 
 const handleAdd = () => {
   isEdit.value = false
@@ -518,7 +522,7 @@ const handleDelete = async (row: Theme) => {
     )
     await deleteTheme(row.id)
     ElMessage.success('已删除')
-    fetchThemeList()
+    fetchThemeList(true)
   } catch (error: any) {
     if (error !== 'cancel') {
       ElMessage.error('删除失败')
@@ -634,7 +638,7 @@ const handleSubmit = async () => {
         ElMessage.success('创建成功')
       }
       dialogVisible.value = false
-      fetchThemeList()
+      fetchThemeList(true)
     } catch (error: any) {
       ElMessage.error(error?.response?.data?.detail || (isEdit.value ? '更新失败' : '创建失败'))
     } finally {

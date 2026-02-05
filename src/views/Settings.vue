@@ -136,9 +136,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { updateBaseURL, getCurrentBaseURL, resetBaseURL } from '@/utils/request'
 import { useAuthStore } from '@/stores/auth'
+import { useMetadataStore } from '@/stores/metadata'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const metadataStore = useMetadataStore()
 const refreshingUser = ref(false)
 
 const formRef = ref<FormInstance>()
@@ -204,6 +206,7 @@ const handleSave = async () => {
       const url = formData.value.apiBaseURL.trim()
       updateBaseURL(url)
       currentBaseURL.value = url
+      metadataStore.clearCache() // 清除元数据缓存
       ElMessage.success('后端地址已保存')
     } catch (error: any) {
       ElMessage.error(error.message || '保存失败')
@@ -217,6 +220,7 @@ const handleReset = () => {
   resetBaseURL()
   formData.value.apiBaseURL = defaultBaseURL.value
   currentBaseURL.value = defaultBaseURL.value
+  metadataStore.clearCache() // 清除元数据缓存
   ElMessage.success('已恢复为默认地址')
 }
 

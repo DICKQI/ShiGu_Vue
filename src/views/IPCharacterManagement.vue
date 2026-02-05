@@ -767,6 +767,7 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules, UploadFile } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { useMetadataStore } from '@/stores/metadata'
 import {
   getIPList,
   getIPDetail,
@@ -802,6 +803,7 @@ const updateWindowWidth = () => {
 }
 
 const authStore = useAuthStore()
+const metadataStore = useMetadataStore()
 
 onMounted(() => {
   window.addEventListener('resize', updateWindowWidth)
@@ -879,7 +881,7 @@ const handleTouchEnd = async () => {
     pullDistance.value = TRIGGER_DIST
 
     try {
-      await fetchIPList()
+      await fetchIPList(true)
       ElMessage.success('刷新成功')
     } catch (error) {
       ElMessage.error('刷新失败')
@@ -974,7 +976,7 @@ const handleRowReorder = async (oldIndex: number, newIndex: number) => {
   if (oldIndex === newIndex) return
   if (sortState.value.prop) {
     ElMessage.warning('请清空表格排序后再进行拖拽排序')
-    await fetchIPList()
+    await fetchIPList(true)
     return
   }
 
@@ -1005,7 +1007,7 @@ const handleRowReorder = async (oldIndex: number, newIndex: number) => {
     ElMessage.success('排序已更新')
   } catch (err: any) {
     ElMessage.error(err?.message || '排序更新失败，已回滚')
-    await fetchIPList()
+    await fetchIPList(true)
   }
 }
 
@@ -1156,22 +1158,27 @@ const handleActionCommand = (command: string) => {
   }
 }
 
-const fetchIPList = async () => {
+const fetchIPList = async (force = false) => {
   loading.value = true
   try {
-    const params: { search?: string; subject_type?: number; subject_type__in?: string } = {}
+    const allIPs = await metadataStore.fetchIPs(force)
+
+    let filtered = allIPs
     if (searchText.value.trim()) {
-      params.search = searchText.value.trim()
+      const lowerSearch = searchText.value.trim().toLowerCase()
+      filtered = filtered.filter(ip =>
+        ip.name.toLowerCase().includes(lowerSearch) ||
+        (ip.keywords && ip.keywords.some(k => k.value.toLowerCase().includes(lowerSearch)))
+      )
     }
+
     if (selectedSubjectTypes.value.length > 0) {
-      if (selectedSubjectTypes.value.length === 1) {
-        params.subject_type = selectedSubjectTypes.value[0]
-      } else {
-        params.subject_type__in = selectedSubjectTypes.value.join(',')
-      }
+      filtered = filtered.filter(ip =>
+        ip.subject_type && selectedSubjectTypes.value.includes(ip.subject_type)
+      )
     }
-    const data = await getIPList(params)
-    ipList.value = data
+
+    ipList.value = filtered
     characterMap.value = {}
     expandedIPs.value = []
     await nextTick()
@@ -1185,11 +1192,18 @@ const fetchIPList = async () => {
 
 const fetchIPCharacters = async (ipId: number) => {
   if (characterLoadingMap.value[ipId]) return
-  if (characterMap.value[ipId]) return
+
+  // 先检查 Store 内存中是否有数据，如果有，先展示（虽然 Store 内部有检查，但这里可以避免 loading 状态闪烁）
+  if (metadataStore.charactersByIP[ipId]) {
+    characterMap.value[ipId] = metadataStore.charactersByIP[ipId]
+    syncIPCharacterCountFromMap(ipId)
+    return
+  }
 
   characterLoadingMap.value[ipId] = true
   try {
-    const data = await getIPCharacters(ipId)
+    // 调用 Store 的按需获取方法
+    const data = await metadataStore.fetchIPCharacters(ipId)
     characterMap.value[ipId] = data
     syncIPCharacterCountFromMap(ipId)
   } catch (err: any) {
@@ -1221,7 +1235,7 @@ const handleTableExpandChange = async (row: IP, expandedRows: IP[]) => {
 const handleSearch = () => fetchIPList()
 
 const handleRefresh = () => {
-  fetchIPList()
+  fetchIPList(true)
 }
 
 const handleAddIP = () => {
@@ -1268,7 +1282,7 @@ const handleDeleteIP = async (row: IP) => {
     await deleteIP(row.id)
     ElMessage.success('已安全删除')
     delete characterMap.value[row.id]
-    fetchIPList()
+    fetchIPList(true)
   } catch {}
 }
 
@@ -1306,7 +1320,7 @@ const handleSubmitIP = async () => {
       }
       ElMessage.success('操作成功')
       ipDialogVisible.value = false
-      fetchIPList()
+      fetchIPList(true)
     } catch (err: any) {
       ElMessage.error(err.message || '操作失败')
     } finally {
@@ -1379,6 +1393,7 @@ const handleDeleteCharacter = async (row: Character) => {
       }
     )
     await deleteCharacter(row.id)
+    await metadataStore.fetchIPCharacters(row.ip.id, true) // 刷新该IP的角色缓存
     ElMessage.success('已删除')
     if (ipList.value.find((x) => x.id === row.ip.id)?.character_count != null) {
       setIPCharacterCount(row.ip.id, Math.max(0, (ipList.value.find((x) => x.id === row.ip.id)?.character_count || 0) - 1))
@@ -1445,7 +1460,10 @@ const handleSubmitCharacter = async () => {
       const oldIpId = editingCharacterOriginalIpId.value
       if (isEditCharacter.value && editingCharacterId.value) {
         await updateCharacter(editingCharacterId.value, data)
+        await metadataStore.fetchIPCharacters(newIpId, true) // 刷新新IP的角色缓存
+
         if (oldIpId && oldIpId !== newIpId) {
+          await metadataStore.fetchIPCharacters(oldIpId, true) // 刷新旧IP的角色缓存
           if (characterMap.value[oldIpId]) {
             delete characterMap.value[oldIpId]
             await fetchIPCharacters(oldIpId)
@@ -1470,6 +1488,7 @@ const handleSubmitCharacter = async () => {
         }
       } else {
         await createCharacter(data)
+        await metadataStore.fetchIPCharacters(newIpId, true) // 刷新该IP的角色缓存
         delete characterMap.value[newIpId]
         if (ipList.value.find((x) => x.id === newIpId)?.character_count != null) {
           setIPCharacterCount(newIpId, (ipList.value.find((x) => x.id === newIpId)?.character_count || 0) + 1)
@@ -1593,7 +1612,7 @@ const handleBGMConfirmImport = async () => {
     bgmImportResult.value = createResult
     bgmStep.value = 'imported'
 
-    await fetchIPList()
+    await fetchIPList(true)
 
     ElMessage.success(`成功导入 ${createResult.created} 个角色`)
   } catch (err: any) {
@@ -1607,7 +1626,7 @@ const handleBGMConfirmImport = async () => {
 const handleBGMClose = () => {
   bgmDialogVisible.value = false
   handleBGMReset()
-  fetchIPList()
+  fetchIPList(true)
 }
 </script>
 

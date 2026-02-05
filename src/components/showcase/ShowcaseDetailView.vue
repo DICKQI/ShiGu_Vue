@@ -23,7 +23,7 @@
           </div>
         </div>
         <div class="info-action">
-          <el-button type="primary" class="btn-accent add-goods-btn" @click="emit('addGoods')">
+          <el-button v-if="!readonly" type="primary" class="btn-accent add-goods-btn" @click="emit('addGoods')">
             <el-icon class="el-icon--left"><Goods /></el-icon> 添加谷子
           </el-button>
         </div>
@@ -46,15 +46,17 @@
             v-for="item in goods"
             :key="item.id"
             class="goods-wrapper"
-            @contextmenu.prevent.stop="emit('goodsContextMenuFromDom', item.goods.id, $event)"
+            @contextmenu.prevent.stop="!readonly && emit('goodsContextMenuFromDom', item.goods.id, $event)"
           >
             <GoodsCard
               :goods="item.goods"
               :show-menu="false"
+              :enable-watermark="readonly"
               class="mini-goods-card"
-              @click="emit('openGoods', item.goods)"
+              :style="{ cursor: readonly ? 'default' : 'pointer' }"
+              @click="!readonly && emit('openGoods', item.goods)"
               @location-click="noop"
-              @context-menu="emit('goodsContextMenu', $event)"
+              @context-menu="!readonly && emit('goodsContextMenu', $event)"
             />
           </div>
         </div>
@@ -72,11 +74,14 @@ import { ArrowLeft, Goods } from '@element-plus/icons-vue'
 import GoodsCard from '@/components/GoodsCard.vue'
 import type { GoodsListItem, Showcase, ShowcaseGoods } from '@/api/types'
 
-defineProps<{
+withDefaults(defineProps<{
   loading: boolean
   showcase: Showcase | null
   goods: ShowcaseGoods[]
-}>()
+  readonly?: boolean
+}>(), {
+  readonly: false
+})
 
 const emit = defineEmits<{
   back: []

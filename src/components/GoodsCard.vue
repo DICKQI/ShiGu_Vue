@@ -10,8 +10,16 @@
   >
     <!-- 1. 图片区域 -->
     <div class="card-image-wrapper">
+      <WatermarkImage
+        v-if="enableWatermark && goods.main_photo"
+        :src="goods.main_photo"
+        :alt="goods.name"
+        :user-id="'ID:' + goods.id.slice(0, 8)"
+        fit="cover"
+        class="main-image"
+      />
       <el-image
-        v-if="goods.main_photo"
+        v-else-if="goods.main_photo"
         :src="goods.main_photo"
         :alt="goods.name"
         fit="cover"
@@ -77,9 +85,9 @@
         </div>
 
         <!-- 位置信息：空间不足时自动收缩并显示省略号 -->
-        <div 
-          v-if="goods.location_path" 
-          class="location-box" 
+        <div
+          v-if="goods.location_path"
+          class="location-box"
           @click.stop="handleLocationClick"
         >
           <el-icon class="loc-icon"><Location /></el-icon>
@@ -93,10 +101,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { Picture, Location, CircleCheck, MoreFilled, Brush } from '@element-plus/icons-vue'
+import WatermarkImage from '@/components/WatermarkImage.vue'
 import type { GoodsListItem } from '@/api/types'
 
 interface Props {
   goods: GoodsListItem
+  enableWatermark?: boolean
   /**
    * 是否显示卡片右上角的“更多”按钮。
    * 默认显示；当外层页面已自定义右上角操作区时可关闭，避免冲突/重叠。
@@ -130,8 +140,8 @@ const categoryStyle = computed(() => {
   const color = props.goods.category.color_tag || '#D4AF37';
   return {
     color: color,
-    backgroundColor: `${color}15`, 
-    borderColor: `${color}30`     
+    backgroundColor: `${color}15`,
+    borderColor: `${color}30`
   }
 })
 
@@ -187,7 +197,7 @@ onBeforeUnmount(() => clearLongPressTimer())
   --text-main: #303133;
   --text-sub: #909399;
   --bg-gray: #f8f9fa;
-  
+
   background-color: #fff;
   border-radius: 16px;
   overflow: hidden;

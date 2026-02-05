@@ -12,7 +12,14 @@
 
     <template v-else>
       <div v-for="(src, idx) in tiles" :key="idx" class="tile" :class="tileClass(idx)">
-        <el-image :src="src" fit="cover" class="tile-img" loading="lazy">
+        <WatermarkImage
+          v-if="enableWatermark"
+          :src="src"
+          fit="cover"
+          class="tile-img"
+          :user-id="userId"
+        />
+        <el-image v-else :src="src" fit="cover" class="tile-img" loading="lazy">
           <template #error>
             <div class="placeholder">
               <el-icon><Picture /></el-icon>
@@ -27,11 +34,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Picture } from '@element-plus/icons-vue'
+import WatermarkImage from '@/components/WatermarkImage.vue'
 
 const props = withDefaults(
   defineProps<{
     photos: string[]
     loading?: boolean
+    enableWatermark?: boolean
+    userId?: string
   }>(),
   { loading: false },
 )

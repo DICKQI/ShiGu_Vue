@@ -40,6 +40,7 @@
                 }"
                 :get-preview-photos="showcaseStore.getPreviewPhotos"
                 :is-preview-loading="showcaseStore.isPreviewLoading"
+                :enable-watermark="isReadonly"
                 @select="handleEnterShowcaseDetail"
                 @context-menu="openShowcaseContextMenu"
                 @page-change="handleListPageChange"
@@ -56,6 +57,7 @@
                 :loading="showcaseStore.detailLoading"
                 :showcase="showcaseStore.activeShowcase"
                 :goods="showcaseStore.sortedShowcaseGoods"
+                :readonly="isReadonly"
                 @back="backToList"
                 @add-goods="openAddGoods"
                 @open-goods="handleOpenGoodsDetail"
@@ -266,6 +268,8 @@ onUnmounted(() => window.removeEventListener('resize', handleResize))
 const showcaseStore = useShowcaseStore()
 const viewMode = ref<'list' | 'detail'>('list')
 
+const isReadonly = computed(() => showcaseStore.scope === 'public')
+
 const showCurrentPage = computed({
   get: () => showcaseStore.pagination.page,
   set: (val) => {
@@ -301,6 +305,7 @@ const backToList = async () => {
 const goodsDrawerVisible = ref(false)
 const selectedGoodsId = ref<string>('')
 const handleOpenGoodsDetail = (goods: GoodsListItem) => {
+  if (isReadonly.value) return
   selectedGoodsId.value = goods.id
   goodsDrawerVisible.value = true
 }
@@ -343,6 +348,7 @@ const closeContextMenu = () => {
 }
 
 const openGoodsContextMenu = (payload: { goods: GoodsListItem; x: number; y: number }) => {
+  if (isReadonly.value) return
   const pos = clampMenuPosition(payload.x, payload.y)
   contextMenu.visible = true
   contextMenu.type = 'goods'
@@ -353,6 +359,7 @@ const openGoodsContextMenu = (payload: { goods: GoodsListItem; x: number; y: num
 }
 
 const openGoodsContextMenuFromDom = (goodsId: string, event: MouseEvent) => {
+  if (isReadonly.value) return
   const pos = clampMenuPosition(event.clientX, event.clientY)
   contextMenu.visible = true
   contextMenu.type = 'goods'
@@ -363,6 +370,7 @@ const openGoodsContextMenuFromDom = (goodsId: string, event: MouseEvent) => {
 }
 
 const openShowcaseContextMenu = (showcaseId: string, event: MouseEvent) => {
+  if (isReadonly.value) return
   const pos = clampMenuPosition(event.clientX, event.clientY)
   contextMenu.visible = true
   contextMenu.type = 'showcase'

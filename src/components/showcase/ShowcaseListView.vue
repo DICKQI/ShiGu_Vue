@@ -20,6 +20,8 @@
           :showcase="s"
           :preview-photos="getPreviewPhotos(s.id)"
           :loading-preview="isPreviewLoading(s.id)"
+          :enable-watermark="enableWatermark"
+          :user-id="'ID:' + s.id.slice(0, 8)"
           @click="emit('select', s.id)"
           @contextmenu.prevent.stop="emit('contextMenu', s.id, $event)"
         />
@@ -52,6 +54,7 @@ const props = defineProps<{
   pagination: { total: number; page: number; pageSize: number }
   getPreviewPhotos: (showcaseId: string) => string[]
   isPreviewLoading: (showcaseId: string) => boolean
+  enableWatermark?: boolean
 }>()
 
 const emit = defineEmits<{

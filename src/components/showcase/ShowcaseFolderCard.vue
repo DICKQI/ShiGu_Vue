@@ -1,7 +1,12 @@
 <template>
   <div class="folder-card" @click="emit('click')" @contextmenu="emit('contextmenu', $event)">
     <div class="folder-preview">
-      <ShowcasePreviewMosaic :photos="previewPhotos" :loading="loadingPreview" />
+      <ShowcasePreviewMosaic
+        :photos="previewPhotos"
+        :loading="loadingPreview"
+        :enable-watermark="enableWatermark"
+        :user-id="userId"
+      />
     </div>
     <div class="folder-title" :title="showcase.name">
       {{ showcase.name }}
@@ -19,6 +24,8 @@ const props = defineProps<{
   showcase: Showcase
   previewPhotos: string[]
   loadingPreview?: boolean
+  enableWatermark?: boolean
+  userId?: string
 }>()
 
 const emit = defineEmits<{

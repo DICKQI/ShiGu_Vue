@@ -98,7 +98,6 @@ a {
   opacity: 0.5;
 }
 
-/* 移除所有按钮和可点击元素的焦点框 */
 button,
 .el-button,
 .el-button:focus,

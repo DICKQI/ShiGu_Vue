@@ -79,15 +79,67 @@
         </el-alert>
       </div>
     </el-card>
+
+    <!-- 账号与个人信息：仅已登录时展示 -->
+    <el-card v-if="authStore.isAuthenticated" class="settings-card" shadow="never">
+      <template #header>
+        <div class="card-header">
+          <el-icon class="header-icon"><User /></el-icon>
+          <span>账号与个人信息</span>
+        </div>
+      </template>
+      <div class="account-info">
+        <div class="info-item">
+          <span class="info-label">用户名：</span>
+          <span class="info-value">{{ authStore.user?.username ?? '—' }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">角色：</span>
+          <span class="info-value">{{ roleLabel }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">用户 ID：</span>
+          <span class="info-value">{{ authStore.user?.id ?? '—' }}</span>
+        </div>
+        <div class="role-tip">
+          <template v-if="authStore.isAdmin">
+            管理员可管理 IP、品类、角色、主题等公共元数据，并可查看所有用户数据。
+          </template>
+          <template v-else>
+            普通用户只能访问和修改自己的谷子、展柜、主题与收纳位置；公共元数据为只读。
+          </template>
+        </div>
+      </div>
+      <el-divider />
+      <div class="form-actions">
+        <el-button :loading="refreshingUser" @click="handleRefreshUser">刷新信息</el-button>
+        <el-button type="danger" plain @click="handleLogout">退出登录</el-button>
+      </div>
+    </el-card>
+
+    <!-- 未登录时提示 -->
+    <el-card v-else class="settings-card settings-card-tip" shadow="never">
+      <div class="account-tip">
+        <el-icon class="tip-icon"><User /></el-icon>
+        <span>登录后可在此查看账号信息与退出登录。</span>
+        <router-link to="/login" class="link">去登录</router-link>
+      </div>
+    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Setting, Link, InfoFilled, Document } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
+import { Setting, Link, InfoFilled, Document, User } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { updateBaseURL, getCurrentBaseURL, resetBaseURL } from '@/utils/request'
+import { useAuthStore } from '@/stores/auth'
+
+const router = useRouter()
+const authStore = useAuthStore()
+const refreshingUser = ref(false)
 
 const formRef = ref<FormInstance>()
 const saving = ref(false)
@@ -168,8 +220,49 @@ const handleReset = () => {
   ElMessage.success('已恢复为默认地址')
 }
 
+const roleLabel = computed(() => {
+  const role = authStore.user?.role
+  if (!role) return '—'
+  return role.toLowerCase() === 'admin' ? '管理员' : '普通用户'
+})
+
+const handleRefreshUser = async () => {
+  refreshingUser.value = true
+  try {
+    await authStore.fetchCurrentUser()
+    ElMessage.success('已刷新')
+  } catch {
+    ElMessage.error('登录状态已失效，请重新登录')
+    await router.push('/login')
+  } finally {
+    refreshingUser.value = false
+  }
+}
+
+const handleLogout = async () => {
+  try {
+    await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+      lockScroll: true,
+      closeOnClickModal: true,
+      closeOnPressEscape: true,
+    })
+    await authStore.logout()
+  } catch (error) {
+    // 用户取消或 logout 内部会跳转
+    if (error !== 'cancel' && error !== 'close') {
+      console.error(error)
+    }
+  }
+}
+
 onMounted(() => {
   loadCurrentSettings()
+  if (authStore.isAuthenticated && !authStore.user) {
+    authStore.fetchCurrentUser()
+  }
 })
 </script>
 
@@ -307,6 +400,44 @@ onMounted(() => {
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 12px;
   color: #e6a23c;
+}
+
+.account-info {
+  padding: 0;
+}
+
+.role-tip {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.6;
+}
+
+.account-tip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #606266;
+}
+
+.account-tip .tip-icon {
+  font-size: 18px;
+  color: #909399;
+}
+
+.account-tip .link {
+  color: #409eff;
+  text-decoration: none;
+  margin-left: 4px;
+}
+
+.account-tip .link:hover {
+  text-decoration: underline;
+}
+
+.settings-card-tip .el-card__body {
+  padding: 16px 20px;
 }
 
 @media (max-width: 768px) {

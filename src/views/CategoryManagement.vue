@@ -7,7 +7,7 @@
         <span class="sub-title">配置谷子的种类（如：立牌、马口铁徽章等）</span>
       </div>
       <div class="header-actions">
-        <el-button class="add-btn" type="primary" @click="handleAdd">
+        <el-button class="add-btn" type="primary" @click="handleAdd" v-if="authStore.isAdmin">
           <el-icon><Plus /></el-icon>
           <span>新增品类</span>
         </el-button>
@@ -69,7 +69,7 @@
               :row-class-name="rowClassName"
               @expand-change="handleExpandChange"
             >
-              <el-table-column label="排序" width="80" align="center">
+              <el-table-column v-if="authStore.isAdmin" label="排序" width="80" align="center">
                 <template #default>
                   <div class="drag-handle">
                     <svg viewBox="0 0 16 16" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -118,10 +118,10 @@
                     >
                       {{ isExpanded(row) ? '收起' : '展开' }}
                     </el-button>
-                    <span v-if="row.children && row.children.length" class="action-divider" />
-                    <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-                    <span class="action-divider" />
-                    <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+                    <span v-if="row.children && row.children.length && authStore.isAdmin" class="action-divider" />
+                    <el-button v-if="authStore.isAdmin" link type="primary" @click="handleEdit(row)">编辑</el-button>
+                    <span v-if="authStore.isAdmin" class="action-divider" />
+                    <el-button v-if="authStore.isAdmin" link type="danger" @click="handleDelete(row)">删除</el-button>
                   </div>
                 </template>
               </el-table-column>
@@ -153,14 +153,14 @@
                 </div>
               </div>
               <div class="mobile-card-right">
-                <div class="mobile-drag-handle">
+                <div class="mobile-drag-handle" v-if="authStore.isAdmin">
                   <svg viewBox="0 0 16 16" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                     <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                     <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                   </svg>
                 </div>
-                <div class="mobile-more" @click.stop="openMobileActions(item)">
+                <div class="mobile-more" v-if="authStore.isAdmin" @click.stop="openMobileActions(item)">
                   <el-icon><MoreFilled /></el-icon>
                 </div>
               </div>
@@ -263,6 +263,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { Plus, Search, CollectionTag, Refresh, Loading, Top, MoreFilled, Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
 import { getCategoryList, getCategoryTree, createCategory, updateCategory, deleteCategory, batchUpdateCategoryOrder } from '@/api/metadata'
 import type { Category } from '@/api/types'
 import Sortable from 'sortablejs'
@@ -296,6 +297,8 @@ const currentActionRow = ref<Category | null>(null)
 const updateWindowWidth = () => {
   windowWidth.value = window.innerWidth
 }
+
+const authStore = useAuthStore()
 
 // 下拉刷新相关状态
 const scrollContainerRef = ref<HTMLElement | null>(null)
@@ -455,8 +458,8 @@ const initDragSort = () => {
     sortableInstance = null
   }
 
-  // 仅在浏览器环境下初始化
-  if (typeof window === 'undefined') return
+  // 仅在浏览器环境下初始化，且仅管理员可排序
+  if (typeof window === 'undefined' || !authStore.isAdmin) return
 
   if (!isMobile.value) {
     // PC 端：对表格行启用拖拽

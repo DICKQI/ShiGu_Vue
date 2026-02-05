@@ -1,5 +1,22 @@
 // API类型定义
 
+// ==================== 认证（Auth）====================
+
+/** 登录/注册返回的 Token 响应 */
+export interface AuthTokenResponse {
+  access_token: string
+  token_type: string
+  expires_in: number
+}
+
+/** 当前用户信息（GET /api/auth/me/） */
+export interface UserInfo {
+  id: number
+  username: string
+  /** 角色名称：User / Admin 等 */
+  role: 'User' | 'Admin' | string
+}
+
 // 位置节点
 export interface StorageNode {
   id: number

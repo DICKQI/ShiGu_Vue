@@ -1,7 +1,7 @@
 <template>
   <div class="layout">
     <!-- 顶部导航栏 -->
-    <nav ref="navbarRef" class="navbar" :class="{ 'navbar-native': isNativePlatform }">
+    <nav v-if="!route.meta.hideTopNav" ref="navbarRef" class="navbar" :class="{ 'navbar-native': isNativePlatform }">
       <div class="navbar-content">
         <div class="brand" @click="goHome">
           <span class="brand-text">✦ 拾谷 PickGoods</span>
@@ -36,8 +36,16 @@
             </el-menu-item>
           </el-menu>
         </div>
-        <!-- 设置按钮（PC端和移动端都显示） -->
+        <!-- 登录/用户与设置 -->
         <div class="nav-actions">
+          <template v-if="!authStore.isAuthenticated">
+            <el-button text class="login-btn" @click="goToLogin">
+              <span>登录</span>
+            </el-button>
+          </template>
+          <template v-else>
+            <span class="nav-username">{{ authStore.user?.username }}</span>
+          </template>
           <el-button
             text
             :class="{ 'settings-active': route.path === '/settings' }"
@@ -51,7 +59,10 @@
     </nav>
 
     <!-- 主要内容区 -->
-    <main class="main-content" :class="{ 'has-bottom-nav': isMobile }">
+    <main class="main-content" :class="{
+      'has-bottom-nav': isMobile && !route.meta.hideBottomNav,
+      'no-top-nav': route.meta.hideTopNav
+    }">
       <router-view v-slot="{ Component, route }">
         <Transition :name="pageTransitionName" mode="out-in">
           <component :is="Component" :key="route.fullPath" />
@@ -60,7 +71,7 @@
     </main>
 
     <!-- 移动端底部导航栏 -->
-    <MobileBottomNav v-if="isMobile" />
+    <MobileBottomNav v-if="isMobile && !route.meta.hideBottomNav" />
 
     <!-- 悬浮按钮组（仅云展柜页面展示；统计看板隐藏刷新按钮） -->
     <div v-if="showFab" class="fab-group" :class="{ 'fab-mobile': isMobile }">
@@ -91,6 +102,7 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Grid, FolderOpened, Plus, Collection, Box, Refresh, Loading, Setting, Star } from '@element-plus/icons-vue'
 import { useGuziStore } from '@/stores/guzi'
+import { useAuthStore } from '@/stores/auth'
 import { Capacitor } from '@capacitor/core'
 import { StatusBar } from '@capacitor/status-bar'
 import MobileBottomNav from './MobileBottomNav.vue'
@@ -98,6 +110,7 @@ import MobileBottomNav from './MobileBottomNav.vue'
 const router = useRouter()
 const route = useRoute()
 const guziStore = useGuziStore()
+const authStore = useAuthStore()
 
 const isMobile = ref(window.innerWidth < 768)
 const refreshLoading = ref(false)
@@ -126,6 +139,10 @@ const goHome = () => {
 
 const goToSettings = () => {
   router.push('/settings')
+}
+
+const goToLogin = () => {
+  router.push('/login')
 }
 
 // 仅在云展柜页面显示悬浮按钮
@@ -178,7 +195,7 @@ const handleShowcaseTabChanged = (e: Event) => {
 onMounted(() => {
   window.addEventListener('resize', handleResize)
   window.addEventListener('cloud-showcase:tab-changed', handleShowcaseTabChanged as EventListener)
-  
+
   // 在原生平台上，尝试获取状态栏高度并设置 padding（作为 CSS env() 的后备方案）
   if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
     // 延迟检查，确保 Capacitor 和状态栏已完全初始化
@@ -186,16 +203,16 @@ onMounted(() => {
       // 检查 safe-area-inset-top 是否可用且有效
       const safeAreaTop = getComputedStyle(document.documentElement)
         .getPropertyValue('env(safe-area-inset-top)')
-      
+
       // 如果 safe-area-inset-top 不可用或为 0，使用 JavaScript 设置默认值
       // 这主要作为后备方案，因为 Capacitor 通常会自动设置 safe-area-inset-top
       if (!safeAreaTop || safeAreaTop === '0px' || safeAreaTop.trim() === '') {
         // Android 状态栏的标准高度通常是 24dp
         // 根据设备像素比调整（高DPI设备可能需要更大的值）
-        const defaultStatusBarHeight = window.devicePixelRatio >= 3 ? 28 : 
+        const defaultStatusBarHeight = window.devicePixelRatio >= 3 ? 28 :
                                       window.devicePixelRatio >= 2 ? 26 : 24
         statusBarHeight.value = defaultStatusBarHeight
-        
+
         // 直接设置 padding-top 作为后备方案
         if (navbarRef.value) {
           navbarRef.value.style.paddingTop = `${defaultStatusBarHeight}px`
@@ -303,8 +320,11 @@ onUnmounted(() => {
 
 .nav-actions {
   display: flex;
+  align-items: center;
   gap: 12px;
   justify-self: end;
+  height: 100%;
+  min-height: 40px;
 }
 
 .settings-btn {
@@ -327,6 +347,33 @@ onUnmounted(() => {
 
 .settings-btn.settings-active {
   color: var(--primary-gold);
+}
+
+.nav-item-hint {
+  font-size: 12px;
+  color: var(--text-muted, #909399);
+  margin-left: 4px;
+}
+
+.login-btn {
+  color: var(--text-dark);
+  font-size: 14px;
+}
+
+.login-btn:hover {
+  color: var(--primary-gold);
+}
+
+.nav-username {
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-dark);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
 }
 
 :deep(.settings-btn:focus),
@@ -518,6 +565,10 @@ onUnmounted(() => {
   .main-content {
     min-height: 100vh;
     padding-top: calc(64px + env(safe-area-inset-top));
+  }
+
+  .main-content.no-top-nav {
+    padding-top: 0;
   }
 
   @supports not (padding-top: env(safe-area-inset-top)) {

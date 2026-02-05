@@ -6,6 +6,14 @@ import { ElMessage } from 'element-plus'
 const API_BASE_URL_KEY = 'pickgoods_api_base_url'
 const LEGACY_API_BASE_URL_KEY = 'shigu_api_base_url'
 
+// 认证 Token 存储键名（与 auth store 共用）
+export const AUTH_TOKEN_KEY = 'pickgoods_access_token'
+
+const getAuthToken = (): string | null => {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(AUTH_TOKEN_KEY)
+}
+
 const migrateLegacyBaseURLIfNeeded = (): void => {
   if (typeof window === 'undefined') return
   try {
@@ -67,11 +75,10 @@ axiosInstance.interceptors.request.use(
       delete config.headers['Content-Type']
     }
     
-    // 可以在这里添加token等认证信息
-    // const token = localStorage.getItem('token')
-    // if (token && config.headers) {
-    //   config.headers.Authorization = `Bearer ${token}`
-    // }
+    const token = getAuthToken()
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
     return config
   },
   (error: any) => {
@@ -85,12 +92,29 @@ axiosInstance.interceptors.response.use(
     return response.data
   },
   (error: any) => {
+    const status = error.response?.status
+    // 处理 401：未认证，清除 Token 并跳转登录页
+    if (status === 401) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(AUTH_TOKEN_KEY)
+        const redirect = encodeURIComponent(window.location.pathname + window.location.search)
+        const base = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '') || ''
+        const loginPath = base ? `${base}/login` : '/login'
+        const fullPath = `${window.location.origin}${loginPath}?redirect=${redirect}`
+        window.location.href = fullPath
+      }
+      return Promise.reject(error)
+    }
+    // 处理 403：无权限
+    if (status === 403) {
+      ElMessage.error('无权限访问')
+      return Promise.reject(error)
+    }
     // 处理限流错误
-    if (error.response?.status === 429) {
+    if (status === 429) {
       ElMessage.warning('搜索太快了，请稍后再试')
       return Promise.reject(error)
     }
-    
     // 处理其他错误
     const message = error.response?.data?.detail || error.message || '请求失败'
     ElMessage.error(message)

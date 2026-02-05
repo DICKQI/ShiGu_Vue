@@ -6,9 +6,9 @@
         <h2 class="page-title">IP作品与角色管理</h2>
         <span class="sub-title">管理您的作品分类及其角色</span>
       </div>
-      
+
       <!-- 合并后的操作按钮 -->
-      <div class="header-actions">
+      <div class="header-actions" v-if="authStore.isAdmin">
         <el-dropdown trigger="click" @command="handleActionCommand">
           <el-button type="primary" class="action-dropdown-btn">
             <el-icon class="icon-left"><Plus /></el-icon>
@@ -96,7 +96,7 @@
           @expand-change="handleTableExpandChange"
           @sort-change="handleSortChange"
         >
-          <el-table-column label="排序" width="80" align="center">
+          <el-table-column v-if="authStore.isAdmin" label="排序" width="80" align="center">
             <template #default>
               <div class="drag-handle" @click.stop>
                 <svg viewBox="0 0 16 16" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -113,6 +113,7 @@
                 <div class="expand-header">
                   <span class="expand-title">角色列表</span>
                   <el-button
+                    v-if="authStore.isAdmin"
                     size="small"
                     type="primary"
                     text
@@ -140,7 +141,7 @@
                           </span>
                         </div>
                       </div>
-                      <div class="char-actions">
+                      <div class="char-actions" v-if="authStore.isAdmin">
                         <el-button link type="primary" @click="handleEditCharacter(char)">编辑</el-button>
                         <span class="action-divider" />
                         <el-button link type="danger" @click="handleDeleteCharacter(char)">删除</el-button>
@@ -156,7 +157,7 @@
               </div>
             </template>
           </el-table-column>
-          
+
           <!-- 修改点：添加 sortable="custom" 和 prop -->
           <el-table-column prop="name" label="作品名称" min-width="180" sortable="custom">
             <template #default="{ row }">
@@ -197,8 +198,8 @@
               <span class="character-count">{{ row.character_count ?? (characterMap[row.id]?.length || 0) }}</span>
             </template>
           </el-table-column>
-          
-          <el-table-column label="操作" width="150" align="right" fixed="right">
+
+          <el-table-column v-if="authStore.isAdmin" label="操作" width="150" align="right" fixed="right">
             <template #default="{ row }">
               <div class="action-inline">
                 <el-button link type="primary" @click="handleEditIP(row)">编辑</el-button>
@@ -211,7 +212,7 @@
       </div>
 
       <!-- 移动端：现代化卡片 -->
-      <div 
+      <div
         class="mobile-view pull-refresh-wrapper"
         ref="scrollContainerRef"
         @touchstart="handleTouchStart"
@@ -219,12 +220,12 @@
         @touchend="handleTouchEnd"
       >
         <!-- 下拉加载提示区 -->
-        <div 
-          class="pull-indicator" 
-          :style="{ 
-            height: `${pullDistance}px`, 
+        <div
+          class="pull-indicator"
+          :style="{
+            height: `${pullDistance}px`,
             opacity: pullDistance > 0 ? 1 : 0,
-            transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.25, 0.8, 0.5, 1)' 
+            transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.25, 0.8, 0.5, 1)'
           }"
         >
           <div class="indicator-content">
@@ -258,7 +259,7 @@
                   <ArrowRight />
                 </el-icon>
               </div>
-              <div class="card-drag-handle mobile-drag-handle" @click.stop>
+              <div class="card-drag-handle mobile-drag-handle" v-if="authStore.isAdmin" @click.stop>
                 <svg viewBox="0 0 16 16" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                   <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -276,6 +277,7 @@
               <div class="character-list-header">
                 <span>角色列表</span>
                 <el-button
+                  v-if="authStore.isAdmin"
                   size="small"
                   type="primary"
                   text
@@ -302,7 +304,7 @@
                       </span>
                     </div>
                   </div>
-                  <div class="char-actions-mobile">
+                  <div class="char-actions-mobile" v-if="authStore.isAdmin">
                     <el-button
                       size="small"
                       text
@@ -325,7 +327,7 @@
               <el-empty v-else description="暂无角色" :image-size="60" />
             </div>
 
-            <div class="card-footer">
+            <div class="card-footer" v-if="authStore.isAdmin">
               <div class="footer-action" @click.stop="handleEditIP(item)">
                 <el-icon><Edit /></el-icon>编辑作品
               </div>
@@ -478,16 +480,16 @@
             <p class="results-subtitle">找到 {{ bgmSubjects.length }} 个相关作品，请点击选择一个</p>
           </div>
           <div class="bgm-subjects-list">
-             <div 
-               v-for="subject in bgmSubjects" 
-               :key="subject.id" 
-               class="bgm-subject-item" 
+             <div
+               v-for="subject in bgmSubjects"
+               :key="subject.id"
+               class="bgm-subject-item"
                @click="handleBGMSelectSubject(subject)"
              >
-                <el-image 
-                  :src="subject.image" 
-                  class="bgm-subject-cover" 
-                  fit="cover" 
+                <el-image
+                  :src="subject.image"
+                  class="bgm-subject-cover"
+                  fit="cover"
                   loading="lazy"
                 >
                   <template #error>
@@ -764,6 +766,7 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules, UploadFile } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
 import {
   getIPList,
   getIPDetail,
@@ -797,6 +800,8 @@ const isMobile = computed(() => windowWidth.value < 768)
 const updateWindowWidth = () => {
   windowWidth.value = window.innerWidth
 }
+
+const authStore = useAuthStore()
 
 onMounted(() => {
   window.addEventListener('resize', updateWindowWidth)
@@ -832,7 +837,7 @@ const getScrollTop = () => {
 // 下拉刷新逻辑
 const handleTouchStart = (e: TouchEvent) => {
   if (!isMobile.value || isRefreshing.value || isSorting.value) return
-  
+
   // 核心修复：检查 window 的滚动高度，只有在页面最顶端时才记录触摸点
   if (getScrollTop() > 0) {
     startY.value = 0 // 确保非顶端时不记录有效起始点
@@ -841,14 +846,14 @@ const handleTouchStart = (e: TouchEvent) => {
 
   const firstTouch = e.touches?.[0]
   if (!firstTouch) return
-  
+
   isDragging.value = true
   startY.value = firstTouch.clientY
 }
 
 const handleTouchMove = (e: TouchEvent) => {
   if (!isMobile.value || isRefreshing.value || isSorting.value || startY.value === 0 || !isDragging.value) return
-  
+
   // 双重保险：移动过程中如果页面被卷下去了，也不处理
   if (getScrollTop() > 0) return
 
@@ -868,11 +873,11 @@ const handleTouchMove = (e: TouchEvent) => {
 const handleTouchEnd = async () => {
   isDragging.value = false
   if (!isMobile.value || isRefreshing.value || isSorting.value) return
-  
+
   if (pullDistance.value >= TRIGGER_DIST) {
     isRefreshing.value = true
     pullDistance.value = TRIGGER_DIST
-    
+
     try {
       await fetchIPList()
       ElMessage.success('刷新成功')
@@ -932,17 +937,17 @@ const sortedIpList = computed(() => {
 
   return list.sort((a, b) => {
     let result = 0
-    
+
     // 根据作品名称排序 (支持中文拼音)
     if (sortState.value.prop === 'name') {
       result = a.name.localeCompare(b.name, 'zh-CN')
-    } 
+    }
     // 根据作品类型排序 (数值)
     else if (sortState.value.prop === 'subject_type') {
       const typeA = a.subject_type || 0
       const typeB = b.subject_type || 0
       result = typeA - typeB
-    } 
+    }
     // 根据角色数量排序
     else if (sortState.value.prop === 'character_count') {
       const countA = a.character_count ?? (characterMap.value[a.id]?.length || 0)
@@ -1006,7 +1011,7 @@ const handleRowReorder = async (oldIndex: number, newIndex: number) => {
 
 const initDragSort = () => {
   destroySortables()
-  if (typeof window === 'undefined') return
+  if (typeof window === 'undefined' || !authStore.isAdmin) return
 
   const tableEl = tableRef.value?.$el as HTMLElement | undefined
   const tbody = tableEl?.querySelector('.el-table__body-wrapper tbody') as HTMLElement | null
@@ -1070,8 +1075,8 @@ const editingCharacterOriginalIpId = ref<number | null>(null)
 const characterFormRef = ref<FormInstance>()
 const avatarPreview = ref('')
 const avatarFile = ref<File | null>(null)
-const avatarInputMode = ref<'upload' | 'url'>('upload') 
-const avatarUrlInput = ref('') 
+const avatarInputMode = ref<'upload' | 'url'>('upload')
+const avatarUrlInput = ref('')
 const characterFormData = ref({
   name: '',
   ip_id: null as number | null,
@@ -1285,8 +1290,8 @@ const handleSubmitIP = async () => {
     if (!valid) return
     submitting.value = true
     try {
-      const data = { 
-        name: ipFormData.value.name, 
+      const data = {
+        name: ipFormData.value.name,
         keywords: ipFormData.value.keywords,
         subject_type: ipFormData.value.subject_type ?? null,
       }
@@ -1318,7 +1323,7 @@ const handleAddCharacter = () => {
   avatarPreview.value = ''
   avatarFile.value = null
   avatarUrlInput.value = ''
-  avatarInputMode.value = 'upload' 
+  avatarInputMode.value = 'upload'
   characterDialogVisible.value = true
 }
 
@@ -1330,7 +1335,7 @@ const handleAddCharacterForIP = (ip: IP) => {
   avatarPreview.value = ''
   avatarFile.value = null
   avatarUrlInput.value = ''
-  avatarInputMode.value = 'upload' 
+  avatarInputMode.value = 'upload'
   characterDialogVisible.value = true
 }
 
@@ -1388,7 +1393,7 @@ const handleDeleteCharacter = async (row: Character) => {
 const handleAvatarFileChange = (file: UploadFile) => {
   if (file.raw) {
     avatarFile.value = file.raw
-    avatarUrlInput.value = '' 
+    avatarUrlInput.value = ''
     const reader = new FileReader()
     reader.onload = (e) => (avatarPreview.value = e.target?.result as string)
     reader.readAsDataURL(file.raw)
@@ -1401,7 +1406,7 @@ const handleAvatarUrlInput = (value: string) => {
     try {
       new URL(value.trim())
       avatarPreview.value = value.trim()
-      avatarFile.value = null 
+      avatarFile.value = null
     } catch {
       avatarPreview.value = ''
     }
@@ -1417,7 +1422,7 @@ const handleSubmitCharacter = async () => {
     submitting.value = true
     try {
       let data: FormData | { name: string; ip_id: number; gender: CharacterGender; avatar?: string | null }
-      
+
       if (avatarInputMode.value === 'upload' && avatarFile.value) {
         const formData = new FormData()
         formData.append('name', characterFormData.value.name)
@@ -1430,8 +1435,8 @@ const handleSubmitCharacter = async () => {
           name: characterFormData.value.name,
           ip_id: characterFormData.value.ip_id!,
           gender: characterFormData.value.gender,
-          avatar: avatarInputMode.value === 'url' && avatarUrlInput.value.trim() 
-            ? avatarUrlInput.value.trim() 
+          avatar: avatarInputMode.value === 'url' && avatarUrlInput.value.trim()
+            ? avatarUrlInput.value.trim()
             : null,
         }
       }
@@ -1538,7 +1543,7 @@ const handleBGMSelectSubject = async (subject: BGMSubject) => {
       characters: response.characters
     }
     bgmCharacterKeyword.value = ''
-    bgmSelectedCharacters.value = [] 
+    bgmSelectedCharacters.value = []
     bgmStep.value = 'results'
   } catch (err: any) {
     ElMessage.error(err.message || '获取角色列表失败')
@@ -1934,7 +1939,7 @@ const handleBGMClose = () => {
 
 /* 下拉刷新相关样式 */
 .pull-indicator {
-  position: relative; 
+  position: relative;
   width: 100%;
   overflow: hidden;
   display: flex;
@@ -2193,7 +2198,7 @@ const handleBGMClose = () => {
   .header-actions :deep(.el-dropdown) {
     width: 100%;
   }
-  
+
   .action-dropdown-btn {
     width: 100%;
     justify-content: center;
@@ -2767,7 +2772,7 @@ const handleBGMClose = () => {
   .bgm-dialog :deep(.el-dialog) {
     width: 95% !important;
   }
-  
+
   .bgm-subjects-list {
     grid-template-columns: 1fr;
   }

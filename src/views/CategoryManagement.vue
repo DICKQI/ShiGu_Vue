@@ -7,9 +7,8 @@
         <span class="sub-title">配置谷子的种类（如：立牌、马口铁徽章等）</span>
       </div>
       <div class="header-actions">
-        <el-button class="add-btn" type="primary" @click="handleAdd" v-if="authStore.isAdmin">
+        <el-button class="add-btn" type="primary" @click="handleAdd" v-if="authStore.isAdmin" title="新增顶级品类">
           <el-icon><Plus /></el-icon>
-          <span>新增品类</span>
         </el-button>
       </div>
     </div>
@@ -107,21 +106,47 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="220" align="right">
+              <el-table-column label="操作" width="200" align="right">
                 <template #default="{ row }">
                   <div class="action-inline">
+                    <div class="expand-btn-placeholder">
+                      <el-button
+                        v-if="row.children && row.children.length"
+                        link
+                        type="primary"
+                        @click="toggleRowExpand(row)"
+                        :title="isExpanded(row) ? '收起' : '展开'"
+                      >
+                        <el-icon :size="16"><component :is="isExpanded(row) ? 'ArrowUp' : 'ArrowDown'" /></el-icon>
+                      </el-button>
+                    </div>
                     <el-button
-                      v-if="row.children && row.children.length"
+                      v-if="authStore.isAdmin"
                       link
                       type="primary"
-                      @click="toggleRowExpand(row)"
+                      @click="handleAddSub(row)"
+                      title="新增子类"
                     >
-                      {{ isExpanded(row) ? '收起' : '展开' }}
+                      <el-icon :size="16"><Plus /></el-icon>
                     </el-button>
-                    <span v-if="row.children && row.children.length && authStore.isAdmin" class="action-divider" />
-                    <el-button v-if="authStore.isAdmin" link type="primary" @click="handleEdit(row)">编辑</el-button>
-                    <span v-if="authStore.isAdmin" class="action-divider" />
-                    <el-button v-if="authStore.isAdmin" link type="danger" @click="handleDelete(row)">删除</el-button>
+                    <el-button
+                      v-if="authStore.isAdmin"
+                      link
+                      type="primary"
+                      @click="handleEdit(row)"
+                      title="编辑"
+                    >
+                      <el-icon :size="16"><Edit /></el-icon>
+                    </el-button>
+                    <el-button
+                      v-if="authStore.isAdmin"
+                      link
+                      type="danger"
+                      @click="handleDelete(row)"
+                      title="删除"
+                    >
+                      <el-icon :size="16"><Delete /></el-icon>
+                    </el-button>
                   </div>
                 </template>
               </el-table-column>
@@ -194,6 +219,7 @@
             check-strictly
             clearable
             filterable
+            :disabled="isParentLocked"
             style="width: 100%"
           />
         </el-form-item>
@@ -244,6 +270,9 @@
           对 "{{ currentActionRow?.name }}" 进行操作
         </div>
         <div class="sheet-menu">
+          <div class="sheet-item" @click="handleMobileAddSub">
+            <el-icon><Plus /></el-icon> 新增子类
+          </div>
           <div class="sheet-item" @click="handleMobileEdit">
             <el-icon><Edit /></el-icon> 编辑品类
           </div>
@@ -260,7 +289,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { Plus, Search, CollectionTag, Refresh, Loading, Top, MoreFilled, Edit, Delete } from '@element-plus/icons-vue'
+import { Plus, Search, CollectionTag, Refresh, Loading, Top, MoreFilled, Edit, Delete, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -277,6 +306,7 @@ const searchText = ref('')
 const allCategories = ref<Category[]>([])
 const dialogVisible = ref(false)
 const isEdit = ref(false)
+const isParentLocked = ref(false)
 const editingId = ref<number | null>(null)
 const formRef = ref<FormInstance>()
 const colorPresets = ['#8e7dff', '#FF5733', '#33C3F0', '#FFC300', '#67C23A', '#E6A23C']
@@ -654,12 +684,23 @@ const handleSearch = () => fetchCategoryList()
 const handleRefresh = () => fetchCategoryList(true)
 const handleAdd = () => {
   isEdit.value = false
+  isParentLocked.value = false
   editingId.value = null
   formData.value = { name: '', parent: null, color_tag: '', order: 0 }
   dialogVisible.value = true
 }
+
+const handleAddSub = (row: Category) => {
+  isEdit.value = false
+  isParentLocked.value = true
+  editingId.value = null
+  formData.value = { name: '', parent: row.id, color_tag: '', order: 0 }
+  dialogVisible.value = true
+}
+
 const handleEdit = (row: Category) => {
   isEdit.value = true
+  isParentLocked.value = false
   editingId.value = row.id
   formData.value = {
     name: row.name,
@@ -693,6 +734,13 @@ const toggleMobileExpand = (row: CategoryNode) => {
 
 const handleMobileCardClick = (row: CategoryNode) => {
   toggleMobileExpand(row)
+}
+
+const handleMobileAddSub = () => {
+  if (currentActionRow.value) {
+    handleAddSub(currentActionRow.value)
+    mobileDrawerVisible.value = false
+  }
 }
 
 const handleMobileEdit = () => {
@@ -838,8 +886,29 @@ onUnmounted(() => {
 .drag-handle svg {
   display: block;
 }
-.action-inline { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
-.action-divider { display: inline-block; width: 1px; height: 16px; background: #e4e7ed; }
+.action-inline {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  white-space: nowrap;
+}
+.expand-btn-placeholder {
+  width: 32px;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.action-inline .el-button {
+  padding: 4px;
+  margin: 0;
+  height: auto;
+  flex-shrink: 0;
+}
+.action-inline .el-icon {
+  font-size: 16px;
+  display: block;
+}
 .pc-table :deep(.el-table__expand-icon),
 .pc-table :deep(.el-table__placeholder) {
   display: none;

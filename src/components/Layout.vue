@@ -242,8 +242,11 @@ onUnmounted(() => {
   border-bottom: 2px solid transparent;
   border-image: linear-gradient(to right, transparent, var(--primary-gold), transparent) 1;
   box-shadow: var(--shadow-sm);
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
   z-index: 1000;
 }
 
@@ -385,11 +388,16 @@ onUnmounted(() => {
 
 .main-content {
   flex: 1;
-  min-height: calc(100vh - 64px);
+  min-height: 100vh;
+  padding-top: 64px;
 }
 
 .main-content.has-bottom-nav {
   padding-bottom: calc(64px + env(safe-area-inset-bottom));
+}
+
+.main-content.no-top-nav {
+  padding-top: 0;
 }
 
 /* 兼容不支持 safe-area-inset-bottom 的环境 */
@@ -552,23 +560,10 @@ onUnmounted(() => {
     font-size: 24px;
   }
 
-  /* 移动端顶部导航使用 fixed，始终固定在视口顶部 */
-  .navbar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-  }
-
   /* 为主内容区域在移动端预留顶部导航高度，避免内容被遮挡 */
   .main-content {
     min-height: 100vh;
     padding-top: calc(64px + env(safe-area-inset-top));
-  }
-
-  .main-content.no-top-nav {
-    padding-top: 0;
   }
 
   @supports not (padding-top: env(safe-area-inset-top)) {

@@ -415,7 +415,7 @@
         </div>
 
         <!-- 裁切组件 -->
-        <div class="cropper-wrapper" :class="{ 'circle-crop': selectedAspectRatio === 'circle' }">
+        <div class="cropper-wrapper" :class="{ 'circle-crop': selectedAspectRatio === 'circle' || selectedAspectRatio.endsWith('-ellipse') }">
           <vue-picture-cropper
             v-if="cropImageSrc"
             ref="pictureCropperRef"
@@ -514,12 +514,9 @@ const cropping = ref(false)
 const selectedAspectRatio = ref<string>('free')
 const aspectRatios = [
   { label: '自由', value: 'free' },
-  { label: '1:1', value: '1:1' },
   { label: '圆形', value: 'circle' },
-  { label: '16:9', value: '16:9' },
-  { label: '4:3', value: '4:3' },
-  { label: '3:4', value: '3:4' },
-  { label: '9:16', value: '9:16' },
+  { label: '47:65 (椭圆)', value: '47:65-ellipse' },
+  { label: '63:93 (椭圆)', value: '63:93-ellipse' },
 ]
 
 // 图像滤镜状态
@@ -580,6 +577,17 @@ const cropperOptions = computed(() => {
     baseOptions.aspectRatio = 1
     baseOptions.fixed = true
     baseOptions.fixedNumber = [1, 1]
+  } else if (selectedAspectRatio.value.endsWith('-ellipse')) {
+    // 椭圆裁切：解析比例 + CSS 把裁切框渲染成圆形（会被拉伸成椭圆）
+    const ratioStr = selectedAspectRatio.value.replace('-ellipse', '')
+    const parts = ratioStr.split(':').map(Number)
+    const w = parts[0]
+    const h = parts[1]
+    if (w && h) {
+      baseOptions.aspectRatio = w / h
+      baseOptions.fixed = true
+      baseOptions.fixedNumber = [w, h]
+    }
   } else if (selectedAspectRatio.value !== 'free') {
     const parts = selectedAspectRatio.value.split(':').map(Number)
     const w = parts[0]
@@ -1005,6 +1013,69 @@ const applyCircleMaskToBlob = async (input: Blob) => {
   return outBlob
 }
 
+const applyEllipseMaskToBlob = async (input: Blob) => {
+  const bitmapOrImg = await blobToImageBitmap(input)
+  const width = (bitmapOrImg as any).width
+  const height = (bitmapOrImg as any).height
+
+  // 创建一个正方形画布，边长为椭圆长轴的长度
+  const size = Math.max(width, height)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 不可用')
+
+  // 清除背景 (透明)
+  ctx.clearRect(0, 0, size, size)
+
+  // 计算居中偏移量
+  const offsetX = (size - width) / 2
+  const offsetY = (size - height) / 2
+
+  // 椭圆裁切：圆外透明
+  ctx.save()
+  ctx.beginPath()
+
+  // 绘制椭圆：中心点 (size/2, size/2)，半径 (width/2, height/2)
+  if (typeof ctx.ellipse === 'function') {
+      ctx.ellipse(size / 2, size / 2, width / 2, height / 2, 0, 0, Math.PI * 2)
+  } else {
+       // 兼容性处理
+       ctx.translate(size/2, size/2)
+       ctx.scale(width/2, height/2)
+       ctx.arc(0, 0, 1, 0, Math.PI * 2)
+  }
+  ctx.closePath()
+  ctx.clip()
+
+  // 绘制图片，居中放置
+  // 注意：如果使用了 translate/scale，需要先 restore 再 drawImage，或者在 transform 状态下正确绘制
+  // 为了简单起见，如果走了兼容分支，translate/scale 会影响后续绘制
+  // 所以这里建议：如果走了兼容分支，必须 restore 吗？
+  // clip() 会受到当前 transform 的影响。clip 路径创建后，transform 可以 restore。
+  // 但是 clip 区域是固定的。
+
+  if (typeof ctx.ellipse !== 'function') {
+      // 如果走了兼容分支，此时坐标系被变换了。
+      // 我们需要恢复坐标系来绘制图片，但是 clip 效果要保留。
+      // Canvas 的 clip() 是基于当前路径创建剪切区域。路径创建时的 transform 会被应用到路径上。
+      // 一旦 clip() 被调用，剪切区域就固定了。
+      // 所以我们可以 restore() 然后绘制图片。
+      ctx.restore()
+      ctx.save() // 重新 save 为了保持结构一致，虽然下面直接 drawImage 也可以
+  }
+
+  ctx.drawImage(bitmapOrImg as any, offsetX, offsetY, width, height)
+  ctx.restore()
+
+  const outBlob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('导出椭圆图片失败'))), 'image/png', 0.92)
+  })
+  return outBlob
+}
+
 // 确认裁切
 const handleCropConfirm = async () => {
   if (!pictureCropperRef.value || !cropImageFile.value) {
@@ -1048,12 +1119,12 @@ const handleCropConfirm = async () => {
         const blob = await cropperInstance.getBlob({
           width: 2000,
           height: 2000,
-          // 圆形裁切需要透明背景，强制 PNG
-          mimeType: selectedAspectRatio.value === 'circle' ? 'image/png' : (cropImageFile.value.type || 'image/png'),
+          // 圆形/椭圆裁切需要透明背景，强制 PNG
+          mimeType: (selectedAspectRatio.value === 'circle' || selectedAspectRatio.value.endsWith('-ellipse')) ? 'image/png' : (cropImageFile.value.type || 'image/png'),
           quality: 0.9,
         })
         if (blob) {
-          const mime = selectedAspectRatio.value === 'circle' ? 'image/png' : (cropImageFile.value?.type || 'image/png')
+          const mime = (selectedAspectRatio.value === 'circle' || selectedAspectRatio.value.endsWith('-ellipse')) ? 'image/png' : (cropImageFile.value?.type || 'image/png')
           const ext = mime.includes('/') ? mime.split('/')[1] : 'png'
           croppedFile = new File([blob], `main_photo_${Date.now()}.${ext}`, { type: mime })
           previewUrl = URL.createObjectURL(blob)
@@ -1069,15 +1140,15 @@ const handleCropConfirm = async () => {
         const dataURL = cropperInstance.getDataURL({
           width: 2000,
           height: 2000,
-          // 圆形裁切需要透明背景，强制 PNG
-          mimeType: selectedAspectRatio.value === 'circle' ? 'image/png' : (cropImageFile.value.type || 'image/png'),
+          // 圆形/椭圆裁切需要透明背景，强制 PNG
+          mimeType: (selectedAspectRatio.value === 'circle' || selectedAspectRatio.value.endsWith('-ellipse')) ? 'image/png' : (cropImageFile.value.type || 'image/png'),
           quality: 0.9,
         })
         if (dataURL) {
           // 将 dataURL 转换为 Blob
           const response = await fetch(dataURL)
           const blob = await response.blob()
-          const mime = selectedAspectRatio.value === 'circle' ? 'image/png' : (cropImageFile.value?.type || 'image/png')
+          const mime = (selectedAspectRatio.value === 'circle' || selectedAspectRatio.value.endsWith('-ellipse')) ? 'image/png' : (cropImageFile.value?.type || 'image/png')
           const ext = mime.includes('/') ? mime.split('/')[1] : 'png'
           croppedFile = new File([blob], `main_photo_${Date.now()}.${ext}`, { type: mime })
           previewUrl = dataURL
@@ -1103,7 +1174,7 @@ const handleCropConfirm = async () => {
             imageSmoothingQuality: 'high',
           })
           if (canvas) {
-            const mime = selectedAspectRatio.value === 'circle' ? 'image/png' : (cropImageFile.value?.type || 'image/png')
+            const mime = (selectedAspectRatio.value === 'circle' || selectedAspectRatio.value.endsWith('-ellipse')) ? 'image/png' : (cropImageFile.value?.type || 'image/png')
             const blob = await new Promise<Blob>((resolve, reject) => {
               canvas.toBlob((blob: Blob | null) => {
                 if (blob) {
@@ -1142,6 +1213,21 @@ const handleCropConfirm = async () => {
         previewUrl = URL.createObjectURL(maskedBlob)
       } catch (e: any) {
         ElMessage.error('圆形裁切处理失败：' + (e?.message || '未知错误'))
+        cropping.value = false
+        return
+      }
+    } else if (selectedAspectRatio.value.endsWith('-ellipse')) {
+      try {
+        const maskedBlob = await applyEllipseMaskToBlob(croppedFile)
+        const maskedFile = new File([maskedBlob], `main_photo_${Date.now()}.png`, { type: 'image/png' })
+        // 预览 URL：释放旧的预览，避免泄漏
+        if (previewUrl && previewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(previewUrl)
+        }
+        croppedFile = maskedFile
+        previewUrl = URL.createObjectURL(maskedBlob)
+      } catch (e: any) {
+        ElMessage.error('椭圆裁切处理失败：' + (e?.message || '未知错误'))
         cropping.value = false
         return
       }

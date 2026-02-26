@@ -289,12 +289,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { Plus, Search, CollectionTag, Refresh, Loading, Top, MoreFilled, Edit, Delete, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
+import { Plus, Search, CollectionTag, Refresh, Loading, Top, MoreFilled, Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useMetadataStore } from '@/stores/metadata'
-import { getCategoryList, getCategoryTree, createCategory, updateCategory, deleteCategory, batchUpdateCategoryOrder } from '@/api/metadata'
+import {  createCategory, updateCategory, deleteCategory, batchUpdateCategoryOrder } from '@/api/metadata'
 import type { Category } from '@/api/types'
 import Sortable from 'sortablejs'
 
@@ -391,7 +391,7 @@ const handleTouchEnd = async () => {
     try {
       await fetchCategoryList(true)
       ElMessage.success('刷新成功')
-    } catch (error) {
+    } catch {
       ElMessage.error('刷新失败')
     } finally {
       setTimeout(() => {
@@ -585,7 +585,7 @@ const handleRowReorder = async (source: CategoryNode[], oldIndex: number, newInd
     // 异步发送请求，不阻塞界面更新
     await batchUpdateCategoryOrder(items)
     ElMessage.success('排序已更新')
-  } catch (error) {
+  } catch {
     ElMessage.error('排序更新失败，请重试')
     await fetchCategoryList() // 失败时回滚
   }

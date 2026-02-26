@@ -104,7 +104,6 @@ import { Grid, FolderOpened, Plus, Collection, Box, Refresh, Loading, Setting, S
 import { useGuziStore } from '@/stores/guzi'
 import { useAuthStore } from '@/stores/auth'
 import { Capacitor } from '@capacitor/core'
-import { StatusBar } from '@capacitor/status-bar'
 import MobileBottomNav from './MobileBottomNav.vue'
 
 const router = useRouter()

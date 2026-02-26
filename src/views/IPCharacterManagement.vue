@@ -142,9 +142,12 @@
                         </div>
                       </div>
                       <div class="char-actions" v-if="authStore.isAdmin">
-                        <el-button link type="primary" @click="handleEditCharacter(char)">编辑</el-button>
-                        <span class="action-divider" />
-                        <el-button link type="danger" @click="handleDeleteCharacter(char)">删除</el-button>
+                        <el-button link type="primary" @click="handleEditCharacter(char)" title="编辑">
+                          <el-icon :size="16"><Edit /></el-icon>
+                        </el-button>
+                        <el-button link type="danger" @click="handleDeleteCharacter(char)" title="删除">
+                          <el-icon :size="16"><Delete /></el-icon>
+                        </el-button>
                       </div>
                     </div>
                   </template>
@@ -199,12 +202,15 @@
             </template>
           </el-table-column>
 
-          <el-table-column v-if="authStore.isAdmin" label="操作" width="150" align="right" fixed="right">
+          <el-table-column v-if="authStore.isAdmin" label="操作" width="120" align="right" fixed="right">
             <template #default="{ row }">
               <div class="action-inline">
-                <el-button link type="primary" @click="handleEditIP(row)">编辑</el-button>
-                <span class="action-divider" />
-                <el-button link type="danger" @click="handleDeleteIP(row)">删除</el-button>
+                <el-button link type="primary" @click="handleEditIP(row)" title="编辑">
+                  <el-icon :size="16"><Edit /></el-icon>
+                </el-button>
+                <el-button link type="danger" @click="handleDeleteIP(row)" title="删除">
+                  <el-icon :size="16"><Delete /></el-icon>
+                </el-button>
               </div>
             </template>
           </el-table-column>
@@ -328,11 +334,11 @@
             </div>
 
             <div class="card-footer" v-if="authStore.isAdmin">
-              <div class="footer-action" @click.stop="handleEditIP(item)">
-                <el-icon><Edit /></el-icon>编辑作品
+              <div class="footer-action" @click.stop="handleEditIP(item)" title="编辑作品">
+                <el-icon><Edit /></el-icon>
               </div>
-              <div class="footer-action delete" @click.stop="handleDeleteIP(item)">
-                <el-icon><Delete /></el-icon>删除作品
+              <div class="footer-action delete" @click.stop="handleDeleteIP(item)" title="删除作品">
+                <el-icon><Delete /></el-icon>
               </div>
             </div>
           </div>
@@ -1924,21 +1930,22 @@ const handleBGMClose = () => {
 .char-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.action-divider {
-  display: inline-block;
-  width: 1px;
-  height: 16px;
-  background: #e4e7ed;
+  gap: 8px;
 }
 
 .action-inline {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.char-actions .el-button,
+.action-inline .el-button {
+  padding: 4px;
+  margin: 0;
+  height: auto;
 }
 
 /* 移动端现代化卡片设计 */
@@ -2171,15 +2178,17 @@ const handleBGMClose = () => {
   flex: 1;
   text-align: center;
   padding: 10px 0;
-  font-size: 13px;
   color: #606266;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
   cursor: pointer;
   outline: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+.footer-action .el-icon {
+  font-size: 18px;
 }
 
 .footer-action:focus,

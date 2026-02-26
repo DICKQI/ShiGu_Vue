@@ -1076,6 +1076,32 @@ const applyEllipseMaskToBlob = async (input: Blob) => {
   return outBlob
 }
 
+const applyFreeCropSquareBlob = async (input: Blob) => {
+  const bitmapOrImg = await blobToImageBitmap(input)
+  const width = (bitmapOrImg as any).width
+  const height = (bitmapOrImg as any).height
+
+  const size = Math.max(width, height)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 不可用')
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, size, size)
+
+  const offsetX = (size - width) / 2
+  const offsetY = (size - height) / 2
+  ctx.drawImage(bitmapOrImg as any, offsetX, offsetY, width, height)
+
+  const outBlob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('导出正方形图片失败'))), 'image/png', 0.92)
+  })
+  return outBlob
+}
+
 // 确认裁切
 const handleCropConfirm = async () => {
   if (!pictureCropperRef.value || !cropImageFile.value) {
@@ -1228,6 +1254,20 @@ const handleCropConfirm = async () => {
         previewUrl = URL.createObjectURL(maskedBlob)
       } catch (e: any) {
         ElMessage.error('椭圆裁切处理失败：' + (e?.message || '未知错误'))
+        cropping.value = false
+        return
+      }
+    } else if (selectedAspectRatio.value === 'free') {
+      try {
+        const squareBlob = await applyFreeCropSquareBlob(croppedFile)
+        const squareFile = new File([squareBlob], `main_photo_${Date.now()}.png`, { type: 'image/png' })
+        if (previewUrl && previewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(previewUrl)
+        }
+        croppedFile = squareFile
+        previewUrl = URL.createObjectURL(squareBlob)
+      } catch (e: any) {
+        ElMessage.error('自由裁切处理失败：' + (e?.message || '未知错误'))
         cropping.value = false
         return
       }

@@ -14,100 +14,175 @@
       </div>
     </div>
 
+    <!-- 统计信息栏 -->
+    <div class="stats-bar">
+      <div class="stat-item">
+        <span class="stat-label">全部主题</span>
+        <span class="stat-value">{{ allThemes.length }}</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-label">筛选结果</span>
+        <span class="stat-value highlight">{{ filteredThemeList.length }}</span>
+      </div>
+    </div>
+
     <el-card class="search-card" shadow="never">
-      <div class="search-flex">
-        <el-input
-          v-model="searchText"
-          placeholder="搜索主题名称或描述..."
-          clearable
-          @clear="handleSearch"
-          @keyup.enter="handleSearch"
-          class="custom-search"
-        >
-          <template #prefix><el-icon><Search /></el-icon></template>
-        </el-input>
-        <el-button class="search-btn" type="primary" @click="handleSearch">搜索</el-button>
+      <div class="search-filter-container">
+        <div class="search-row">
+          <el-input
+            v-model="searchText"
+            placeholder="搜索主题名称或描述..."
+            clearable
+            @clear="handleSearch"
+            @keyup.enter="handleSearch"
+            class="custom-search"
+          >
+            <template #prefix><el-icon><Search /></el-icon></template>
+          </el-input>
+          <el-button class="search-btn" type="primary" @click="handleSearch">搜索</el-button>
+        </div>
+        <div class="filter-row">
+          <el-select
+            v-model="sortBy"
+            placeholder="排序方式"
+            clearable
+            @change="handleSortChange"
+            class="sort-select"
+          >
+            <el-option label="创建时间正序" value="created_asc" />
+            <el-option label="创建时间倒序" value="created_desc" />
+            <el-option label="名称正序" value="name_asc" />
+            <el-option label="名称倒序" value="name_desc" />
+          </el-select>
+          <el-date-picker
+            v-model="dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            clearable
+            @change="handleDateRangeChange"
+            class="date-picker"
+          />
+          <el-button v-if="hasActiveFilters" text type="primary" @click="clearFilters">
+            <el-icon><Close /></el-icon>
+            清除筛选
+          </el-button>
+        </div>
       </div>
     </el-card>
     <!-- ================= 顶部区域结束 ================= -->
 
     <div v-loading="loading" class="content-body">
-      <!-- 下拉刷新容器 -->
-      <div
-        class="theme-list-wrapper pull-refresh-wrapper"
-        ref="scrollContainerRef"
-        @touchstart="handleTouchStart"
-        @touchmove="handleTouchMove"
-        @touchend="handleTouchEnd"
-      >
-        <!-- 下拉加载提示区 -->
-        <div class="pull-indicator" :style="{ height: `${pullDistance}px`, opacity: pullDistance > 0 ? 1 : 0 }">
-          <div class="indicator-content">
-            <el-icon v-if="isRefreshing" class="is-loading"><Loading /></el-icon>
-            <el-icon v-else :style="{ transform: `rotate(${pullDistance > 50 ? 180 : 0}deg)` }"><Top /></el-icon>
-            <span class="indicator-text">
-              {{ isRefreshing ? '正在刷新...' : (pullDistance > 50 ? '释放刷新' : '下拉刷新') }}
-            </span>
-          </div>
+      <!-- PC端视图 -->
+      <div class="hidden-xs-only desktop-view">
+        <div class="table-container" ref="tableContainerRef">
+          <el-table
+            :data="paginatedThemeList"
+            style="width: 100%"
+            class="pc-table"
+            row-key="id"
+            border-radius="12"
+            :height="tableHeight"
+          >
+            <el-table-column prop="name" label="主题名称" min-width="200" fixed>
+              <template #default="{ row }">
+                <div class="theme-item-name">
+                  <el-icon class="theme-icon"><Star /></el-icon>
+                  <span class="theme-name-text">{{ row.name }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column prop="description" label="描述" min-width="300">
+              <template #default="{ row }">
+                <el-tooltip :content="row.description || '无描述'" placement="top" :show-after="500">
+                  <span class="description-text">{{ row.description || '—' }}</span>
+                </el-tooltip>
+              </template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="创建时间" width="180" sortable>
+              <template #default="{ row }">
+                <span class="time-text">{{ formatDate(row.created_at) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="150" align="right" fixed="right">
+              <template #default="{ row }">
+                <div class="action-inline">
+                  <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
+                  <span class="action-divider" />
+                  <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
         </div>
 
-        <!-- 内容区域 -->
-        <div class="theme-list-inner" :style="{ transform: `translateY(${pullDistance}px)` }">
+        <!-- 分页控件 -->
+        <div class="pagination-wrapper" v-if="filteredThemeList.length > 0">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="filteredThemeList.length"
+            layout="total, sizes, prev, pager, next, jumper"
+            background
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+          />
+        </div>
+      </div>
 
-          <!-- 【PC端视图】 -->
-          <div class="hidden-xs-only desktop-view">
-            <el-table
-              :data="filteredThemeList"
-              style="width: 100%"
-              class="pc-table"
-              row-key="id"
-              border-radius="12"
-            >
-              <el-table-column prop="name" label="主题名称" min-width="200">
-                <template #default="{ row }">
-                  <div class="theme-item-name">
-                    <el-icon class="theme-icon"><Star /></el-icon>
-                    <span>{{ row.name }}</span>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column prop="description" label="描述" min-width="300">
-                <template #default="{ row }">
-                  <span class="description-text">{{ row.description || '—' }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column prop="created_at" label="创建时间" width="180">
-                <template #default="{ row }">
-                  <span class="time-text">{{ formatDate(row.created_at) }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="180" align="right">
-                <template #default="{ row }">
-                  <div class="action-inline">
-                    <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-                    <span class="action-divider" />
-                    <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
-                  </div>
-                </template>
-              </el-table-column>
-            </el-table>
+      <!-- 移动端视图 -->
+      <div class="visible-xs-only mobile-list-container">
+        <!-- 移动端筛选状态栏 -->
+        <div class="mobile-filter-bar" v-if="hasActiveFilters">
+          <span class="filter-result">找到 {{ filteredThemeList.length }} 个结果</span>
+          <el-button text size="small" @click="clearFilters">
+            <el-icon><Close /></el-icon>
+            清除
+          </el-button>
+        </div>
+
+        <!-- 下拉刷新容器 -->
+        <div
+          class="pull-refresh-wrapper"
+          ref="scrollContainerRef"
+          @touchstart="handleTouchStart"
+          @touchmove="handleTouchMove"
+          @touchend="handleTouchEnd"
+        >
+          <!-- 下拉加载提示区 -->
+          <div class="pull-indicator" :style="{ height: `${pullDistance}px`, opacity: pullDistance > 0 ? 1 : 0 }">
+            <div class="indicator-content">
+              <el-icon v-if="isRefreshing" class="is-loading"><Loading /></el-icon>
+              <el-icon v-else :style="{ transform: `rotate(${pullDistance > 50 ? 180 : 0}deg)` }"><Top /></el-icon>
+              <span class="indicator-text">
+                {{ isRefreshing ? '正在刷新...' : (pullDistance > 50 ? '释放刷新' : '下拉刷新') }}
+              </span>
+            </div>
           </div>
 
-          <!-- 【移动端视图】 -->
-          <div class="visible-xs-only mobile-list-container">
+          <!-- 内容区域 -->
+          <div class="theme-list-inner" :style="{ transform: `translateY(${pullDistance}px)` }">
+            <!-- 移动端使用分页加载更多 -->
             <div
-              v-for="item in filteredThemeList"
+              v-for="item in mobileDisplayList"
               :key="item.id"
               class="mobile-card"
             >
-              <div class="mobile-card-left" @click="handleMobileCardClick(item)">
+              <div class="mobile-card-left" @click="handleEdit(item)">
                 <div class="icon-placeholder">
                   <el-icon><Star /></el-icon>
                 </div>
                 <div class="card-info">
                   <div class="card-name">{{ item.name }}</div>
                   <div class="card-description">{{ item.description || '暂无描述' }}</div>
-                  <div class="card-time">{{ formatDate(item.created_at) }}</div>
+                  <div class="card-meta">
+                    <span class="card-time">{{ formatDate(item.created_at) }}</span>
+                  </div>
                 </div>
               </div>
               <div class="mobile-card-right">
@@ -116,10 +191,24 @@
                 </div>
               </div>
             </div>
-          </div>
 
-          <el-empty v-if="!loading && filteredThemeList.length === 0" description="暂无主题数据" />
+            <!-- 加载更多按钮 -->
+            <div class="load-more-wrapper" v-if="hasMoreMobileData">
+              <el-button @click="loadMoreMobile" :loading="loadingMore">
+                加载更多
+              </el-button>
+            </div>
+
+            <el-empty v-if="!loading && mobileDisplayList.length === 0" description="暂无主题数据" />
+          </div>
         </div>
+      </div>
+
+      <!-- 无数据时的空状态引导 -->
+      <div v-if="!loading && filteredThemeList.length === 0 && hasActiveFilters" class="empty-filter-result">
+        <el-empty description="没有找到匹配的主题">
+          <el-button type="primary" @click="clearFilters">清除筛选条件</el-button>
+        </el-empty>
       </div>
     </div>
 
@@ -290,8 +379,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Plus, Search, Star, Refresh, Loading, Top, MoreFilled, Edit, Delete, Picture } from '@element-plus/icons-vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { Plus, Search, Star, Refresh, Loading, Top, MoreFilled, Edit, Delete, Picture, Close } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { UploadFile } from 'element-plus'
@@ -309,12 +398,11 @@ import {
 } from '@/api/metadata'
 import type { Theme, ThemeImage } from '@/api/types'
 
-// 主题附加图片：已有图项（带原始标签用于判断是否修改）
 interface ExistingThemeImage extends ThemeImage {
   label?: string
   originalLabel?: string
 }
-// 待上传的新图项
+
 interface NewThemePhotoFile {
   file: File
   preview: string
@@ -330,11 +418,9 @@ const isEdit = ref(false)
 const editingId = ref<number | null>(null)
 const formRef = ref<FormInstance>()
 
-// 窗口宽度响应式
 const windowWidth = ref(window.innerWidth)
 const isMobile = computed(() => windowWidth.value < 768)
 
-// 移动端操作相关
 const mobileDrawerVisible = ref(false)
 const currentActionRow = ref<Theme | null>(null)
 
@@ -345,13 +431,24 @@ const updateWindowWidth = () => {
 const authStore = useAuthStore()
 const metadataStore = useMetadataStore()
 
-// 下拉刷新相关状态
 const scrollContainerRef = ref<HTMLElement | null>(null)
 const startY = ref(0)
 const pullDistance = ref(0)
 const isRefreshing = ref(false)
 const MAX_PULL = 80
 const TRIGGER_DIST = 50
+
+const sortBy = ref<string>('')
+const dateRange = ref<[string, string] | null>(null)
+
+const currentPage = ref(1)
+const pageSize = ref(20)
+const tableContainerRef = ref<HTMLElement | null>(null)
+const tableHeight = ref(400)
+
+const mobilePageSize = 10
+const mobileDisplayList = ref<Theme[]>([])
+const loadingMore = ref(false)
 
 const getScrollTop = () => {
   return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
@@ -416,7 +513,6 @@ const formData = ref({
   description: '',
 })
 
-// 主题附加图片状态（仅编辑时使用）
 const existingThemeImages = ref<ExistingThemeImage[]>([])
 const newThemePhotoFiles = ref<NewThemePhotoFile[]>([])
 const themeImageUploadList = ref<UploadFile[]>([])
@@ -436,15 +532,116 @@ const formRules: FormRules = {
 
 const dialogTitle = computed(() => isEdit.value ? '✨ 修改主题' : '✨ 新增主题')
 
-const filteredThemeList = computed(() => {
-  const keyword = searchText.value.trim().toLowerCase()
-  if (!keyword) return allThemes.value
-
-  return allThemes.value.filter(theme =>
-    theme.name.toLowerCase().includes(keyword) ||
-    (theme.description && theme.description.toLowerCase().includes(keyword))
-  )
+const hasActiveFilters = computed(() => {
+  return searchText.value.trim() !== '' || sortBy.value !== '' || (dateRange.value !== null && dateRange.value.length === 2)
 })
+
+const filteredThemeList = computed(() => {
+  let result = [...allThemes.value]
+
+  const keyword = searchText.value.trim().toLowerCase()
+  if (keyword) {
+    result = result.filter(theme =>
+      theme.name.toLowerCase().includes(keyword) ||
+      (theme.description && theme.description.toLowerCase().includes(keyword))
+    )
+  }
+
+  if (dateRange.value && dateRange.value.length === 2) {
+    const [startDate, endDate] = dateRange.value
+    result = result.filter(theme => {
+      if (!theme.created_at) return false
+      const themeDate = theme.created_at.split('T')[0] || ''
+      return themeDate >= startDate && themeDate <= endDate
+    })
+  }
+
+  if (sortBy.value) {
+    switch (sortBy.value) {
+      case 'created_asc':
+        result.sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime())
+        break
+      case 'created_desc':
+        result.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+        break
+      case 'name_asc':
+        result.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
+        break
+      case 'name_desc':
+        result.sort((a, b) => b.name.localeCompare(a.name, 'zh-CN'))
+        break
+    }
+  } else {
+    result.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+  }
+
+  return result
+})
+
+const paginatedThemeList = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredThemeList.value.slice(start, end)
+})
+
+const hasMoreMobileData = computed(() => {
+  return mobileDisplayList.value.length < filteredThemeList.value.length
+})
+
+watch(filteredThemeList, () => {
+  currentPage.value = 1
+  updateMobileDisplayList()
+}, { immediate: false })
+
+const updateMobileDisplayList = () => {
+  mobileDisplayList.value = filteredThemeList.value.slice(0, mobilePageSize)
+}
+
+const loadMoreMobile = () => {
+  loadingMore.value = true
+  setTimeout(() => {
+    const currentLength = mobileDisplayList.value.length
+    const nextBatch = filteredThemeList.value.slice(currentLength, currentLength + mobilePageSize)
+    mobileDisplayList.value = [...mobileDisplayList.value, ...nextBatch]
+    loadingMore.value = false
+  }, 300)
+}
+
+const handleSizeChange = (val: number) => {
+  pageSize.value = val
+  currentPage.value = 1
+}
+
+const handleCurrentChange = (val: number) => {
+  currentPage.value = val
+}
+
+const handleSortChange = () => {
+  currentPage.value = 1
+}
+
+const handleDateRangeChange = () => {
+  currentPage.value = 1
+}
+
+const clearFilters = () => {
+  searchText.value = ''
+  sortBy.value = ''
+  dateRange.value = null
+  currentPage.value = 1
+}
+
+const updateTableHeight = () => {
+  if (tableContainerRef.value && windowWidth.value >= 768) {
+    const containerRect = tableContainerRef.value.getBoundingClientRect()
+    const windowHeight = window.innerHeight
+    const headerHeight = 64
+    const searchCardHeight = 180
+    const paginationHeight = 72
+    const availableHeight = windowHeight - headerHeight - searchCardHeight - paginationHeight - 40
+    tableHeight.value = Math.max(200, Math.min(availableHeight, 800))
+  }
+}
 
 const formatDate = (dateStr: string | null | undefined) => {
   if (!dateStr) return '—'
@@ -466,7 +663,9 @@ const fetchThemeList = async (force = false) => {
   loading.value = true
   try {
     const data = await metadataStore.fetchThemes(force)
-    allThemes.value = data
+    allThemes.value = data || []
+    updateMobileDisplayList()
+    updateTableHeight()
   } finally {
     loading.value = false
   }
@@ -553,7 +752,6 @@ const handleMobileDelete = () => {
   }
 }
 
-// 主题附加图片：标签失焦保存
 const handleThemePhotoLabelChange = async (photo: ExistingThemeImage) => {
   if (!editingId.value || photo.originalLabel === photo.label) return
   try {
@@ -567,7 +765,6 @@ const handleThemePhotoLabelChange = async (photo: ExistingThemeImage) => {
   }
 }
 
-// 主题附加图片：删除已有图
 const handleRemoveExistingThemePhoto = async (photoId: number) => {
   if (!editingId.value) return
   try {
@@ -586,7 +783,6 @@ const handleRemoveExistingThemePhoto = async (photoId: number) => {
   }
 }
 
-// 主题附加图片：选择新文件
 const handleThemePhotoChange = (uploadFile: UploadFile) => {
   const file = uploadFile.raw
   if (file) {
@@ -603,7 +799,6 @@ const handleThemePhotoUploadRemove = () => {
   themeImageUploadList.value = []
 }
 
-// 主题附加图片：移除待上传的新图
 const handleRemoveNewThemePhoto = (index: number) => {
   const item = newThemePhotoFiles.value[index]
   if (item?.preview) URL.revokeObjectURL(item.preview)
@@ -622,7 +817,6 @@ const handleSubmit = async () => {
       }
       if (isEdit.value && editingId.value) {
         await updateTheme(editingId.value, payload)
-        // 上传本次添加的新附加图片
         for (const photo of newThemePhotoFiles.value) {
           await uploadThemeImages(editingId.value!, [photo.file], {
             label: photo.label?.trim() ?? '',
@@ -649,11 +843,16 @@ const handleSubmit = async () => {
 
 onMounted(() => {
   window.addEventListener('resize', updateWindowWidth)
+  window.addEventListener('resize', updateTableHeight)
   fetchThemeList()
+  nextTick(() => {
+    updateTableHeight()
+  })
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateWindowWidth)
+  window.removeEventListener('resize', updateTableHeight)
   newThemePhotoFiles.value.forEach((p) => {
     if (p.preview) URL.revokeObjectURL(p.preview)
   })
@@ -668,20 +867,145 @@ onUnmounted(() => {
   margin: 0 auto;
   min-height: calc(100vh - 64px);
 }
-.header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-title { font-size: 22px; font-weight: 600; color: #303133; margin: 0; }
-.sub-title { font-size: 13px; color: #909399; margin-top: 4px; display: block; }
 
-.search-card { border-radius: 12px; border: none; margin-bottom: 20px; }
-.search-flex { display: flex; gap: 8px; }
-.custom-search { flex: 1; }
+.header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0;
+}
+
+.sub-title {
+  font-size: 13px;
+  color: #909399;
+  margin-top: 4px;
+  display: block;
+}
+
+/* 统计信息栏 */
+.stats-bar {
+  display: flex;
+  align-items: center;
+  background: linear-gradient(135deg, #f6f4ff 0%, #ebe7ff 100%);
+  border-radius: 12px;
+  padding: 14px 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(142, 125, 255, 0.1);
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: #606266;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.stat-value.highlight {
+  color: #8e7dff;
+}
+
+.stat-divider {
+  width: 1px;
+  height: 24px;
+  background: #dcdfe6;
+  margin: 0 20px;
+}
+
+/* 搜索卡片 */
+.search-card {
+  border-radius: 12px;
+  border: none;
+  margin-bottom: 20px;
+}
+
+.search-filter-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.search-row {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.custom-search {
+  flex: 1;
+}
+
+.sort-select {
+  width: 140px;
+}
+
+.date-picker {
+  width: 280px;
+}
 
 .add-btn, .search-btn, .submit-btn {
   background: linear-gradient(135deg, #a396ff 0%, #8e7dff 100%);
-  border: none; border-radius: 8px;
+  border: none;
+  border-radius: 8px;
 }
 
-.header-actions { display: flex; align-items: center; gap: 8px; }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* PC端表格容器 */
+.desktop-view {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.table-container {
+  overflow: hidden;
+}
+
+.pc-table {
+  border-radius: 12px;
+}
+
+/* 分页控件 */
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 20px;
+  background: #fff;
+  border-top: 1px solid #f0f2f5;
+}
+
+.pagination-wrapper :deep(.el-pagination) {
+  --el-pagination-bg-color: #f5f7fa;
+  --el-pagination-hover-color: #8e7dff;
+}
 
 /* PC端列表外壳 */
 .theme-list-wrapper {
@@ -725,21 +1049,65 @@ onUnmounted(() => {
   transition: transform 0.3s;
 }
 
-/* PC端表格容器样式 */
-.desktop-view {
-  background: #fff;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+/* PC 表格样式 */
+.theme-item-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  color: #444;
 }
 
-/* PC 表格样式 */
-.theme-item-name { display: flex; align-items: center; gap: 10px; font-weight: 500; color: #444; }
-.theme-icon { color: #8e7dff; font-size: 18px; }
-.description-text { color: #606266; }
-.time-text { color: #909399; font-size: 13px; }
-.action-inline { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
-.action-divider { display: inline-block; width: 1px; height: 16px; background: #e4e7ed; }
+.theme-icon {
+  color: #8e7dff;
+  font-size: 18px;
+}
+
+.theme-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.description-text {
+  color: #606266;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  max-width: 280px;
+}
+
+.no-images {
+  color: #c0c4cc;
+  font-style: italic;
+}
+
+.time-text {
+  color: #909399;
+  font-size: 13px;
+}
+
+.image-count-tag {
+  background: linear-gradient(135deg, #f6f4ff 0%, #ebe7ff 100%);
+  border-color: #d9d4ff;
+  color: #8e7dff;
+}
+
+.action-inline {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.action-divider {
+  display: inline-block;
+  width: 1px;
+  height: 16px;
+  background: #e4e7ed;
+}
+
 .action-inline :deep(.el-button.is-link:focus-visible),
 .action-inline :deep(.el-button.is-link:focus),
 .action-inline :deep(.el-button.is-link:active) {
@@ -767,6 +1135,7 @@ onUnmounted(() => {
   transition: all 0.3s;
   z-index: 999;
 }
+
 .refresh-fab:hover { transform: scale(1.1) rotate(180deg); }
 .refresh-fab .is-loading { animation: rotate 1s linear infinite; }
 
@@ -781,6 +1150,21 @@ onUnmounted(() => {
   padding: 0;
   background-color: transparent;
   border-radius: 0;
+}
+
+.mobile-filter-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #f6f4ff 0%, #ebe7ff 100%);
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+.filter-result {
+  font-size: 14px;
+  color: #606266;
 }
 
 .mobile-card {
@@ -838,6 +1222,9 @@ onUnmounted(() => {
   font-weight: 600;
   color: #333;
   margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-description {
@@ -845,11 +1232,17 @@ onUnmounted(() => {
   color: #666;
   margin-bottom: 4px;
   overflow: hidden;
-  /* 移动端长描述多行截断，最多显示两行 */
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   word-break: break-word;
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .card-time {
@@ -870,6 +1263,32 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* 加载更多 */
+.load-more-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.load-more-wrapper .el-button {
+  background: linear-gradient(135deg, #f6f4ff 0%, #ebe7ff 100%);
+  border-color: #d9d4ff;
+  color: #8e7dff;
+}
+
+.load-more-wrapper .el-button:hover {
+  background: linear-gradient(135deg, #a396ff 0%, #8e7dff 100%);
+  color: #fff;
+}
+
+/* 空结果筛选 */
+.empty-filter-result {
+  padding: 40px 20px;
+  background: #fff;
+  border-radius: 12px;
+  margin-top: 16px;
 }
 
 /* 底部动作面板样式 */
@@ -1016,6 +1435,27 @@ onUnmounted(() => {
     max-width: 260px;
   }
 
+  .stats-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+
+  .stat-divider {
+    display: none;
+  }
+
+  .filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sort-select,
+  .date-picker {
+    width: 100%;
+  }
+
   .hidden-xs-only { display: none !important; }
 
   .theme-list-wrapper {
@@ -1024,10 +1464,19 @@ onUnmounted(() => {
     padding: 0;
     min-height: auto;
   }
+
+  .desktop-view {
+    display: none;
+  }
+
+  .mobile-list-container {
+    display: block;
+  }
 }
 
 @media (min-width: 769px) {
   .visible-xs-only { display: none !important; }
+  .desktop-view { display: block; }
 }
 </style>
 

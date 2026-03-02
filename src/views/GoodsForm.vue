@@ -514,6 +514,7 @@ const cropping = ref(false)
 const selectedAspectRatio = ref<string>('free')
 const aspectRatios = [
   { label: '自由', value: 'free' },
+  { label: '1:1', value: '1:1' },
   { label: '圆形', value: 'circle' },
   { label: '47:65 (椭圆)', value: '47:65-ellipse' },
   { label: '63:93 (椭圆)', value: '63:93-ellipse' },

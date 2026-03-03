@@ -373,63 +373,109 @@
     <el-dialog
       v-model="cropDialogVisible"
       :title="'编辑图片'"
-      :width="isMobile ? '95%' : '600px'"
+      :width="isMobile ? '95%' : '640px'"
       :close-on-click-modal="false"
       class="crop-dialog"
       @close="handleCropDialogClose"
     >
       <div class="crop-container">
-        <!-- 比例选择 -->
-        <div class="aspect-ratio-selector">
-          <div class="ratio-label">选择比例：</div>
-          <div class="ratio-buttons">
-            <el-button
-              v-for="ratio in aspectRatios"
-              :key="ratio.value"
-              :type="selectedAspectRatio === ratio.value ? 'primary' : 'default'"
-              size="small"
-              @click="selectedAspectRatio = ratio.value"
-            >
-              {{ ratio.label }}
-            </el-button>
+        <div class="crop-glass-panel">
+          <div class="crop-header-row">
+            <div class="crop-title">主图编辑</div>
+            <div class="crop-subtitle">调整比例与滤镜，让画面更契合主题</div>
           </div>
-        </div>
 
-        <!-- 图像调整 -->
-        <div class="image-filters">
-          <div class="filter-item">
-            <span class="filter-label">亮度</span>
-            <el-slider v-model="filterState.brightness" :min="0" :max="200" :format-tooltip="(val: number) => val + '%'" />
+          <!-- 比例选择 -->
+          <div class="aspect-ratio-selector">
+            <div class="ratio-label">选择比例</div>
+            <div class="ratio-segmented">
+              <div class="ratio-segmented-track">
+                <div
+                  class="ratio-segmented-thumb"
+                  :style="{ '--active-index': aspectRatios.findIndex(r => r.value === selectedAspectRatio) }"
+                ></div>
+                <button
+                  v-for="(ratio, idx) in aspectRatios"
+                  :key="ratio.value"
+                  type="button"
+                  class="ratio-segmented-item"
+                  :class="{ 'is-active': selectedAspectRatio === ratio.value }"
+                  @click="selectedAspectRatio = ratio.value"
+                >
+                  <span class="ratio-icon" :class="`ratio-icon--${ratio.value}`"></span>
+                  <span class="ratio-text">{{ ratio.label }}</span>
+                </button>
+              </div>
+            </div>
           </div>
-          <div class="filter-item">
-            <span class="filter-label">对比度</span>
-            <el-slider v-model="filterState.contrast" :min="0" :max="200" :format-tooltip="(val: number) => val + '%'" />
-          </div>
-          <div class="filter-item">
-            <span class="filter-label">饱和度</span>
-            <el-slider v-model="filterState.saturation" :min="0" :max="200" :format-tooltip="(val: number) => val + '%'" />
-          </div>
-          <div class="filter-reset">
-             <el-button type="text" size="small" @click="resetFilters">重置滤镜</el-button>
-          </div>
-        </div>
 
-        <!-- 裁切组件 -->
-        <div class="cropper-wrapper" :class="{ 'circle-crop': selectedAspectRatio === 'circle' || selectedAspectRatio.endsWith('-ellipse') }">
-          <vue-picture-cropper
-            v-if="cropImageSrc"
-            ref="pictureCropperRef"
-            :key="`cropper-${selectedAspectRatio}`"
-            :box-style="{
-              width: '100%',
-              height: isMobile ? '300px' : '400px',
-              backgroundColor: '#f8f8f8',
-              margin: '0 auto'
+          <!-- 图像调整 -->
+          <div class="image-filters">
+            <div class="filters-header-row">
+              <span class="filters-title">图像微调</span>
+              <el-button
+                class="filter-reset-btn"
+                text
+                circle
+                :icon="RefreshLeft"
+                @click="resetFilters"
+              />
+            </div>
+            <div class="filter-item">
+              <span class="filter-label">亮度</span>
+              <el-slider
+                v-model="filterState.brightness"
+                :min="0"
+                :max="200"
+                :format-tooltip="(val: number) => val + '%'"
+              />
+              <span class="filter-value">{{ filterState.brightness }}%</span>
+            </div>
+            <div class="filter-item">
+              <span class="filter-label">对比度</span>
+              <el-slider
+                v-model="filterState.contrast"
+                :min="0"
+                :max="200"
+                :format-tooltip="(val: number) => val + '%'"
+              />
+              <span class="filter-value">{{ filterState.contrast }}%</span>
+            </div>
+            <div class="filter-item">
+              <span class="filter-label">饱和度</span>
+              <el-slider
+                v-model="filterState.saturation"
+                :min="0"
+                :max="200"
+                :format-tooltip="(val: number) => val + '%'"
+              />
+              <span class="filter-value">{{ filterState.saturation }}%</span>
+            </div>
+          </div>
+
+          <!-- 裁切组件 -->
+          <div
+            class="cropper-wrapper"
+            :class="{
+              'circle-crop':
+                selectedAspectRatio === 'circle' || selectedAspectRatio.endsWith('-ellipse')
             }"
-            :img="cropImageSrc"
-            :options="cropperOptions"
-            :style="cropperStyle"
-          />
+          >
+            <vue-picture-cropper
+              v-if="cropImageSrc"
+              ref="pictureCropperRef"
+              :key="`cropper-${selectedAspectRatio}`"
+              :box-style="{
+                width: '100%',
+                height: isMobile ? '300px' : '400px',
+                backgroundColor: '#f8f8f8',
+                margin: '0 auto'
+              }"
+              :img="cropImageSrc"
+              :options="cropperOptions"
+              :style="cropperStyle"
+            />
+          </div>
         </div>
       </div>
 
@@ -456,7 +502,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadFile } from 'element-plus'
-import { Plus, Delete, Picture, Camera as CameraIcon, Edit } from '@element-plus/icons-vue'
+import { Plus, Delete, Picture, Camera as CameraIcon, Edit, RefreshLeft } from '@element-plus/icons-vue'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { Capacitor } from '@capacitor/core'
 import VuePictureCropper, { cropper } from 'vue-picture-cropper'
@@ -1817,13 +1863,46 @@ onUnmounted(() => {
 
 .crop-container {
   width: 100%;
+  padding-top: 4px;
+}
+
+.crop-glass-panel {
+  position: relative;
+  padding: 18px 20px 20px;
+  border-radius: 18px;
+  background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.08));
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 18px 45px rgba(15, 23, 42, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.crop-header-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.crop-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.crop-subtitle {
+  font-size: 12px;
+  color: #909399;
 }
 
 .aspect-ratio-selector {
   margin-bottom: 20px;
-  padding: 16px;
-  background: #f8f8f8;
-  border-radius: 4px;
+  padding: 14px 14px 12px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
 }
 
 .ratio-label {
@@ -1839,11 +1918,31 @@ onUnmounted(() => {
   gap: 8px;
 }
 
+.ratio-buttons :deep(.el-button) {
+  border-radius: 999px;
+  border-color: transparent;
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #606266;
+  box-shadow: none;
+}
+
+.ratio-buttons :deep(.el-button.el-button--primary) {
+  color: #fff;
+  background-image: linear-gradient(135deg, var(--primary-gold), rgba(255, 255, 255, 0.9));
+  border-color: var(--primary-gold);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.ratio-buttons :deep(.el-button:hover) {
+  background-color: rgba(255, 255, 255, 0.24);
+}
+
 .image-filters {
   margin-bottom: 20px;
-  padding: 16px;
-  background: #f8f8f8;
-  border-radius: 4px;
+  padding: 14px 14px 10px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
 }
 
 .filter-item {
@@ -1868,6 +1967,153 @@ onUnmounted(() => {
 .filter-reset {
   text-align: right;
   margin-top: -5px;
+}
+
+.image-filters :deep(.el-slider__runway) {
+  background-color: rgba(255, 255, 255, 0.18);
+}
+
+.image-filters :deep(.el-slider__bar) {
+  background-color: var(--primary-gold);
+}
+
+.image-filters :deep(.el-slider__button) {
+  border-color: transparent;
+  background-color: #ffffff;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.22);
+}
+
+/* 追加：比例分段选择器的胶囊容器与几何图标 */
+.aspect-ratio-selector {
+  margin-bottom: 14px;
+  padding: 10px 10px 8px;
+  background: transparent;
+  border-radius: 14px;
+}
+
+.ratio-segmented {
+  width: 100%;
+}
+
+.ratio-segmented-track {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  background-color: rgba(0, 0, 0, 0.04);
+  border-radius: 999px;
+  padding: 2px;
+}
+
+.ratio-segmented-thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / 5);
+  border-radius: 999px;
+  background-color: var(--primary-gold);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  transform: translateX(calc(var(--active-index, 0) * 100%));
+  transition: transform 0.18s ease-out;
+  pointer-events: none;
+}
+
+.ratio-segmented-item {
+  position: relative;
+  z-index: 1;
+  border: none;
+  background: transparent;
+  color: #606266;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ratio-segmented-item.is-active {
+  color: #fff;
+}
+
+.ratio-icon {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+}
+
+.ratio-icon--free {
+  border-style: dashed;
+}
+
+.ratio-icon--1\:1 {
+  border-radius: 2px;
+}
+
+.ratio-icon--circle {
+  border-radius: 999px;
+}
+
+.ratio-icon--47\:65-ellipse,
+.ratio-icon--63\:93-ellipse {
+  border-radius: 999px;
+  transform: scaleX(1.3);
+}
+
+/* 追加：滤镜区域标题、右上角重置图标与数值常显 */
+.image-filters {
+  margin-bottom: 12px;
+  padding: 10px 10px 8px;
+}
+
+.filters-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.filters-title {
+  font-size: 13px;
+  color: #606266;
+}
+
+.filter-reset-btn {
+  color: var(--primary-gold);
+}
+
+.filter-item {
+  margin-bottom: 6px;
+}
+
+.filter-item .el-slider {
+  margin-right: 8px;
+}
+
+.filter-value {
+  width: 40px;
+  text-align: right;
+  font-size: 12px;
+  color: #909399;
+}
+
+.image-filters :deep(.el-slider__runway) {
+  position: relative;
+}
+
+.image-filters :deep(.el-slider__runway::before) {
+  content: '';
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 50%;
+  width: 1px;
+  background-color: rgba(0, 0, 0, 0.08);
+  transform: translateX(-0.5px);
 }
 
 /* 强制应用 CSS filter 到 cropper 的预览图 */
@@ -1899,6 +2145,15 @@ onUnmounted(() => {
   --brightness: v-bind('filterState.brightness + "%"');
   --contrast: v-bind('filterState.contrast + "%"');
   --saturate: v-bind('filterState.saturation + "%"');
+  width: 100%;
+  margin: 12px auto 0;
+  padding: 8px;
+  border-radius: 18px;
+  background: radial-gradient(circle at top, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.06));
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  box-shadow:
+    0 20px 48px rgba(15, 23, 42, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.16);
 }
 
 :deep(.cropper-canvas img),
@@ -1913,14 +2168,8 @@ onUnmounted(() => {
 
   .ratio-buttons .el-button {
     font-size: 12px;
-    padding: 8px 12px;
+    padding: 6px 12px;
   }
-}
-
-.cropper-wrapper {
-  width: 100%;
-  margin: 0 auto;
-  overflow: hidden;
 }
 
 /* 圆形裁切：仅改变裁切框的视觉形状（导出仍为方图，圆外透明） */
@@ -1936,19 +2185,19 @@ onUnmounted(() => {
   }
 
   .crop-dialog :deep(.el-dialog__body) {
-    padding: 15px;
+    padding: 14px 14px 18px;
     max-height: calc(90vh - 120px);
     overflow-y: auto;
-  }
-
-  .aspect-ratio-selector {
-    padding: 12px;
-    margin-bottom: 15px;
   }
 
   .ratio-label {
     font-size: 13px;
     margin-bottom: 10px;
+  }
+
+  .crop-glass-panel {
+    padding: 14px 14px 16px;
+    border-radius: 16px;
   }
 }
 
@@ -1956,6 +2205,22 @@ onUnmounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.26);
+}
+
+.dialog-footer :deep(.el-button) {
+  border-radius: 999px;
+}
+
+.dialog-footer :deep(.el-button--primary) {
+  background-color: var(--primary-gold);
+  border-color: var(--primary-gold);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.25);
+}
+
+.dialog-footer :deep(.el-button:hover) {
+  opacity: 0.96;
 }
 
 @media (max-width: 768px) {

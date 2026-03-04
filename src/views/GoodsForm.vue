@@ -453,12 +453,32 @@
             </div>
           </div>
 
+          <!-- 圆角矩形设置（仅自由 / 1:1 比例可用） -->
+          <div v-if="showRoundedControls" class="rounded-rect-settings">
+            <div class="rounded-header-row">
+              <span class="rounded-title">圆角矩形</span>
+              <el-switch v-model="enableRoundedRect" size="small" />
+            </div>
+            <div class="rounded-radius-row" :class="{ 'is-disabled': !enableRoundedRect }">
+              <span class="rounded-label">圆角大小</span>
+              <el-slider
+                v-model="roundedRadius"
+                :min="0"
+                :max="50"
+                :disabled="!enableRoundedRect"
+                :format-tooltip="(val: number) => val + '%'"
+              />
+              <span class="rounded-value">{{ roundedRadius }}%</span>
+            </div>
+          </div>
+
           <!-- 裁切组件 -->
           <div
             class="cropper-wrapper"
             :class="{
               'circle-crop':
-                selectedAspectRatio === 'circle' || selectedAspectRatio.endsWith('-ellipse')
+                selectedAspectRatio === 'circle' || selectedAspectRatio.endsWith('-ellipse'),
+              'rounded-rect-preview': showRoundedControls && enableRoundedRect
             }"
           >
             <vue-picture-cropper
@@ -565,6 +585,14 @@ const aspectRatios = [
   { label: '47:65 (椭圆)', value: '47:65-ellipse' },
   { label: '63:93 (椭圆)', value: '63:93-ellipse' },
 ]
+
+// 圆角矩形相关状态（仅用于自由/1:1 比例）
+const enableRoundedRect = ref(false)
+// 使用百分比控制圆角半径（相对于最短边的一半），0-50%
+const roundedRadius = ref(20)
+const showRoundedControls = computed(() => {
+  return selectedAspectRatio.value === 'free' || selectedAspectRatio.value === '1:1'
+})
 
 // 图像滤镜状态
 const filterState = ref({
@@ -952,6 +980,9 @@ const openCropDialog = (file: File, previewUrl?: string) => {
   cropDialogVisible.value = true
   selectedAspectRatio.value = 'free' // 重置为自由比例
   resetFilters() // 重置滤镜
+  // 重置圆角矩形设置
+  enableRoundedRect.value = false
+  roundedRadius.value = 20
 }
 
 // 编辑模式：把原主图拉进裁切器重新编辑
@@ -1121,6 +1152,53 @@ const applyEllipseMaskToBlob = async (input: Blob) => {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('导出椭圆图片失败'))), 'image/png', 0.92)
   })
   return outBlob
+}
+
+// 圆角矩形遮罩：用于自由 / 1:1 比例下的圆角矩形导出
+const applyRoundedRectMaskToBlob = async (input: File, radiusPercent: number): Promise<File> => {
+  const bitmapOrImg = await blobToImageBitmap(input)
+  const width = (bitmapOrImg as any).width
+  const height = (bitmapOrImg as any).height
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 不可用')
+
+  ctx.clearRect(0, 0, width, height)
+
+  // 将 0-50% 的 UI 数值转换为像素半径（最大为最短边的一半）
+  const clampedPercent = Math.max(0, Math.min(radiusPercent, 50))
+  const maxRadius = Math.min(width, height) / 2
+  const radius = (clampedPercent / 100) * maxRadius
+
+  const drawRoundedRect = (context: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
+    const rr = Math.min(r, w / 2, h / 2)
+    context.beginPath()
+    context.moveTo(x + rr, y)
+    context.lineTo(x + w - rr, y)
+    context.arcTo(x + w, y, x + w, y + rr, rr)
+    context.lineTo(x + w, y + h - rr)
+    context.arcTo(x + w, y + h, x + w - rr, y + h, rr)
+    context.lineTo(x + rr, y + h)
+    context.arcTo(x, y + h, x, y + h - rr, rr)
+    context.lineTo(x, y + rr)
+    context.arcTo(x, y, x + rr, y, rr)
+    context.closePath()
+  }
+
+  // 应用圆角矩形剪裁
+  drawRoundedRect(ctx, 0, 0, width, height, radius)
+  ctx.clip()
+
+  ctx.drawImage(bitmapOrImg as any, 0, 0, width, height)
+
+  const outBlob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('导出圆角矩形图片失败'))), 'image/png', 0.92)
+  })
+
+  return new File([outBlob], `main_photo_${Date.now()}.png`, { type: 'image/png' })
 }
 
 const applyFreeCropSquareBlob = async (input: Blob) => {
@@ -1317,6 +1395,25 @@ const handleCropConfirm = async () => {
         ElMessage.error('自由裁切处理失败：' + (e?.message || '未知错误'))
         cropping.value = false
         return
+      }
+    }
+
+    // 自由 / 1:1 比例下，按需应用圆角矩形遮罩（失败时回退为普通矩形，不中断流程）
+    if (
+      (selectedAspectRatio.value === 'free' || selectedAspectRatio.value === '1:1') &&
+      enableRoundedRect.value &&
+      roundedRadius.value > 0
+    ) {
+      try {
+        const roundedFile = await applyRoundedRectMaskToBlob(croppedFile, roundedRadius.value)
+        if (previewUrl && previewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(previewUrl)
+        }
+        croppedFile = roundedFile
+        previewUrl = URL.createObjectURL(roundedFile)
+      } catch (e: any) {
+        ElMessage.error('圆角处理失败：' + (e?.message || '未知错误'))
+        // 不中断，继续使用未圆角的矩形结果
       }
     }
 
@@ -1969,12 +2066,13 @@ onUnmounted(() => {
   margin-top: -5px;
 }
 
+/* 图像微调滑块：金色前景 + 灰色后段轨道 */
 .image-filters :deep(.el-slider__runway) {
-  background-color: rgba(255, 255, 255, 0.18);
+  background-color: #e4e7ed; /* 灰色基准轨道，形成“后面一段灰色” */
 }
 
 .image-filters :deep(.el-slider__bar) {
-  background-color: var(--primary-gold);
+  background-color: var(--primary-gold); /* 已调节部分为金色 */
 }
 
 .image-filters :deep(.el-slider__button) {
@@ -2116,6 +2214,81 @@ onUnmounted(() => {
   transform: translateX(-0.5px);
 }
 
+/* 让圆角大小滑块与图像微调滑块风格保持一致 */
+.rounded-rect-settings :deep(.el-slider__runway) {
+  position: relative;
+}
+
+.rounded-rect-settings :deep(.el-slider__runway::before) {
+  content: '';
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 50%;
+  width: 1px;
+  background-color: rgba(0, 0, 0, 0.08);
+  transform: translateX(-0.5px);
+}
+
+.rounded-rect-settings :deep(.el-slider__bar) {
+  background-color: var(--primary-gold);
+}
+
+.rounded-rect-settings :deep(.el-slider__button) {
+  border-color: transparent;
+  background-color: #ffffff;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.22);
+}
+
+/* 圆角矩形设置区域 */
+.rounded-rect-settings {
+  margin-bottom: 12px;
+  padding: 10px 10px 8px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.rounded-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.rounded-title {
+  font-size: 13px;
+  color: #606266;
+}
+
+.rounded-radius-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rounded-label {
+  width: 60px;
+  font-size: 14px;
+  color: #606266;
+  white-space: nowrap;
+}
+
+.rounded-radius-row .el-slider {
+  flex: 1;
+}
+
+.rounded-value {
+  width: 40px;
+  text-align: right;
+  font-size: 12px;
+  color: #909399;
+}
+
+.rounded-radius-row.is-disabled {
+  opacity: 0.5;
+}
+
 /* 强制应用 CSS filter 到 cropper 的预览图 */
 /* 注意：vue-picture-cropper 内部结构可能比较复杂，通常需要作用于 img 元素 */
 :deep(.vue-picture-cropper-wrap img),
@@ -2145,6 +2318,7 @@ onUnmounted(() => {
   --brightness: v-bind('filterState.brightness + "%"');
   --contrast: v-bind('filterState.contrast + "%"');
   --saturate: v-bind('filterState.saturation + "%"');
+  --rounded-radius: v-bind('roundedRadius + "%"');
   width: 100%;
   margin: 12px auto 0;
   padding: 8px;
@@ -2176,6 +2350,12 @@ onUnmounted(() => {
 .cropper-wrapper.circle-crop :deep(.cropper-view-box),
 .cropper-wrapper.circle-crop :deep(.cropper-face) {
   border-radius: 50%;
+}
+
+/* 自由 / 1:1 圆角矩形预览，仅改变裁切框视觉效果，不影响最终像素裁剪顺序 */
+.cropper-wrapper.rounded-rect-preview :deep(.cropper-view-box),
+.cropper-wrapper.rounded-rect-preview :deep(.cropper-face) {
+  border-radius: var(--rounded-radius);
 }
 
 @media (max-width: 768px) {

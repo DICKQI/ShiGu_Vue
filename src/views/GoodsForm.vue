@@ -1,349 +1,403 @@
 <template>
   <div class="goods-form">
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>{{ formTitle }}</span>
-        </div>
-      </template>
+    <div class="goods-form-header">
+      <div class="goods-form-title">
+        {{ formTitle }}
+      </div>
+    </div>
 
-      <el-form
+    <el-form
         ref="formRef"
         :model="formData"
         :rules="rules"
         label-width="100px"
         label-position="top"
+        class="goods-el-form"
       >
-        <el-row :gutter="20">
-          <el-col :xs="24" :sm="12">
-            <el-form-item label="谷子名称" prop="name">
-              <el-input v-model="formData.name" placeholder="请输入谷子名称" />
-            </el-form-item>
-          </el-col>
+        <!-- 基础信息分区 -->
+        <section class="form-section form-section--basic">
+          <div class="form-section-header">
+            <h3 class="form-section-title">基础信息</h3>
+            <p class="form-section-subtitle">IP、角色与品类等核心信息</p>
+          </div>
+          <el-row :gutter="20">
+            <el-col :xs="24" :sm="12">
+              <el-form-item label="谷子名称" prop="name" class="is-required">
+                <el-input v-model="formData.name" placeholder="请输入谷子名称" />
+              </el-form-item>
+            </el-col>
 
-          <el-col :xs="24" :sm="12">
-            <el-form-item label="IP作品" prop="ip">
-              <el-select
-                v-model="formData.ip"
-                placeholder="选择IP"
-                filterable
-                @change="handleIpChange"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="ip in ipOptions"
-                  :key="ip.id"
-                  :label="ip.name"
-                  :value="ip.id"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-
-          <el-col :xs="24" :sm="12">
-            <el-form-item label="角色" prop="characters">
-              <el-select
-                v-model="formData.characters"
-                placeholder="选择角色（可多选）"
-                filterable
-                multiple
-                :disabled="!formData.ip"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="char in filteredCharacters"
-                  :key="char.id"
-                  :label="char.name"
-                  :value="char.id"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-
-          <el-col :xs="24" :sm="12">
-            <el-form-item label="品类" prop="category">
-              <el-tree-select
-                v-model="formData.category"
-                :data="categoryTreeOptions"
-                :props="{ label: 'name', value: 'id', children: 'children' }"
-                placeholder="选择品类"
-                style="width: 100%"
-                clearable
-                filterable
-                check-strictly
-              />
-              <div v-if="selectedCategory" class="category-chip">
-                <span
-                  class="color-dot"
-                  v-if="selectedCategory.color_tag"
-                  :style="{ backgroundColor: selectedCategory.color_tag || '#a3a3a3' }"
-                ></span>
-                <span class="chip-text">{{ selectedCategory.path_name || selectedCategory.name }}</span>
-              </div>
-            </el-form-item>
-          </el-col>
-
-          <el-col :xs="24" :sm="12">
-            <el-form-item label="主题">
-              <el-select
-                v-model="formData.theme"
-                placeholder="选择或创建主题"
-                filterable
-                allow-create
-                default-first-option
-                :reserve-keyword="true"
-                @change="handleThemeChange"
-                @create="handleThemeCreate"
-                style="width: 100%"
-                clearable
-              >
-                <el-option
-                  v-for="theme in themeOptions"
-                  :key="theme.id"
-                  :label="theme.name"
-                  :value="theme.id"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-
-          <el-col :xs="24" :sm="12">
-            <el-form-item label="状态" prop="status">
-              <el-radio-group v-model="formData.status">
-                <el-radio-button label="in_cabinet">在馆</el-radio-button>
-                <el-radio-button label="outdoor">出街中</el-radio-button>
-                <el-radio-button label="sold">已售出</el-radio-button>
-              </el-radio-group>
-            </el-form-item>
-          </el-col>
-
-          <el-col :xs="24" :sm="12">
-            <el-form-item label="位置" prop="location">
-              <el-tree-select
-                v-model="formData.location"
-                :data="locationStore.treeData"
-                placeholder="选择位置"
-                clearable
-                style="width: 100%"
-                :props="{ label: 'label', value: 'id', children: 'children' }"
-                check-strictly
-              />
-            </el-form-item>
-          </el-col>
-
-          <el-col :xs="12" :sm="12">
-            <el-form-item label="数量" prop="quantity">
-              <el-input-number v-model="formData.quantity" :min="1" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-
-          <el-col :xs="12" :sm="12">
-            <el-form-item label="购入价格">
-              <el-input-number
-                v-model="formData.price"
-                :precision="2"
-                :min="0"
-                placeholder="请输入价格"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-
-          <el-col :xs="12" :sm="12">
-            <el-form-item label="入手日期">
-              <el-date-picker
-                v-model="formData.purchase_date"
-                type="date"
-                placeholder="选择日期"
-                style="width: 100%"
-                value-format="YYYY-MM-DD"
-              />
-            </el-form-item>
-          </el-col>
-
-          <el-col :xs="12" :sm="12">
-            <el-form-item label="是否官谷">
-              <el-switch v-model="formData.is_official" active-text="是" inactive-text="否" inline-prompt />
-            </el-form-item>
-          </el-col>
-
-          <el-col :xs="24">
-            <el-form-item label="主图">
-              <el-upload
-                v-model:file-list="mainPhotoList"
-                list-type="picture-card"
-                :auto-upload="false"
-                :limit="1"
-                :on-change="handleMainPhotoChange"
-                :on-remove="handleMainPhotoRemove"
-                :on-preview="handlePictureCardPreview"
-                :http-request="dummyUpload"
-                :show-file-list="true"
-                :class="{ 'hide-upload-trigger': mainPhotoList.length >= 1 }"
-                :open-file-dialog-on-click="!isMobileUploadActionSheet"
-                accept="image/*"
-              >
-                <template #trigger>
-                  <!-- 移动端（APP/H5）：点击 + 弹出“拍照/相册”；桌面端保持原生文件选择 -->
-                  <span
-                    v-if="mainPhotoList.length < 1 && isMobileUploadActionSheet"
-                    class="main-photo-trigger"
-                    @click.stop.prevent="chooseMainPhotoSource"
-                  >
-                    <el-icon><Plus /></el-icon>
-                  </span>
-                  <el-icon v-else-if="mainPhotoList.length < 1"><Plus /></el-icon>
-                </template>
-              </el-upload>
-
-              <!-- 编辑模式：允许对原主图重新裁切/编辑 -->
-              <div v-if="route.params.id && (formData.main_photo || mainPhotoList.length)" class="main-photo-actions">
-                <el-button size="small" :icon="Edit" @click="handleReEditMainPhoto">重新编辑主图</el-button>
-              </div>
-
-              <!-- H5：分别用 capture / 非 capture 触发“拍照/相册”（隐藏 input，通过 + 号触发） -->
-              <input
-                v-if="isH5Mobile"
-                ref="cameraInputRef"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                style="display: none"
-                @change="handleH5MainPhotoPicked"
-              />
-              <input
-                v-if="isH5Mobile"
-                ref="albumInputRef"
-                type="file"
-                accept="image/*"
-                style="display: none"
-                @change="handleH5MainPhotoPicked"
-              />
-            </el-form-item>
-          </el-col>
-
-          <el-col :xs="24">
-            <el-form-item label="附件图片">
-              <div class="additional-photos-section">
-                <!-- 已有图片列表 -->
-                <div v-if="existingAdditionalPhotos.length > 0" class="existing-photos">
-                  <div
-                    v-for="(photo, index) in existingAdditionalPhotos"
-                    :key="photo.id"
-                    class="photo-item"
-                  >
-                    <el-image
-                      :src="photo.image"
-                      fit="cover"
-                      class="photo-preview"
-                      :preview-src-list="existingAdditionalPhotos.map(p => p.image)"
-                      :initial-index="index"
-                    >
-                      <template #error>
-                        <div class="image-error">
-                          <el-icon><Picture /></el-icon>
-                        </div>
-                      </template>
-                    </el-image>
-                    <div class="photo-actions">
-                      <el-input
-                        v-model="photo.label"
-                        placeholder="图片标签（可选）"
-                        size="small"
-                        class="photo-label-input"
-                        @blur="handlePhotoLabelChange(photo)"
-                      />
-                      <el-button
-                        type="danger"
-                        size="small"
-                        :icon="Delete"
-                        circle
-                        @click="handleRemoveExistingPhoto(photo.id)"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 新上传的图片列表 -->
-                <div v-if="newAdditionalPhotoFiles.length > 0" class="new-photos">
-                  <div
-                    v-for="(file, index) in newAdditionalPhotoFiles"
-                    :key="index"
-                    class="photo-item"
-                  >
-                    <el-image
-                      :src="file.preview"
-                      fit="cover"
-                      class="photo-preview"
-                      :preview-src-list="newAdditionalPhotoFiles.map(f => f.preview)"
-                      :initial-index="index"
-                    >
-                      <template #error>
-                        <div class="image-error">
-                          <el-icon><Picture /></el-icon>
-                        </div>
-                      </template>
-                    </el-image>
-                    <div class="photo-actions">
-                      <el-input
-                        v-model="file.label"
-                        placeholder="图片标签（可选）"
-                        size="small"
-                        class="photo-label-input"
-                      />
-                      <el-button
-                        type="danger"
-                        size="small"
-                        :icon="Delete"
-                        circle
-                        @click="handleRemoveNewPhoto(index)"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 上传按钮 -->
-                <el-upload
-                  v-model:file-list="additionalPhotoList"
-                  list-type="picture-card"
-                  :auto-upload="false"
-                  :on-change="handleAdditionalPhotoChange"
-                  :on-remove="handleAdditionalPhotoRemove"
-                  :http-request="dummyUpload"
-                  :show-file-list="false"
-                  accept="image/*"
-                  multiple
-                  class="additional-photo-upload"
+            <el-col :xs="24" :sm="12">
+              <el-form-item label="IP作品" prop="ip" class="is-required">
+                <el-select
+                  v-model="formData.ip"
+                  placeholder="选择IP"
+                  filterable
+                  @change="handleIpChange"
+                  style="width: 100%"
                 >
-                  <template #trigger>
-                    <el-icon><Plus /></el-icon>
-                  </template>
-                </el-upload>
-              </div>
-            </el-form-item>
-          </el-col>
+                  <el-option
+                    v-for="ip in ipOptions"
+                    :key="ip.id"
+                    :label="ip.name"
+                    :value="ip.id"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
 
-          <el-col :xs="24">
-            <el-form-item label="备注">
-              <el-input
-                v-model="formData.notes"
-                type="textarea"
-                :rows="4"
-                placeholder="请输入备注信息"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
+            <el-col :xs="24" :sm="12">
+              <el-form-item label="角色" prop="characters" class="is-required">
+                <el-select
+                  v-model="formData.characters"
+                  placeholder="选择角色（可多选）"
+                  filterable
+                  multiple
+                  :disabled="!formData.ip"
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="char in filteredCharacters"
+                    :key="char.id"
+                    :label="char.name"
+                    :value="char.id"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
 
-        <el-form-item>
-          <el-button type="primary" @click="handleSubmit" :loading="submitting">
-            提交
-          </el-button>
-          <el-button @click="handleReset">重置</el-button>
-          <el-button @click="handleCancel">取消</el-button>
-        </el-form-item>
+            <el-col :xs="24" :sm="12">
+              <el-form-item label="品类" prop="category" class="is-required">
+                <el-tree-select
+                  v-model="formData.category"
+                  :data="categoryTreeOptions"
+                  :props="{ label: 'name', value: 'id', children: 'children' }"
+                  placeholder="选择品类"
+                  style="width: 100%"
+                  clearable
+                  filterable
+                  check-strictly
+                />
+                <div v-if="selectedCategory" class="category-chip">
+                  <span
+                    class="color-dot"
+                    v-if="selectedCategory.color_tag"
+                    :style="{ backgroundColor: selectedCategory.color_tag || '#a3a3a3' }"
+                  ></span>
+                  <span class="chip-text">{{ selectedCategory.path_name || selectedCategory.name }}</span>
+                </div>
+              </el-form-item>
+            </el-col>
+
+            <el-col :xs="24" :sm="12">
+              <el-form-item label="主题">
+                <el-select
+                  v-model="formData.theme"
+                  placeholder="选择或创建主题"
+                  filterable
+                  allow-create
+                  default-first-option
+                  :reserve-keyword="true"
+                  @change="handleThemeChange"
+                  @create="handleThemeCreate"
+                  style="width: 100%"
+                  clearable
+                >
+                  <el-option
+                    v-for="theme in themeOptions"
+                    :key="theme.id"
+                    :label="theme.name"
+                    :value="theme.id"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
+
+            <el-col :xs="24" :sm="12">
+              <el-form-item label="状态" prop="status" class="is-required">
+                <el-radio-group v-model="formData.status" class="status-segmented">
+                  <el-radio-button label="in_cabinet">在馆</el-radio-button>
+                  <el-radio-button label="outdoor">出街中</el-radio-button>
+                  <el-radio-button label="sold">已售出</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+            </el-col>
+
+            <el-col :xs="24" :sm="12">
+              <el-form-item label="位置" prop="location">
+                <el-tree-select
+                  v-model="formData.location"
+                  :data="locationStore.treeData"
+                  placeholder="选择位置"
+                  clearable
+                  style="width: 100%"
+                  :props="{ label: 'label', value: 'id', children: 'children' }"
+                  check-strictly
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </section>
+
+        <!-- 数量与购入信息分区 -->
+        <section class="form-section form-section--meta">
+          <div class="form-section-header">
+            <h3 class="form-section-title">数量与购入</h3>
+            <p class="form-section-subtitle">记录数量、价格与购买时间</p>
+          </div>
+          <el-row :gutter="20">
+            <el-col :xs="12" :sm="12">
+              <el-form-item label="数量" prop="quantity" class="is-required">
+                <div class="field-with-icon">
+                  <span class="field-icon">📦</span>
+                  <el-input-number v-model="formData.quantity" :min="1" style="width: 100%" />
+                </div>
+              </el-form-item>
+            </el-col>
+
+            <el-col :xs="12" :sm="12">
+              <el-form-item label="购入价格">
+                <div class="field-with-icon">
+                  <span class="field-icon">￥</span>
+                  <el-input-number
+                    v-model="formData.price"
+                    :precision="2"
+                    :min="0"
+                    placeholder="请输入价格"
+                    style="width: 100%"
+                  />
+                </div>
+              </el-form-item>
+            </el-col>
+
+            <el-col :xs="12" :sm="12">
+              <el-form-item label="入手日期">
+                <div class="field-with-icon">
+                  <span class="field-icon">📅</span>
+                  <el-date-picker
+                    v-model="formData.purchase_date"
+                    type="date"
+                    placeholder="选择日期"
+                    style="width: 100%"
+                    value-format="YYYY-MM-DD"
+                  />
+                </div>
+              </el-form-item>
+            </el-col>
+
+            <el-col :xs="12" :sm="12">
+              <el-form-item label="是否官谷">
+                <el-switch v-model="formData.is_official" active-text="是" inactive-text="否" inline-prompt />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </section>
+
+        <!-- 图片分区 -->
+        <section class="form-section form-section--images">
+          <div class="form-section-header">
+            <h3 class="form-section-title">图片</h3>
+            <p class="form-section-subtitle">主图与细节图会直接影响云展柜观感</p>
+          </div>
+          <el-row :gutter="20">
+            <el-col :xs="24" :sm="10" :md="8">
+              <el-form-item label="主图">
+                <div class="main-photo-card-shell">
+                  <el-upload
+                    v-model:file-list="mainPhotoList"
+                    list-type="picture-card"
+                    :auto-upload="false"
+                    :limit="1"
+                    :on-change="handleMainPhotoChange"
+                    :on-remove="handleMainPhotoRemove"
+                    :on-preview="handlePictureCardPreview"
+                    :http-request="dummyUpload"
+                    :show-file-list="true"
+                    class="main-photo-uploader"
+                    :class="{ 'hide-upload-trigger': mainPhotoList.length >= 1 }"
+                    :open-file-dialog-on-click="!isMobileUploadActionSheet"
+                    accept="image/*"
+                  >
+                    <template #trigger>
+                      <!-- 移动端（APP/H5）：点击 + 弹出“拍照/相册”；桌面端保持原生文件选择 -->
+                      <span
+                        v-if="mainPhotoList.length < 1 && isMobileUploadActionSheet"
+                        class="main-photo-trigger"
+                        @click.stop.prevent="chooseMainPhotoSource"
+                      >
+                        <el-icon><Plus /></el-icon>
+                      </span>
+                      <el-icon v-else-if="mainPhotoList.length < 1"><Plus /></el-icon>
+                    </template>
+                  </el-upload>
+                </div>
+
+                <!-- 编辑模式：允许对原主图重新裁切/编辑 -->
+                <div v-if="route.params.id && (formData.main_photo || mainPhotoList.length)" class="main-photo-actions">
+                  <el-button size="small" :icon="Edit" @click="handleReEditMainPhoto">重新编辑主图</el-button>
+                </div>
+
+                <!-- H5：分别用 capture / 非 capture 触发“拍照/相册”（隐藏 input，通过 + 号触发） -->
+                <input
+                  v-if="isH5Mobile"
+                  ref="cameraInputRef"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  style="display: none"
+                  @change="handleH5MainPhotoPicked"
+                />
+                <input
+                  v-if="isH5Mobile"
+                  ref="albumInputRef"
+                  type="file"
+                  accept="image/*"
+                  style="display: none"
+                  @change="handleH5MainPhotoPicked"
+                />
+              </el-form-item>
+            </el-col>
+
+            <el-col :xs="24" :sm="14" :md="16">
+              <el-form-item label="附件图片">
+                <div class="additional-photos-section">
+                  <!-- 已有图片列表 -->
+                  <div v-if="existingAdditionalPhotos.length > 0" class="existing-photos">
+                    <div
+                      v-for="(photo, index) in existingAdditionalPhotos"
+                      :key="photo.id"
+                      class="photo-item"
+                    >
+                      <el-image
+                        :src="photo.image"
+                        fit="cover"
+                        class="photo-preview"
+                        :preview-src-list="existingAdditionalPhotos.map(p => p.image)"
+                        :initial-index="index"
+                      >
+                        <template #error>
+                          <div class="image-error">
+                            <el-icon><Picture /></el-icon>
+                          </div>
+                        </template>
+                      </el-image>
+                      <div class="photo-actions">
+                        <el-input
+                          v-model="photo.label"
+                          placeholder="图片标签（可选）"
+                          size="small"
+                          class="photo-label-input"
+                          @blur="handlePhotoLabelChange(photo)"
+                        />
+                        <el-button
+                          type="danger"
+                          size="small"
+                          :icon="Delete"
+                          circle
+                          @click="handleRemoveExistingPhoto(photo.id)"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 新上传的图片列表 -->
+                  <div v-if="newAdditionalPhotoFiles.length > 0" class="new-photos">
+                    <div
+                      v-for="(file, index) in newAdditionalPhotoFiles"
+                      :key="index"
+                      class="photo-item"
+                    >
+                      <el-image
+                        :src="file.preview"
+                        fit="cover"
+                        class="photo-preview"
+                        :preview-src-list="newAdditionalPhotoFiles.map(f => f.preview)"
+                        :initial-index="index"
+                      >
+                        <template #error>
+                          <div class="image-error">
+                            <el-icon><Picture /></el-icon>
+                          </div>
+                        </template>
+                      </el-image>
+                      <div class="photo-actions">
+                        <el-input
+                          v-model="file.label"
+                          placeholder="图片标签（可选）"
+                          size="small"
+                          class="photo-label-input"
+                        />
+                        <el-button
+                          type="danger"
+                          size="small"
+                          :icon="Delete"
+                          circle
+                          @click="handleRemoveNewPhoto(index)"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 上传按钮 -->
+                  <el-upload
+                    v-model:file-list="additionalPhotoList"
+                    list-type="picture-card"
+                    :auto-upload="false"
+                    :on-change="handleAdditionalPhotoChange"
+                    :on-remove="handleAdditionalPhotoRemove"
+                    :http-request="dummyUpload"
+                    :show-file-list="false"
+                    accept="image/*"
+                    multiple
+                    class="additional-photo-upload"
+                  >
+                    <template #trigger>
+                      <el-icon><Plus /></el-icon>
+                    </template>
+                  </el-upload>
+                </div>
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </section>
+
+        <!-- 备注分区 -->
+        <section class="form-section form-section--notes">
+          <div class="form-section-header">
+            <h3 class="form-section-title">备注</h3>
+            <p class="form-section-subtitle">可以记录店铺、工艺、画师等细节</p>
+          </div>
+          <el-row :gutter="20">
+            <el-col :xs="24">
+              <el-form-item label="备注">
+                <el-input
+                  v-model="formData.notes"
+                  type="textarea"
+                  :rows="4"
+                  placeholder="请输入备注信息"
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </section>
+
       </el-form>
-    </el-card>
+
+    <!-- 底部吸底操作栏 -->
+    <div class="sticky-action-bar">
+      <div class="sticky-action-inner">
+        <el-button class="sticky-btn sticky-btn--secondary" @click="handleCancel">取消</el-button>
+        <el-button class="sticky-btn sticky-btn--secondary" @click="handleReset">重置</el-button>
+        <el-button
+          type="primary"
+          class="sticky-btn sticky-btn--primary"
+          @click="handleSubmit"
+          :loading="submitting"
+        >
+          提交
+        </el-button>
+      </div>
+    </div>
 
     <!-- 移动端主图选择抽屉 -->
     <el-drawer
@@ -1746,15 +1800,150 @@ onUnmounted(() => {
 
 <style scoped>
 .goods-form {
-  padding: 20px;
+  padding: 24px;
   max-width: 1200px;
   margin: 0 auto;
 }
 
-.card-header {
-  font-weight: bold;
+.goods-form-header {
+  margin-bottom: 16px;
+}
+
+.goods-form-title {
+  font-size: 20px;
+  font-weight: 600;
   color: var(--primary-gold);
+}
+
+.goods-el-form {
+  margin-top: 4px;
+}
+
+/* 分区卡片布局 */
+.form-section {
+  margin-bottom: 20px;
+  padding: 16px 18px 18px;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(17, 24, 39, 0.04);
+}
+
+.form-section--images {
+  background: radial-gradient(circle at top left, #ffffff, #fafbff);
+}
+
+.form-section-header {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.form-section-title {
+  margin: 0 0 4px;
   font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.form-section-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: #909399;
+}
+
+.form-section-header::before {
+  content: '';
+  width: 3px;
+  height: 20px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--primary-gold), #d9c18a);
+  align-self: center;
+}
+
+.form-actions-inline {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.form-actions-inline :deep(.el-button) {
+  border-radius: 999px;
+}
+
+/* 统一表单控件风格 */
+.goods-form :deep(.el-form-item) {
+  margin-bottom: 26px;
+}
+
+.goods-form :deep(.el-input__wrapper),
+.goods-form :deep(.el-textarea__inner),
+.goods-form :deep(.el-select .el-input__wrapper),
+.goods-form :deep(.el-input-number__decrease),
+.goods-form :deep(.el-input-number__increase),
+.goods-form :deep(.el-date-editor.el-input__wrapper),
+.goods-form :deep(.el-date-editor.el-input) {
+  border-radius: 10px;
+  border-color: #e5e5e5;
+  background-color: #ffffff;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.goods-form :deep(.el-input__wrapper:hover),
+.goods-form :deep(.el-textarea__inner:hover),
+.goods-form :deep(.el-select .el-input__wrapper:hover),
+.goods-form :deep(.el-date-editor.el-input__wrapper:hover) {
+  border-color: #d0d0d7;
+  box-shadow: 0 0 0 1px rgba(208, 208, 215, 0.3);
+}
+
+.goods-form :deep(.el-input.is-focus .el-input__wrapper),
+.goods-form :deep(.el-select .el-input.is-focus .el-input__wrapper),
+.goods-form :deep(.el-textarea__inner:focus),
+.goods-form :deep(.el-date-editor.el-input__wrapper.is-active) {
+  border-color: var(--primary-gold);
+  box-shadow:
+    0 0 0 1px rgba(195, 160, 80, 0.35),
+    0 10px 18px rgba(0, 0, 0, 0.06);
+}
+
+.goods-form :deep(.el-button) {
+  border-radius: 10px;
+}
+
+/* Label 与必填星号弱化 */
+.goods-form :deep(.el-form-item__label) {
+  color: #606266;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.goods-form :deep(.el-form-item__label .el-form-item__required-star) {
+  color: #f56c6c;
+  font-size: 12px;
+  margin-left: 2px;
+}
+
+.goods-form :deep(.el-form-item.is-required .el-form-item__label) {
+  position: relative;
+}
+
+/* 图标化表单项 */
+.field-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+  color: #909399;
 }
 
 .category-chip {
@@ -1794,6 +1983,10 @@ onUnmounted(() => {
   border-radius: 4px;
 }
 
+.main-photo-card-shell {
+  display: inline-block;
+}
+
 .hide-upload-trigger :deep(.el-upload--picture-card) {
   display: none;
 }
@@ -1815,6 +2008,43 @@ onUnmounted(() => {
   height: 100%;
   border: 1px solid var(--border-color);
   border-radius: 4px;
+}
+
+.main-photo-uploader :deep(.el-upload--picture-card) {
+  width: 220px;
+  height: 220px;
+  border-radius: 16px;
+  border: 1px dashed #e0e3f0;
+  border-color: #e0e3f0;
+  background: #fafbff;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.main-photo-uploader :deep(.el-upload--picture-card:hover) {
+  border-color: var(--primary-gold);
+  background: #fdfaf3;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+.main-photo-uploader :deep(.el-upload--picture-card .el-icon) {
+  font-size: 26px;
+  color: #b1b5c6;
+}
+
+/* 统一附件加号卡片的虚线更轻、更稀疏 */
+.additional-photo-upload :deep(.el-upload--picture-card) {
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+  border-style: dashed;
+  border-width: 1px;
+  border-color: #e7e9f4;
+  background-color: #fbfbff;
 }
 
 :deep(.el-upload--picture-card) {
@@ -1856,9 +2086,12 @@ onUnmounted(() => {
 .photo-preview {
   width: 100%;
   height: 120px;
-  border-radius: 4px;
+  border-radius: 10px;
   border: 1px solid var(--border-color);
   overflow: hidden;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 @media (max-width: 768px) {
@@ -1894,6 +2127,39 @@ onUnmounted(() => {
 .additional-photo-upload :deep(.el-upload--picture-card) {
   width: 120px;
   height: 120px;
+  border-radius: 12px;
+  border-style: dashed;
+}
+
+/* 状态分段选择器视觉（基于 el-radio-button） */
+.status-segmented {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.status-segmented :deep(.el-radio-button__inner) {
+  border-radius: 999px !important;
+  border: none;
+  background-color: transparent;
+  box-shadow: none;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #606266;
+}
+
+.status-segmented :deep(.el-radio-button:first-child .el-radio-button__inner),
+.status-segmented :deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-radius: 999px !important;
+}
+
+.status-segmented :deep(.el-radio-button__orig-radio:checked + .el-radio-button__inner) {
+  background: linear-gradient(135deg, #a396ff 0%, var(--primary-gold) 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(163, 150, 255, 0.35);
+}
+
+.status-segmented :deep(.el-radio-button__inner:hover) {
+  background-color: rgba(0, 0, 0, 0.03);
 }
 
 @media (max-width: 768px) {

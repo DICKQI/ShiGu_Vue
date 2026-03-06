@@ -1491,6 +1491,15 @@ const handleCropConfirm = async () => {
       }
     } else if (selectedAspectRatio.value === 'free') {
       try {
+        if (enableRoundedRect.value && roundedRadius.value > 0) {
+          const roundedFile = await applyRoundedRectMaskToBlob(croppedFile, roundedRadius.value)
+          if (previewUrl && previewUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(previewUrl)
+          }
+          croppedFile = roundedFile
+          previewUrl = URL.createObjectURL(roundedFile)
+        }
+
         const squareBlob = await applyFreeCropSquareBlob(croppedFile)
         const squareFile = new File([squareBlob], `main_photo_${Date.now()}.png`, { type: 'image/png' })
         if (previewUrl && previewUrl.startsWith('blob:')) {
@@ -1507,7 +1516,7 @@ const handleCropConfirm = async () => {
 
     // 自由 / 1:1 比例下，按需应用圆角矩形遮罩（失败时回退为普通矩形，不中断流程）
     if (
-      (selectedAspectRatio.value === 'free' || selectedAspectRatio.value === '1:1') &&
+      selectedAspectRatio.value === '1:1' &&
       enableRoundedRect.value &&
       roundedRadius.value > 0
     ) {

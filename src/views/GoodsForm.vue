@@ -526,6 +526,25 @@
             </div>
           </div>
 
+          <!-- 边距设置：输出尺寸不变，内容缩小居中，四周白色留边（所有比例可用） -->
+          <div class="margin-settings">
+            <div class="rounded-header-row">
+              <span class="rounded-title">边距</span>
+              <el-switch v-model="enableMargin" size="small" />
+            </div>
+            <div class="rounded-radius-row" :class="{ 'is-disabled': !enableMargin }">
+              <span class="rounded-label">边距大小</span>
+              <el-slider
+                v-model="marginPercent"
+                :min="0"
+                :max="30"
+                :disabled="!enableMargin"
+                :format-tooltip="(val: number) => val + '%'"
+              />
+              <span class="rounded-value">{{ marginPercent }}%</span>
+            </div>
+          </div>
+
           <!-- 裁切组件 -->
           <div
             class="cropper-wrapper"
@@ -549,6 +568,20 @@
               :options="cropperOptions"
               :style="cropperStyle"
             />
+          </div>
+
+          <!-- 实时输出预览（低分辨率，尽量贴近最终导出顺序） -->
+          <div class="live-preview">
+            <div class="live-preview-header">
+              <span class="live-preview-title">输出预览</span>
+              <span class="live-preview-hint">低清预览</span>
+            </div>
+            <div class="live-preview-card" :class="{ 'is-loading': livePreviewLoading }">
+              <img v-if="livePreviewUrl" :src="livePreviewUrl" class="live-preview-img" />
+              <div v-else class="live-preview-placeholder">
+                {{ livePreviewLoading ? '预览生成中...' : '调整裁切框或参数以生成预览' }}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -701,6 +734,11 @@ const showRoundedControls = computed(() => {
   return selectedAspectRatio.value === 'free' || selectedAspectRatio.value === '1:1'
 })
 
+// 边距（类似 margin）：输出尺寸不变，内容缩小居中，四周白色留边
+const enableMargin = ref(false)
+// 0-30%，表示相对于输出边长的边距比例（四边一致）
+const marginPercent = ref(8)
+
 // 图像滤镜状态
 const filterState = ref({
   brightness: 100,
@@ -715,6 +753,134 @@ const resetFilters = () => {
     saturation: 100
   }
 }
+
+// 实时输出预览（低分辨率）
+const livePreviewUrl = ref<string>('')
+const livePreviewLoading = ref(false)
+let livePreviewTimer: number | undefined
+let livePreviewSeq = 0
+
+const clearLivePreviewUrl = () => {
+  if (livePreviewUrl.value && livePreviewUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(livePreviewUrl.value)
+  }
+  livePreviewUrl.value = ''
+}
+
+const scheduleLivePreviewRefresh = () => {
+  if (!cropDialogVisible.value) return
+  if (typeof window === 'undefined') return
+  if (livePreviewTimer) {
+    window.clearTimeout(livePreviewTimer)
+  }
+  livePreviewTimer = window.setTimeout(() => {
+    refreshLivePreview()
+  }, 280)
+}
+
+const refreshLivePreview = async () => {
+  if (!cropDialogVisible.value) return
+  const seq = ++livePreviewSeq
+  livePreviewLoading.value = true
+
+  try {
+    const cropperInstance = getCropperInstance()
+    if (!cropperInstance) return
+
+    // 取低分辨率裁切结果用于预览
+    let baseBlob: Blob | null = null
+    if (typeof cropperInstance.getBlob === 'function') {
+      try {
+        baseBlob = await cropperInstance.getBlob({
+          width: 768,
+          height: 768,
+          mimeType: 'image/png',
+          quality: 0.92,
+        })
+      } catch (e) {
+        baseBlob = null
+      }
+    }
+    if (!baseBlob && typeof cropperInstance.getDataURL === 'function') {
+      try {
+        const dataURL = cropperInstance.getDataURL({
+          width: 768,
+          height: 768,
+          mimeType: 'image/png',
+          quality: 0.92,
+        })
+        if (dataURL) {
+          const resp = await fetch(dataURL)
+          baseBlob = await resp.blob()
+        }
+      } catch (e) {
+        baseBlob = null
+      }
+    }
+
+    if (!baseBlob) return
+
+    let workingFile = new File([baseBlob], `preview_${Date.now()}.png`, { type: 'image/png' })
+
+    // 形状与补白/圆角顺序尽量贴近最终导出
+    if (selectedAspectRatio.value === 'circle') {
+      const masked = await applyCircleMaskToBlob(workingFile)
+      workingFile = new File([masked], `preview_${Date.now()}.png`, { type: 'image/png' })
+    } else if (selectedAspectRatio.value.endsWith('-ellipse')) {
+      const masked = await applyEllipseMaskToBlob(workingFile)
+      workingFile = new File([masked], `preview_${Date.now()}.png`, { type: 'image/png' })
+    } else if (selectedAspectRatio.value === 'free') {
+      if (enableRoundedRect.value && roundedRadius.value > 0) {
+        workingFile = await applyRoundedRectMaskToBlob(workingFile, roundedRadius.value)
+      }
+      const square = await applyFreeCropSquareBlob(workingFile)
+      workingFile = new File([square], `preview_${Date.now()}.png`, { type: 'image/png' })
+    } else if (selectedAspectRatio.value === '1:1') {
+      if (enableRoundedRect.value && roundedRadius.value > 0) {
+        workingFile = await applyRoundedRectMaskToBlob(workingFile, roundedRadius.value)
+      }
+    }
+
+    if (enableMargin.value && marginPercent.value > 0) {
+      const marginBlob = await applyMarginToBlob(workingFile, marginPercent.value)
+      workingFile = new File([marginBlob], `preview_${Date.now()}.png`, { type: 'image/png' })
+    }
+
+    const filtered = await applyFiltersToImage(workingFile)
+
+    if (seq !== livePreviewSeq) return
+
+    const nextUrl = URL.createObjectURL(filtered)
+    const prevUrl = livePreviewUrl.value
+    livePreviewUrl.value = nextUrl
+    if (prevUrl && prevUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(prevUrl)
+    }
+  } catch (e) {
+    // 预览失败不打断用户操作
+  } finally {
+    if (seq === livePreviewSeq) {
+      livePreviewLoading.value = false
+    }
+  }
+}
+
+watch(
+  () => [selectedAspectRatio.value, enableRoundedRect.value, roundedRadius.value, enableMargin.value, marginPercent.value],
+  () => scheduleLivePreviewRefresh()
+)
+watch(filterState, () => scheduleLivePreviewRefresh(), { deep: true })
+watch(cropDialogVisible, (open) => {
+  if (!open) {
+    if (typeof window !== 'undefined' && livePreviewTimer) {
+      window.clearTimeout(livePreviewTimer)
+      livePreviewTimer = undefined
+    }
+    clearLivePreviewUrl()
+  } else {
+    scheduleLivePreviewRefresh()
+  }
+})
 
 // 动态计算滤镜样式，用于预览
 const cropperStyle = computed(() => {
@@ -751,6 +917,7 @@ const cropperOptions = computed(() => {
     cropBoxResizable: true, // 允许调整裁切框大小（但仍受 viewMode 限制）
     // 确保裁切框始终在图片范围内
     strict: true, // 严格模式，确保裁切框不超出图片
+    crop: () => scheduleLivePreviewRefresh(),
   }
 
   // 根据选择的比例设置 aspectRatio
@@ -1090,6 +1257,12 @@ const openCropDialog = (file: File, previewUrl?: string) => {
   // 重置圆角矩形设置
   enableRoundedRect.value = false
   roundedRadius.value = 20
+  // 重置边距设置
+  enableMargin.value = false
+  marginPercent.value = 8
+
+  clearLivePreviewUrl()
+  scheduleLivePreviewRefresh()
 }
 
 // 编辑模式：把原主图拉进裁切器重新编辑
@@ -1334,6 +1507,37 @@ const applyFreeCropSquareBlob = async (input: Blob) => {
   return outBlob
 }
 
+// 边距（类似 margin）：输出尺寸不变，内容缩小居中，四周白色留边
+const applyMarginToBlob = async (input: Blob, marginPercent: number) => {
+  const bitmapOrImg = await blobToImageBitmap(input)
+  const width = (bitmapOrImg as any).width
+  const height = (bitmapOrImg as any).height
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 不可用')
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, width, height)
+
+  const clamped = Math.max(0, Math.min(marginPercent, 45))
+  const m = clamped / 100
+  const scale = Math.max(0.01, 1 - 2 * m)
+  const drawW = width * scale
+  const drawH = height * scale
+  const dx = (width - drawW) / 2
+  const dy = (height - drawH) / 2
+
+  ctx.drawImage(bitmapOrImg as any, dx, dy, drawW, drawH)
+
+  const outBlob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('导出边距图片失败'))), 'image/png', 0.92)
+  })
+  return outBlob
+}
+
 // 确认裁切
 const handleCropConfirm = async () => {
   if (!pictureCropperRef.value || !cropImageFile.value) {
@@ -1533,6 +1737,22 @@ const handleCropConfirm = async () => {
       }
     }
 
+    // 边距：输出尺寸不变，内容缩小居中，四周白色留边（所有比例可用）
+    if (enableMargin.value && marginPercent.value > 0) {
+      try {
+        const marginBlob = await applyMarginToBlob(croppedFile, marginPercent.value)
+        const marginFile = new File([marginBlob], `main_photo_${Date.now()}.png`, { type: 'image/png' })
+        if (previewUrl && previewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(previewUrl)
+        }
+        croppedFile = marginFile
+        previewUrl = URL.createObjectURL(marginBlob)
+      } catch (e: any) {
+        ElMessage.error('边距处理失败：' + (e?.message || '未知错误'))
+        // 不中断，继续使用未加边距的结果
+      }
+    }
+
     // 应用滤镜到最终图片
     const filteredFile = await applyFiltersToImage(croppedFile)
 
@@ -1607,6 +1827,12 @@ const handleCropDialogClose = () => {
   }
   cropImageSrc.value = ''
   cropImageFile.value = null
+
+  if (typeof window !== 'undefined' && livePreviewTimer) {
+    window.clearTimeout(livePreviewTimer)
+    livePreviewTimer = undefined
+  }
+  clearLivePreviewUrl()
 }
 
 // 附件图片处理函数
@@ -1927,6 +2153,12 @@ onUnmounted(() => {
   if (cropImageSrc.value && cropImageSrc.value.startsWith('blob:')) {
     URL.revokeObjectURL(cropImageSrc.value)
   }
+  // 清理实时输出预览URL
+  if (typeof window !== 'undefined' && livePreviewTimer) {
+    window.clearTimeout(livePreviewTimer)
+    livePreviewTimer = undefined
+  }
+  clearLivePreviewUrl()
   // 清理主图预览URL
   mainPhotoList.value.forEach((file) => {
     if (file.url && file.url.startsWith('blob:')) {
@@ -2619,11 +2851,13 @@ onUnmounted(() => {
 }
 
 /* 让圆角大小滑块与图像微调滑块风格保持一致 */
-.rounded-rect-settings :deep(.el-slider__runway) {
+.rounded-rect-settings :deep(.el-slider__runway),
+.margin-settings :deep(.el-slider__runway) {
   position: relative;
 }
 
-.rounded-rect-settings :deep(.el-slider__runway::before) {
+.rounded-rect-settings :deep(.el-slider__runway::before),
+.margin-settings :deep(.el-slider__runway::before) {
   content: '';
   position: absolute;
   top: 2px;
@@ -2634,11 +2868,13 @@ onUnmounted(() => {
   transform: translateX(-0.5px);
 }
 
-.rounded-rect-settings :deep(.el-slider__bar) {
+.rounded-rect-settings :deep(.el-slider__bar),
+.margin-settings :deep(.el-slider__bar) {
   background-color: var(--primary-gold);
 }
 
-.rounded-rect-settings :deep(.el-slider__button) {
+.rounded-rect-settings :deep(.el-slider__button),
+.margin-settings :deep(.el-slider__button) {
   border-color: transparent;
   background-color: #ffffff;
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.22);
@@ -2651,6 +2887,71 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.16);
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+/* 边距设置区域：复用圆角设置的布局风格 */
+.margin-settings {
+  margin-bottom: 12px;
+  padding: 10px 10px 8px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+/* 实时输出预览 */
+.live-preview {
+  margin-top: 12px;
+}
+
+.live-preview-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.live-preview-title {
+  font-size: 13px;
+  color: #606266;
+}
+
+.live-preview-hint {
+  font-size: 12px;
+  color: #909399;
+}
+
+.live-preview-card {
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background:
+    linear-gradient(45deg, rgba(15, 23, 42, 0.05) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(15, 23, 42, 0.05) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(15, 23, 42, 0.05) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(15, 23, 42, 0.05) 75%),
+    #f7f8fa;
+  background-size: 18px 18px;
+  background-position: 0 0, 0 9px, 9px -9px, -9px 0px, 0 0;
+  padding: 10px;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.live-preview-img {
+  width: 100%;
+  height: 160px;
+  object-fit: contain;
+  display: block;
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.18),
+    0 12px 28px rgba(15, 23, 42, 0.18);
+}
+
+.live-preview-placeholder {
+  font-size: 12px;
+  color: #909399;
 }
 
 .rounded-header-row {

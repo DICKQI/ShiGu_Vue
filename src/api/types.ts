@@ -313,6 +313,8 @@ export interface GoodsDuplicateCandidate {
   purchase_date?: string | null
   price?: string | null
   created_at: string
+  /** 重复谷子的主图绝对 URL，无主图时为 null，便于前端展示缩略图 */
+  main_photo_url?: string | null
 }
 
 /** 409 重复检测响应体 */

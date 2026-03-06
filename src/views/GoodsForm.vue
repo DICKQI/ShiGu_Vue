@@ -566,45 +566,45 @@
     <!-- 新建去重：检测到可能重复的谷子时选择合并或新建 -->
     <el-dialog
       v-model="duplicateDialogVisible"
-      title="检测到可能重复的谷子"
-      width="min(90vw, 560px)"
+      width="min(92vw, 644px)"
       class="duplicate-dialog"
       :close-on-click-modal="false"
       @close="setDuplicateSelectedId(null)"
     >
+      <template #header>
+        <span class="duplicate-dialog-title">检测到库存中已存在相同项目</span>
+      </template>
       <p class="duplicate-dialog-desc">以下谷子与当前填写信息可能重复，请选择合并到已有条目或仍然新建一条。</p>
       <div class="duplicate-candidates-list">
         <div
           v-for="c in duplicateCandidates"
           :key="c.id"
-          class="duplicate-candidate-item"
+          class="duplicate-candidate-card"
           :class="{ 'is-selected': duplicateSelectedId === c.id }"
           @click="setDuplicateSelectedId(c.id)"
         >
-          <el-radio :model-value="duplicateSelectedId" :value="c.id" @update:model-value="setDuplicateSelectedId($event)">
+          <div class="duplicate-candidate-thumb">
+            <img v-if="c.main_photo_url" :src="c.main_photo_url" :alt="c.name" class="candidate-thumb-img" />
+            <span v-else class="candidate-thumb-placeholder">无图</span>
+          </div>
+          <div class="duplicate-candidate-main">
             <span class="candidate-name">{{ c.name }}</span>
-            <span class="candidate-meta">
-              数量 {{ c.quantity }}
-              <template v-if="c.purchase_date"> · 入手 {{ c.purchase_date }}</template>
-              <template v-if="c.price"> · 单价 {{ c.price }}</template>
-              · 创建于 {{ formatCandidateCreatedAt(c.created_at) }}
-            </span>
-          </el-radio>
+            <span class="candidate-meta">当前库存 {{ c.quantity }}</span>
+          </div>
+          <div class="duplicate-candidate-time">{{ formatCandidateCreatedAt(c.created_at) }}</div>
         </div>
       </div>
       <template #footer>
-        <div class="dialog-footer">
+        <div class="duplicate-dialog-footer">
           <el-button @click="duplicateDialogVisible = false">取消</el-button>
+          <el-button @click="handleDuplicateNew" :loading="submitting">独立新建</el-button>
           <el-button
-            type="primary"
+            class="duplicate-merge-btn"
             :disabled="!duplicateSelectedId"
             :loading="submitting"
             @click="handleDuplicateMerge"
           >
-            合并到该条（数量累加）
-          </el-button>
-          <el-button :loading="submitting" @click="handleDuplicateNew">
-            仍然新建一条
+            合并到此条(数量+N)
           </el-button>
         </div>
       </template>
@@ -2810,59 +2810,133 @@ onUnmounted(() => {
 
 /* 新建去重弹窗 */
 .duplicate-dialog :deep(.el-dialog__body) {
-  padding-top: 8px;
+  padding-top: 12px;
+}
+
+.duplicate-dialog-title {
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: var(--el-text-color-primary);
 }
 
 .duplicate-dialog-desc {
-  margin: 0 0 12px;
+  margin: 0 0 16px;
   font-size: 14px;
-  color: #606266;
+  color: #909399;
   line-height: 1.5;
 }
 
 .duplicate-candidates-list {
-  max-height: 280px;
+  max-height: 320px;
   overflow-y: auto;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.duplicate-candidate-item {
-  padding: 10px 12px;
+.duplicate-candidate-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background: var(--el-fill-color-blank);
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: border-color 0.2s, background-color 0.2s;
 }
 
-.duplicate-candidate-item:hover,
-.duplicate-candidate-item.is-selected {
-  background-color: var(--el-fill-color-light);
+.duplicate-candidate-card:hover {
+  background: var(--el-fill-color-light);
 }
 
-.duplicate-candidate-item :deep(.el-radio) {
+.duplicate-candidate-card.is-selected {
+  border-color: #D4AF37;
+  background: rgba(212, 175, 55, 0.06);
+}
+
+.duplicate-candidate-thumb {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-lighter);
+  overflow: hidden;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
+}
+
+.duplicate-candidate-thumb .candidate-thumb-img {
   width: 100%;
-  margin-right: 0;
-  height: auto;
+  height: 100%;
+  object-fit: cover;
 }
 
-.duplicate-candidate-item :deep(.el-radio__label) {
+.duplicate-candidate-thumb .candidate-thumb-placeholder {
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
+}
+
+.duplicate-candidate-main {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  gap: 4px;
 }
 
-.duplicate-candidate-item .candidate-name {
+.duplicate-candidate-card .candidate-name {
+  font-size: 16px;
   font-weight: 500;
-  color: var(--el-text-color-primary);
+  color: #1a1a1a;
 }
 
-.duplicate-candidate-item .candidate-meta {
+.duplicate-candidate-card .candidate-meta {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: #909399;
+}
+
+.duplicate-candidate-time {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #909399;
+}
+
+.duplicate-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+.duplicate-dialog-footer .el-button:first-child {
+  color: #606266;
+  border-color: var(--el-border-color);
+}
+
+.duplicate-dialog-footer .el-button:nth-child(2) {
+  border-color: var(--el-border-color);
+}
+
+.duplicate-dialog-footer .duplicate-merge-btn {
+  background-color: #E2C04A;
+  border-color: #E2C04A;
+  color: #1a1a1a;
+}
+
+.duplicate-dialog-footer .duplicate-merge-btn:hover,
+.duplicate-dialog-footer .duplicate-merge-btn:focus {
+  background-color: #D9B83D;
+  border-color: #D9B83D;
+  color: #1a1a1a;
+}
+
+.duplicate-dialog-footer .duplicate-merge-btn:disabled {
+  background-color: var(--el-fill-color);
+  border-color: var(--el-border-color-lighter);
+  color: var(--el-text-color-placeholder);
 }
 
 </style>

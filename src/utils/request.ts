@@ -115,6 +115,10 @@ axiosInstance.interceptors.response.use(
       ElMessage.warning('搜索太快了，请稍后再试')
       return Promise.reject(error)
     }
+    // 409 由业务层（如谷子新建去重弹窗）单独处理，不弹全局错误
+    if (status === 409) {
+      return Promise.reject(error)
+    }
     // 处理其他错误
     const message = error.response?.data?.detail || error.message || '请求失败'
     ElMessage.error(message)

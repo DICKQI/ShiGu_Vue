@@ -297,6 +297,29 @@ export interface GoodsInput {
   is_official?: boolean
   notes?: string | null
   main_photo?: string | null
+  /** 新建去重：auto=检测到重复时返回409，new=始终新建，merge=合并到候选 */
+  merge_strategy?: 'auto' | 'new' | 'merge'
+  /** 当 merge_strategy=merge 且候选多于一条时必填，为要合并到的目标谷子 UUID */
+  merge_target_id?: string
+}
+
+/** 409 重复检测返回的候选谷子项（与 api 4.3 一致） */
+export interface GoodsDuplicateCandidate {
+  id: string
+  name: string
+  quantity: number
+  ip: IP
+  characters: Character[]
+  purchase_date?: string | null
+  price?: string | null
+  created_at: string
+}
+
+/** 409 重复检测响应体 */
+export interface GoodsDuplicateResponse {
+  detail: string
+  code: 'goods_duplicate'
+  candidates: GoodsDuplicateCandidate[]
 }
 
 // 谷子排序移动响应

@@ -563,6 +563,53 @@
       </template>
     </el-dialog>
 
+    <!-- 新建去重：检测到可能重复的谷子时选择合并或新建 -->
+    <el-dialog
+      v-model="duplicateDialogVisible"
+      title="检测到可能重复的谷子"
+      width="min(90vw, 560px)"
+      class="duplicate-dialog"
+      :close-on-click-modal="false"
+      @close="setDuplicateSelectedId(null)"
+    >
+      <p class="duplicate-dialog-desc">以下谷子与当前填写信息可能重复，请选择合并到已有条目或仍然新建一条。</p>
+      <div class="duplicate-candidates-list">
+        <div
+          v-for="c in duplicateCandidates"
+          :key="c.id"
+          class="duplicate-candidate-item"
+          :class="{ 'is-selected': duplicateSelectedId === c.id }"
+          @click="setDuplicateSelectedId(c.id)"
+        >
+          <el-radio :model-value="duplicateSelectedId" :value="c.id" @update:model-value="setDuplicateSelectedId($event)">
+            <span class="candidate-name">{{ c.name }}</span>
+            <span class="candidate-meta">
+              数量 {{ c.quantity }}
+              <template v-if="c.purchase_date"> · 入手 {{ c.purchase_date }}</template>
+              <template v-if="c.price"> · 单价 {{ c.price }}</template>
+              · 创建于 {{ formatCandidateCreatedAt(c.created_at) }}
+            </span>
+          </el-radio>
+        </div>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="duplicateDialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            :disabled="!duplicateSelectedId"
+            :loading="submitting"
+            @click="handleDuplicateMerge"
+          >
+            合并到该条（数量累加）
+          </el-button>
+          <el-button :loading="submitting" @click="handleDuplicateNew">
+            仍然新建一条
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
     <!-- 图片预览 (使用 el-image-viewer 以匹配附件图片预览效果) -->
     <el-image-viewer
       v-if="previewVisible"
@@ -583,7 +630,7 @@ import VuePictureCropper, { cropper } from 'vue-picture-cropper'
 import { useLocationStore } from '@/stores/location'
 import { createGoods, updateGoods, getGoodsDetail, uploadMainPhoto, uploadAdditionalPhotos, deleteAdditionalPhoto, updateAdditionalPhotoLabel } from '@/api/goods'
 import { getIPList, getCharacterList, getCategoryList, getThemeList, createTheme } from '@/api/metadata'
-import type { GoodsDetail, IP, Character, Category, GuziImage, Theme } from '@/api/types'
+import type { GoodsDetail, IP, Character, Category, GuziImage, Theme, GoodsDuplicateCandidate, GoodsInput } from '@/api/types'
 
 const router = useRouter()
 const route = useRoute()
@@ -591,6 +638,12 @@ const locationStore = useLocationStore()
 
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
+
+// 新建去重：409 时弹窗状态与待重试请求体
+const duplicateDialogVisible = ref(false)
+const duplicateCandidates = ref<GoodsDuplicateCandidate[]>([])
+const duplicateSelectedId = ref<string | null>(null)
+const pendingCreatePayload = ref<GoodsInput | null>(null)
 
 // 从API获取的数据
 const ipOptions = ref<IP[]>([])
@@ -1619,6 +1672,19 @@ const handlePhotoLabelChange = async (photo: ExistingPhoto) => {
   }
 }
 
+/** 新建或合并成功后的统一处理：上传主图/附件、提示、跳转 */
+const onCreateOrMergeSuccess = async (result: GoodsDetail & { merged?: boolean }) => {
+  const id = result.id
+  if (mainPhotoFile.value) {
+    await uploadMainPhoto(id, mainPhotoFile.value)
+  }
+  if (newAdditionalPhotoFiles.value.length > 0) {
+    await handleAdditionalPhotosUpload(id)
+  }
+  ElMessage.success(result.merged ? '已合并到已有谷子' : '创建成功')
+  router.push({ name: 'CloudShowcase' })
+}
+
 const handleSubmit = async () => {
   if (!formRef.value) return
 
@@ -1626,12 +1692,13 @@ const handleSubmit = async () => {
     if (!valid) return
 
     submitting.value = true
+    let submitData: GoodsInput | null = null
     try {
       // 确保主题已创建（如果是新主题，先创建获取ID）
       const themeId = await ensureThemeCreated()
 
       const { main_photo, theme, ...restForm } = formData.value
-      const submitData: import('@/api/types').GoodsInput = {
+      submitData = {
         ...restForm,
         price: restForm.price?.toString(),
         ip_id: restForm.ip,
@@ -1640,13 +1707,13 @@ const handleSubmit = async () => {
         theme_id: themeId, // 使用确保创建后的theme_id（不包含theme字段）
       }
       // purchase_date 为空字符串时不上传该字段
-      if (!restForm.purchase_date) {
+      if (!restForm.purchase_date && submitData) {
         delete (submitData as any).purchase_date
       }
 
       if (route.params.id) {
         const id = route.params.id as string
-        await updateGoods(id, submitData)
+        await updateGoods(id, submitData!)
 
         // 上传主图（如果有新文件）
         if (mainPhotoFile.value) {
@@ -1657,29 +1724,26 @@ const handleSubmit = async () => {
         await handleAdditionalPhotosUpload(id)
 
         ElMessage.success('更新成功')
+        router.push({ name: 'CloudShowcase' })
       } else {
-        const result = await createGoods(submitData)
-        const id = result.id
-
-        // 上传主图（可选）
-        if (mainPhotoFile.value) {
-          await uploadMainPhoto(id, mainPhotoFile.value)
-        }
-
-        // 上传附件图片（如果有）
-        if (newAdditionalPhotoFiles.value.length > 0) {
-          await handleAdditionalPhotosUpload(id)
-        }
-
-        ElMessage.success('创建成功')
+        // 新建：默认 auto，检测到重复时后端返回 409
+        const result = await createGoods({ ...submitData!, merge_strategy: 'auto' })
+        await onCreateOrMergeSuccess(result)
       }
-
-      router.push({ name: 'CloudShowcase' })
     } catch (err: any) {
-      // 幂等性处理
-      if (err.response?.status === 409 || err.message?.includes('已存在')) {
-        ElMessage.warning('检测到相同资产已存在，已为您跳转至编辑页面')
-        // 这里可以跳转到编辑页面
+      if (err.response?.status === 409) {
+        const data = err.response?.data
+        if (data?.code === 'goods_duplicate' && Array.isArray(data?.candidates) && submitData) {
+          pendingCreatePayload.value = { ...submitData }
+          duplicateCandidates.value = data.candidates
+          duplicateSelectedId.value = null
+          duplicateDialogVisible.value = true
+        } else {
+          ElMessage.error(data?.detail || err.message || '提交失败')
+        }
+      } else if (err.response?.status === 400) {
+        const detail = err.response?.data?.detail
+        ElMessage.warning(detail || err.message || '请求参数错误')
       } else {
         ElMessage.error(err.message || '提交失败')
       }
@@ -1687,6 +1751,71 @@ const handleSubmit = async () => {
       submitting.value = false
     }
   })
+}
+
+const setDuplicateSelectedId = (id: string | null) => {
+  duplicateSelectedId.value = id
+}
+
+const formatCandidateCreatedAt = (createdAt: string) => {
+  if (!createdAt) return '-'
+  try {
+    const d = new Date(createdAt)
+    return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return createdAt
+  }
+}
+
+/** 重复弹窗：合并到所选候选 */
+const handleDuplicateMerge = async () => {
+  const targetId = duplicateSelectedId.value
+  const payload = pendingCreatePayload.value
+  if (!targetId || !payload) {
+    ElMessage.warning('请先选择要合并到的谷子')
+    return
+  }
+  submitting.value = true
+  try {
+    const result = await createGoods({
+      ...payload,
+      merge_strategy: 'merge',
+      merge_target_id: targetId,
+    })
+    duplicateDialogVisible.value = false
+    duplicateCandidates.value = []
+    duplicateSelectedId.value = null
+    pendingCreatePayload.value = null
+    await onCreateOrMergeSuccess(result)
+  } catch (err: any) {
+    if (err.response?.status === 400) {
+      const detail = err.response?.data?.detail
+      ElMessage.warning(detail || err.message || '请求参数错误')
+    } else {
+      ElMessage.error(err.message || '操作失败')
+    }
+  } finally {
+    submitting.value = false
+  }
+}
+
+/** 重复弹窗：仍然新建一条 */
+const handleDuplicateNew = async () => {
+  const payload = pendingCreatePayload.value
+  if (!payload) return
+  submitting.value = true
+  try {
+    const result = await createGoods({ ...payload, merge_strategy: 'new' })
+    duplicateDialogVisible.value = false
+    duplicateCandidates.value = []
+    duplicateSelectedId.value = null
+    pendingCreatePayload.value = null
+    await onCreateOrMergeSuccess(result)
+  } catch (err: any) {
+    ElMessage.error(err.message || '创建失败')
+  } finally {
+    submitting.value = false
+  }
 }
 
 const handleReset = () => {
@@ -2677,6 +2806,63 @@ onUnmounted(() => {
   .dialog-footer .el-button {
     flex: 1;
   }
+}
+
+/* 新建去重弹窗 */
+.duplicate-dialog :deep(.el-dialog__body) {
+  padding-top: 8px;
+}
+
+.duplicate-dialog-desc {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.5;
+}
+
+.duplicate-candidates-list {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  padding: 4px 0;
+}
+
+.duplicate-candidate-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.duplicate-candidate-item:hover,
+.duplicate-candidate-item.is-selected {
+  background-color: var(--el-fill-color-light);
+}
+
+.duplicate-candidate-item :deep(.el-radio) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  margin-right: 0;
+  height: auto;
+}
+
+.duplicate-candidate-item :deep(.el-radio__label) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.duplicate-candidate-item .candidate-name {
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+
+.duplicate-candidate-item .candidate-meta {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 </style>

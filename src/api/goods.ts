@@ -25,9 +25,9 @@ export function getGoodsDetail(id: string) {
   return request.get<GoodsDetail>(`/api/goods/${id}/`)
 }
 
-// 创建谷子（主数据 JSON）
+// 创建谷子（主数据 JSON）。201 新建成功返回详情，200 合并成功返回详情且 merged: true
 export function createGoods(data: GoodsInput) {
-  return request.post<GoodsDetail>('/api/goods/', data)
+  return request.post<GoodsDetail & { merged?: boolean }>('/api/goods/', data)
 }
 
 // 更新谷子（主数据 JSON）

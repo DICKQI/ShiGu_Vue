@@ -433,11 +433,17 @@
       @close="handleCropDialogClose"
     >
       <div class="crop-container">
-        <div class="crop-glass-panel">
-          <div class="crop-header-row">
-            <div class="crop-title">主图编辑</div>
-            <div class="crop-subtitle">调整比例与滤镜，让画面更契合主题</div>
-          </div>
+          <div class="crop-glass-panel">
+            <div class="crop-header-row">
+              <div class="crop-header-copy">
+                <div class="crop-title">主图编辑</div>
+                <div class="crop-subtitle">调整比例与滤镜，让画面更契合主题</div>
+              </div>
+              <div class="crop-history-actions">
+                <el-button size="small" :disabled="!canUndoCropEdit" @click="handleCropUndo">撤回</el-button>
+                <el-button size="small" :disabled="!canRedoCropEdit" @click="handleCropRedo">恢复</el-button>
+              </div>
+            </div>
 
           <!-- 比例选择 -->
           <div class="aspect-ratio-selector">
@@ -653,7 +659,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadFile } from 'element-plus'
 import { Plus, Delete, Picture, Camera as CameraIcon, Edit, RefreshLeft } from '@element-plus/icons-vue'
@@ -664,6 +670,15 @@ import { useLocationStore } from '@/stores/location'
 import { createGoods, updateGoods, getGoodsDetail, uploadMainPhoto, uploadAdditionalPhotos, deleteAdditionalPhoto, updateAdditionalPhotoLabel } from '@/api/goods'
 import { getIPList, getCharacterList, getCategoryList, getThemeList, createTheme } from '@/api/metadata'
 import type { GoodsDetail, IP, Character, Category, GuziImage, Theme, GoodsDuplicateCandidate, GoodsInput } from '@/api/types'
+import {
+  areCropSnapshotsEqual,
+  cloneCropSnapshot,
+  moveCropHistoryBackward,
+  moveCropHistoryForward,
+  pushCropHistorySnapshot,
+  type CropEditSnapshot,
+  type CropNumericState,
+} from '@/views/goods-form/cropHistory'
 
 const router = useRouter()
 const route = useRoute()
@@ -752,6 +767,40 @@ const resetFilters = () => {
     contrast: 100,
     saturation: 100
   }
+}
+
+const cropHistoryPast = ref<CropEditSnapshot[]>([])
+const cropHistoryFuture = ref<CropEditSnapshot[]>([])
+const suppressCropHistory = ref(false)
+const canUndoCropEdit = computed(() => cropHistoryPast.value.length > 1)
+const canRedoCropEdit = computed(() => cropHistoryFuture.value.length > 0)
+let cropHistoryTimer: number | undefined
+let pendingCropSnapshotApply: CropEditSnapshot | null = null
+let cropHistoryReadyTimer: number | undefined
+
+const clearCropHistoryTimer = () => {
+  if (typeof window === 'undefined') return
+  if (cropHistoryTimer) {
+    window.clearTimeout(cropHistoryTimer)
+    cropHistoryTimer = undefined
+  }
+}
+
+const clearCropHistoryReadyTimer = () => {
+  if (typeof window === 'undefined') return
+  if (cropHistoryReadyTimer) {
+    window.clearTimeout(cropHistoryReadyTimer)
+    cropHistoryReadyTimer = undefined
+  }
+}
+
+const resetCropHistorySession = () => {
+  clearCropHistoryTimer()
+  clearCropHistoryReadyTimer()
+  cropHistoryPast.value = []
+  cropHistoryFuture.value = []
+  suppressCropHistory.value = false
+  pendingCropSnapshotApply = null
 }
 
 // 实时输出预览（低分辨率）
@@ -867,9 +916,15 @@ const refreshLivePreview = async () => {
 
 watch(
   () => [selectedAspectRatio.value, enableRoundedRect.value, roundedRadius.value, enableMargin.value, marginPercent.value],
-  () => scheduleLivePreviewRefresh()
+  () => {
+    scheduleLivePreviewRefresh()
+    scheduleCropHistorySnapshot()
+  }
 )
-watch(filterState, () => scheduleLivePreviewRefresh(), { deep: true })
+watch(filterState, () => {
+  scheduleLivePreviewRefresh()
+  scheduleCropHistorySnapshot()
+}, { deep: true })
 watch(cropDialogVisible, (open) => {
   if (!open) {
     if (typeof window !== 'undefined' && livePreviewTimer) {
@@ -917,7 +972,13 @@ const cropperOptions = computed(() => {
     cropBoxResizable: true, // 允许调整裁切框大小（但仍受 viewMode 限制）
     // 确保裁切框始终在图片范围内
     strict: true, // 严格模式，确保裁切框不超出图片
+    ready: () => handleCropperReady(),
     crop: () => scheduleLivePreviewRefresh(),
+    cropend: () => scheduleCropHistorySnapshot(120),
+    zoom: () => {
+      scheduleLivePreviewRefresh()
+      scheduleCropHistorySnapshot(180)
+    },
   }
 
   // 根据选择的比例设置 aspectRatio
@@ -1244,6 +1305,7 @@ const handlePhotoFromAlbum = async () => {
 
 // 打开裁切对话框
 const openCropDialog = (file: File, previewUrl?: string) => {
+  resetCropHistorySession()
   cropImageFile.value = file
   // 创建预览URL
   if (previewUrl) {
@@ -1318,6 +1380,186 @@ const getCropperInstance = () => {
   }
 
   return null
+}
+
+const cloneCropNumericState = (value: CropNumericState | null | undefined): CropNumericState | null => {
+  if (!value) return null
+  return { ...value }
+}
+
+const getCropperNumericState = (methodName: 'getData' | 'getCropBoxData' | 'getCanvasData'): CropNumericState | null => {
+  const cropperInstance = getCropperInstance()
+  if (!cropperInstance || typeof cropperInstance[methodName] !== 'function') {
+    return null
+  }
+
+  try {
+    return cloneCropNumericState(cropperInstance[methodName]())
+  } catch (err) {
+    return null
+  }
+}
+
+const createCropEditSnapshot = (): CropEditSnapshot | null => {
+  const cropperInstance = getCropperInstance()
+  if (!cropperInstance) return null
+
+  return {
+    selectedAspectRatio: selectedAspectRatio.value,
+    filterState: { ...filterState.value },
+    enableRoundedRect: enableRoundedRect.value,
+    roundedRadius: roundedRadius.value,
+    enableMargin: enableMargin.value,
+    marginPercent: marginPercent.value,
+    cropData: getCropperNumericState('getData'),
+    cropBoxData: getCropperNumericState('getCropBoxData'),
+    canvasData: getCropperNumericState('getCanvasData'),
+  }
+}
+
+const commitCropHistorySnapshot = () => {
+  if (!cropDialogVisible.value || suppressCropHistory.value) return
+
+  const snapshot = createCropEditSnapshot()
+  if (!snapshot) return
+
+  const nextHistory = pushCropHistorySnapshot(
+    {
+      past: cropHistoryPast.value,
+      future: cropHistoryFuture.value,
+    },
+    snapshot,
+  )
+
+  cropHistoryPast.value = nextHistory.past
+  cropHistoryFuture.value = nextHistory.future
+}
+
+const scheduleCropHistorySnapshot = (delay = 180) => {
+  if (!cropDialogVisible.value || suppressCropHistory.value) return
+  if (typeof window === 'undefined') {
+    commitCropHistorySnapshot()
+    return
+  }
+
+  clearCropHistoryTimer()
+  cropHistoryTimer = window.setTimeout(() => {
+    cropHistoryTimer = undefined
+    commitCropHistorySnapshot()
+  }, delay)
+}
+
+const applyCropperStateFromSnapshot = (snapshot: CropEditSnapshot) => {
+  const cropperInstance = getCropperInstance()
+  if (!cropperInstance) return false
+
+  try {
+    if (snapshot.canvasData && typeof cropperInstance.setCanvasData === 'function') {
+      cropperInstance.setCanvasData(cloneCropNumericState(snapshot.canvasData))
+    }
+    if (snapshot.cropData && typeof cropperInstance.setData === 'function') {
+      cropperInstance.setData(cloneCropNumericState(snapshot.cropData))
+    }
+    if (snapshot.cropBoxData && typeof cropperInstance.setCropBoxData === 'function') {
+      cropperInstance.setCropBoxData(cloneCropNumericState(snapshot.cropBoxData))
+    }
+    return true
+  } catch (err) {
+    return false
+  }
+}
+
+const finishCropSnapshotRestore = () => {
+  clearCropHistoryTimer()
+  clearCropHistoryReadyTimer()
+  pendingCropSnapshotApply = null
+  suppressCropHistory.value = false
+  scheduleLivePreviewRefresh()
+}
+
+const restoreCropEditSnapshot = async (snapshot: CropEditSnapshot) => {
+  clearCropHistoryTimer()
+  clearCropHistoryReadyTimer()
+  suppressCropHistory.value = true
+  pendingCropSnapshotApply = cloneCropSnapshot(snapshot)
+
+  selectedAspectRatio.value = snapshot.selectedAspectRatio
+  filterState.value = { ...snapshot.filterState }
+  enableRoundedRect.value = snapshot.enableRoundedRect
+  roundedRadius.value = snapshot.roundedRadius
+  enableMargin.value = snapshot.enableMargin
+  marginPercent.value = snapshot.marginPercent
+
+  await nextTick()
+
+  if (pendingCropSnapshotApply && applyCropperStateFromSnapshot(pendingCropSnapshotApply)) {
+    finishCropSnapshotRestore()
+  }
+}
+
+const handleCropUndo = async () => {
+  if (!canUndoCropEdit.value) return
+
+  const nextHistory = moveCropHistoryBackward({
+    past: cropHistoryPast.value,
+    future: cropHistoryFuture.value,
+  })
+
+  cropHistoryPast.value = nextHistory.past
+  cropHistoryFuture.value = nextHistory.future
+
+  if (nextHistory.current) {
+    await restoreCropEditSnapshot(nextHistory.current)
+  }
+}
+
+const handleCropRedo = async () => {
+  if (!canRedoCropEdit.value) return
+
+  const nextHistory = moveCropHistoryForward({
+    past: cropHistoryPast.value,
+    future: cropHistoryFuture.value,
+  })
+
+  cropHistoryPast.value = nextHistory.past
+  cropHistoryFuture.value = nextHistory.future
+
+  if (nextHistory.current) {
+    await restoreCropEditSnapshot(nextHistory.current)
+  }
+}
+
+const handleCropperReady = () => {
+  clearCropHistoryReadyTimer()
+
+  const run = async () => {
+    await nextTick()
+    if (!cropDialogVisible.value) return
+
+    if (pendingCropSnapshotApply) {
+      if (applyCropperStateFromSnapshot(pendingCropSnapshotApply)) {
+        finishCropSnapshotRestore()
+      }
+      return
+    }
+
+    if (!cropHistoryPast.value.length) {
+      commitCropHistorySnapshot()
+    } else {
+      scheduleCropHistorySnapshot(120)
+    }
+    scheduleLivePreviewRefresh()
+  }
+
+  if (typeof window === 'undefined') {
+    void run()
+    return
+  }
+
+  cropHistoryReadyTimer = window.setTimeout(() => {
+    cropHistoryReadyTimer = undefined
+    void run()
+  }, 30)
 }
 
 const blobToImageBitmap = async (blob: Blob) => {
@@ -1821,6 +2063,7 @@ const handleCropCancel = () => {
 
 // 关闭裁切对话框时清理
 const handleCropDialogClose = () => {
+  resetCropHistorySession()
   // 清理预览URL
   if (cropImageSrc.value && cropImageSrc.value.startsWith('blob:')) {
     URL.revokeObjectURL(cropImageSrc.value)
@@ -2144,6 +2387,7 @@ onMounted(async () => {
 
 // 组件卸载时清理预览URL
 onUnmounted(() => {
+  resetCropHistorySession()
   newAdditionalPhotoFiles.value.forEach((photo) => {
     if (photo.preview) {
       URL.revokeObjectURL(photo.preview)
@@ -2614,9 +2858,16 @@ onUnmounted(() => {
 
 .crop-header-row {
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.crop-header-copy {
+  display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-bottom: 16px;
 }
 
 .crop-title {
@@ -2628,6 +2879,16 @@ onUnmounted(() => {
 .crop-subtitle {
   font-size: 12px;
   color: #909399;
+}
+
+.crop-history-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crop-history-actions :deep(.el-button) {
+  border-radius: 999px;
 }
 
 .aspect-ratio-selector {
@@ -3109,6 +3370,19 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
+  .crop-header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .crop-history-actions {
+    width: 100%;
+  }
+
+  .crop-history-actions :deep(.el-button) {
+    flex: 1;
+  }
+
   .dialog-footer {
     gap: 8px;
   }
@@ -3250,4 +3524,3 @@ onUnmounted(() => {
 }
 
 </style>
-

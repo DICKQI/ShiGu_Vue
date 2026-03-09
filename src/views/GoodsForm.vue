@@ -2599,6 +2599,7 @@ onUnmounted(() => {
 
 .main-photo-card-shell {
   display: inline-block;
+  width: 220px;
 }
 
 .hide-upload-trigger :deep(.el-upload--picture-card) {
@@ -2648,6 +2649,24 @@ onUnmounted(() => {
 .main-photo-uploader :deep(.el-upload--picture-card .el-icon) {
   font-size: 26px;
   color: #b1b5c6;
+}
+
+.main-photo-uploader :deep(.el-upload-list--picture-card) {
+  display: block;
+  width: 220px;
+}
+
+.main-photo-uploader :deep(.el-upload-list--picture-card .el-upload-list__item) {
+  width: 220px;
+  height: 220px;
+  margin: 0;
+  border-radius: 16px;
+}
+
+.main-photo-uploader :deep(.el-upload-list--picture-card .el-upload-list__item-thumbnail) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* 统一附件加号卡片的虚线更轻、更稀疏 */

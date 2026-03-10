@@ -2,10 +2,47 @@ export interface CropNumericState {
   [key: string]: number | undefined
 }
 
+export type HslColorKey = 'red' | 'orange' | 'yellow' | 'green' | 'cyan' | 'blue' | 'purple'
+
+export interface HslAdjustValues {
+  h: number // -180 ~ 180
+  s: number // -100 ~ 100 （相对百分比）
+  l: number // -100 ~ 100 （相对百分比）
+}
+
+export type HslAdjustments = Record<HslColorKey, HslAdjustValues>
+
 export interface CropFilterState {
   brightness: number
   contrast: number
   saturation: number
+  hslAdjustments: HslAdjustments
+}
+
+export const createDefaultHslAdjustments = (): HslAdjustments => ({
+  red: { h: 0, s: 0, l: 0 },
+  orange: { h: 0, s: 0, l: 0 },
+  yellow: { h: 0, s: 0, l: 0 },
+  green: { h: 0, s: 0, l: 0 },
+  cyan: { h: 0, s: 0, l: 0 },
+  blue: { h: 0, s: 0, l: 0 },
+  purple: { h: 0, s: 0, l: 0 },
+})
+
+const cloneFilterState = (state: CropFilterState): CropFilterState => {
+  const next: CropFilterState = {
+    brightness: state.brightness,
+    contrast: state.contrast,
+    saturation: state.saturation,
+    hslAdjustments: createDefaultHslAdjustments(),
+  }
+
+  for (const key of Object.keys(state.hslAdjustments) as HslColorKey[]) {
+    const src = state.hslAdjustments[key]
+    next.hslAdjustments[key] = { h: src.h, s: src.s, l: src.l }
+  }
+
+  return next
 }
 
 export interface CropEditSnapshot {
@@ -47,7 +84,7 @@ const normalizeNumericState = (value: CropNumericState | null): CropNumericState
 export const cloneCropSnapshot = (snapshot: CropEditSnapshot): CropEditSnapshot => {
   return {
     selectedAspectRatio: snapshot.selectedAspectRatio,
-    filterState: { ...snapshot.filterState },
+    filterState: cloneFilterState(snapshot.filterState),
     enableRoundedRect: snapshot.enableRoundedRect,
     roundedRadius: snapshot.roundedRadius,
     enableMargin: snapshot.enableMargin,
@@ -62,6 +99,7 @@ export const normalizeCropSnapshot = (snapshot: CropEditSnapshot): CropEditSnaps
   return {
     ...cloneCropSnapshot(snapshot),
     filterState: {
+      ...cloneFilterState(snapshot.filterState),
       brightness: roundNumber(snapshot.filterState.brightness),
       contrast: roundNumber(snapshot.filterState.contrast),
       saturation: roundNumber(snapshot.filterState.saturation),

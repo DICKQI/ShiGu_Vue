@@ -427,23 +427,24 @@
     <el-dialog
       v-model="cropDialogVisible"
       :title="'编辑图片'"
-      :width="isMobile ? '95%' : '640px'"
+      :width="isMobile ? '95%' : '1600px'"
       :close-on-click-modal="false"
       class="crop-dialog"
       @close="handleCropDialogClose"
     >
-      <div class="crop-container">
-          <div class="crop-glass-panel">
-            <div class="crop-header-row">
-              <div class="crop-header-copy">
-                <div class="crop-title">主图编辑</div>
-                <div class="crop-subtitle">调整比例与滤镜，让画面更契合主题</div>
-              </div>
-              <div class="crop-history-actions">
-                <el-button size="small" :disabled="!canUndoCropEdit" @click="handleCropUndo">撤回</el-button>
-                <el-button size="small" :disabled="!canRedoCropEdit" @click="handleCropRedo">恢复</el-button>
-              </div>
+      <!-- 移动端：保持原有单列布局 -->
+      <div v-if="isMobile" class="crop-container">
+        <div class="crop-glass-panel">
+          <div class="crop-header-row">
+            <div class="crop-header-copy">
+              <div class="crop-title">主图编辑</div>
+              <div class="crop-subtitle">调整比例与滤镜，让画面更契合主题</div>
             </div>
+            <div class="crop-history-actions">
+              <el-button size="small" :disabled="!canUndoCropEdit" @click="handleCropUndo">撤回</el-button>
+              <el-button size="small" :disabled="!canRedoCropEdit" @click="handleCropRedo">恢复</el-button>
+            </div>
+          </div>
 
           <!-- 比例选择 -->
           <div class="aspect-ratio-selector">
@@ -511,6 +512,69 @@
               />
               <span class="filter-value">{{ filterState.saturation }}%</span>
             </div>
+            <!-- HSL 调节 -->
+            <div class="hsl-panel">
+              <div class="hsl-header-row">
+                <span class="hsl-title">HSL 调节</span>
+              </div>
+              <div class="hsl-color-tabs">
+                <button
+                  v-for="tab in hslColorTabs"
+                  :key="tab.key"
+                  type="button"
+                  :class="['hsl-color-tab', `hsl-color-tab--${tab.key}`, { 'is-active': activeHslColor === tab.key }]"
+                  @click="activeHslColor = tab.key"
+                >
+                  {{ tab.label }}
+                </button>
+                <el-button
+                  class="hsl-color-reset-btn"
+                  text
+                  size="small"
+                  @click="resetCurrentHslColor"
+                >
+                  重置当前色
+                </el-button>
+              </div>
+              <div class="hsl-sliders">
+                <div class="filter-item">
+                  <span class="filter-label">色相 (°)</span>
+                  <el-slider
+                    v-model="filterState.hslAdjustments[activeHslColor].h"
+                    :min="-180"
+                    :max="180"
+                    :format-tooltip="(val: number) => val + '°'"
+                  />
+                  <span class="filter-value">
+                    {{ filterState.hslAdjustments[activeHslColor].h }}°
+                  </span>
+                </div>
+                <div class="filter-item">
+                  <span class="filter-label">饱和度偏移</span>
+                  <el-slider
+                    v-model="filterState.hslAdjustments[activeHslColor].s"
+                    :min="-100"
+                    :max="100"
+                    :format-tooltip="(val: number) => (val > 0 ? '+' : '') + val + '%'"
+                  />
+                  <span class="filter-value">
+                    {{ filterState.hslAdjustments[activeHslColor].s > 0 ? '+' : '' }}{{ filterState.hslAdjustments[activeHslColor].s }}%
+                  </span>
+                </div>
+                <div class="filter-item">
+                  <span class="filter-label">亮度偏移</span>
+                  <el-slider
+                    v-model="filterState.hslAdjustments[activeHslColor].l"
+                    :min="-100"
+                    :max="100"
+                    :format-tooltip="(val: number) => (val > 0 ? '+' : '') + val + '%'"
+                  />
+                  <span class="filter-value">
+                    {{ filterState.hslAdjustments[activeHslColor].l > 0 ? '+' : '' }}{{ filterState.hslAdjustments[activeHslColor].l }}%
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- 圆角矩形设置（仅自由 / 1:1 比例可用） -->
@@ -567,7 +631,7 @@
               :key="`cropper-${selectedAspectRatio}`"
               :box-style="{
                 width: '100%',
-                height: isMobile ? '300px' : '400px',
+                height: '300px',
                 backgroundColor: '#f8f8f8',
                 margin: '0 auto'
               }"
@@ -587,6 +651,242 @@
               <img v-if="livePreviewUrl" :src="livePreviewUrl" class="live-preview-img" />
               <div v-else class="live-preview-placeholder">
                 {{ livePreviewLoading ? '预览生成中...' : '调整裁切框或参数以生成预览' }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PC 端：左右分栏布局 -->
+      <div v-else class="crop-container crop-layout">
+        <div class="crop-glass-panel">
+          <div class="crop-header-row">
+            <div class="crop-header-copy">
+              <div class="crop-title">主图编辑</div>
+              <div class="crop-subtitle">调整比例与滤镜，让画面更契合主题</div>
+            </div>
+            <div class="crop-history-actions">
+              <el-button size="small" :disabled="!canUndoCropEdit" @click="handleCropUndo">撤回</el-button>
+              <el-button size="small" :disabled="!canRedoCropEdit" @click="handleCropRedo">恢复</el-button>
+            </div>
+          </div>
+
+          <div class="crop-layout-inner">
+            <!-- 左侧：编辑控制区 -->
+            <div class="crop-left-panel">
+              <!-- 比例选择 -->
+              <div class="aspect-ratio-selector">
+                <div class="ratio-label">选择比例</div>
+                <div class="ratio-segmented">
+                  <div class="ratio-segmented-track">
+                    <div
+                      class="ratio-segmented-thumb"
+                      :style="{ '--active-index': aspectRatios.findIndex(r => r.value === selectedAspectRatio) }"
+                    ></div>
+                    <button
+                      v-for="(ratio, idx) in aspectRatios"
+                      :key="ratio.value"
+                      type="button"
+                      class="ratio-segmented-item"
+                      :class="{ 'is-active': selectedAspectRatio === ratio.value }"
+                      @click="selectedAspectRatio = ratio.value"
+                    >
+                      <span class="ratio-icon" :class="`ratio-icon--${ratio.value}`"></span>
+                      <span class="ratio-text">{{ ratio.label }}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 图像调整 -->
+              <div class="image-filters">
+                <div class="filters-header-row">
+                  <span class="filters-title">图像微调</span>
+                  <el-button
+                    class="filter-reset-btn"
+                    text
+                    circle
+                    :icon="RefreshLeft"
+                    @click="resetFilters"
+                  />
+                </div>
+                <div class="filter-item">
+                  <span class="filter-label">亮度</span>
+                  <el-slider
+                    v-model="filterState.brightness"
+                    :min="0"
+                    :max="200"
+                    :format-tooltip="(val: number) => val + '%'"
+                  />
+                  <span class="filter-value">{{ filterState.brightness }}%</span>
+                </div>
+                <div class="filter-item">
+                  <span class="filter-label">对比度</span>
+                  <el-slider
+                    v-model="filterState.contrast"
+                    :min="0"
+                    :max="200"
+                    :format-tooltip="(val: number) => val + '%'"
+                  />
+                  <span class="filter-value">{{ filterState.contrast }}%</span>
+                </div>
+                <div class="filter-item">
+                  <span class="filter-label">饱和度</span>
+                  <el-slider
+                    v-model="filterState.saturation"
+                    :min="0"
+                    :max="200"
+                    :format-tooltip="(val: number) => val + '%'"
+                  />
+                  <span class="filter-value">{{ filterState.saturation }}%</span>
+                </div>
+                <!-- HSL 调节 -->
+                <div class="hsl-panel">
+                  <div class="hsl-header-row">
+                    <span class="hsl-title">HSL 调节</span>
+                  </div>
+                  <div class="hsl-color-tabs">
+                    <button
+                      v-for="tab in hslColorTabs"
+                      :key="tab.key"
+                      type="button"
+                  :class="['hsl-color-tab', `hsl-color-tab--${tab.key}`, { 'is-active': activeHslColor === tab.key }]"
+                      @click="activeHslColor = tab.key"
+                    >
+                      {{ tab.label }}
+                    </button>
+                    <el-button
+                      class="hsl-color-reset-btn"
+                      text
+                      size="small"
+                      @click="resetCurrentHslColor"
+                    >
+                      重置当前色
+                    </el-button>
+                  </div>
+                  <div class="hsl-sliders">
+                    <div class="filter-item">
+                      <span class="filter-label">色相 (°)</span>
+                      <el-slider
+                        v-model="filterState.hslAdjustments[activeHslColor].h"
+                        :min="-180"
+                        :max="180"
+                        :format-tooltip="(val: number) => val + '°'"
+                      />
+                      <span class="filter-value">
+                        {{ filterState.hslAdjustments[activeHslColor].h }}°
+                      </span>
+                    </div>
+                    <div class="filter-item">
+                      <span class="filter-label">饱和度偏移</span>
+                      <el-slider
+                        v-model="filterState.hslAdjustments[activeHslColor].s"
+                        :min="-100"
+                        :max="100"
+                        :format-tooltip="(val: number) => (val > 0 ? '+' : '') + val + '%'"
+                      />
+                      <span class="filter-value">
+                        {{ filterState.hslAdjustments[activeHslColor].s > 0 ? '+' : '' }}{{ filterState.hslAdjustments[activeHslColor].s }}%
+                      </span>
+                    </div>
+                    <div class="filter-item">
+                      <span class="filter-label">亮度偏移</span>
+                      <el-slider
+                        v-model="filterState.hslAdjustments[activeHslColor].l"
+                        :min="-100"
+                        :max="100"
+                        :format-tooltip="(val: number) => (val > 0 ? '+' : '') + val + '%'"
+                      />
+                      <span class="filter-value">
+                        {{ filterState.hslAdjustments[activeHslColor].l > 0 ? '+' : '' }}{{ filterState.hslAdjustments[activeHslColor].l }}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 圆角矩形设置（仅自由 / 1:1 比例可用） -->
+              <div v-if="showRoundedControls" class="rounded-rect-settings">
+                <div class="rounded-header-row">
+                  <span class="rounded-title">圆角矩形</span>
+                  <el-switch v-model="enableRoundedRect" size="small" />
+                </div>
+                <div class="rounded-radius-row" :class="{ 'is-disabled': !enableRoundedRect }">
+                  <span class="rounded-label">圆角大小</span>
+                  <el-slider
+                    v-model="roundedRadius"
+                    :min="0"
+                    :max="50"
+                    :disabled="!enableRoundedRect"
+                    :format-tooltip="(val: number) => val + '%'"
+                  />
+                  <span class="rounded-value">{{ roundedRadius }}%</span>
+                </div>
+              </div>
+
+              <!-- 边距设置：输出尺寸不变，内容缩小居中，四周白色留边（所有比例可用） -->
+              <div class="margin-settings">
+                <div class="rounded-header-row">
+                  <span class="rounded-title">边距</span>
+                  <el-switch v-model="enableMargin" size="small" />
+                </div>
+                <div class="rounded-radius-row" :class="{ 'is-disabled': !enableMargin }">
+                  <span class="rounded-label">边距大小</span>
+                  <el-slider
+                    v-model="marginPercent"
+                    :min="0"
+                    :max="30"
+                    :disabled="!enableMargin"
+                    :format-tooltip="(val: number) => val + '%'"
+                  />
+                  <span class="rounded-value">{{ marginPercent }}%</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 右侧：裁切 + 预览 -->
+            <div class="crop-right-panel">
+              <div class="crop-main-view">
+                <div
+                  class="cropper-wrapper"
+                  :class="{
+                    'circle-crop':
+                      selectedAspectRatio === 'circle' || selectedAspectRatio.endsWith('-ellipse'),
+                    'rounded-rect-preview': showRoundedControls && enableRoundedRect
+                  }"
+                  :style="cropperWrapperStyle"
+                >
+                  <vue-picture-cropper
+                    v-if="cropImageSrc"
+                    ref="pictureCropperRef"
+                    :key="`cropper-${selectedAspectRatio}`"
+                    :box-style="{
+                      width: '100%',
+                      height: '100%',
+                      backgroundColor: '#f8f8f8',
+                      margin: '0 auto'
+                    }"
+                    :img="cropImageSrc"
+                    :options="cropperOptions"
+                    :style="cropperStyle"
+                  />
+                </div>
+              </div>
+
+              <!-- 实时输出预览（低分辨率，尽量贴近最终导出顺序） -->
+              <div class="crop-preview-view">
+                <div class="live-preview">
+                  <div class="live-preview-header">
+                    <span class="live-preview-title">输出预览</span>
+                    <span class="live-preview-hint">低清预览</span>
+                  </div>
+                  <div class="live-preview-card" :class="{ 'is-loading': livePreviewLoading }">
+                    <img v-if="livePreviewUrl" :src="livePreviewUrl" class="live-preview-img" />
+                    <div v-else class="live-preview-placeholder">
+                      {{ livePreviewLoading ? '预览生成中...' : '调整裁切框或参数以生成预览' }}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -755,19 +1055,51 @@ const enableMargin = ref(false)
 // 0-30%，表示相对于输出边长的边距比例（四边一致）
 const marginPercent = ref(8)
 
-// 图像滤镜状态
-const filterState = ref({
-  brightness: 100,
-  contrast: 100,
-  saturation: 100
+// 图像滤镜状态（基础三项 + 按颜色分组的 HSL 调整）
+const createDefaultHslAdjustments = () => ({
+  red: { h: 0, s: 0, l: 0 },
+  orange: { h: 0, s: 0, l: 0 },
+  yellow: { h: 0, s: 0, l: 0 },
+  green: { h: 0, s: 0, l: 0 },
+  cyan: { h: 0, s: 0, l: 0 },
+  blue: { h: 0, s: 0, l: 0 },
+  purple: { h: 0, s: 0, l: 0 },
 })
 
+const createDefaultFilterState = () => ({
+  brightness: 100,
+  contrast: 100,
+  saturation: 100,
+  hslAdjustments: createDefaultHslAdjustments(),
+})
+
+const filterState = ref(createDefaultFilterState())
+
 const resetFilters = () => {
-  filterState.value = {
-    brightness: 100,
-    contrast: 100,
-    saturation: 100
-  }
+  filterState.value = createDefaultFilterState()
+}
+
+const hslColorTabs = [
+  { key: 'red', label: '红' },
+  { key: 'orange', label: '橙' },
+  { key: 'yellow', label: '黄' },
+  { key: 'green', label: '绿' },
+  { key: 'cyan', label: '青' },
+  { key: 'blue', label: '蓝' },
+  { key: 'purple', label: '紫' },
+] as const
+
+type HslColorKeyLocal = (typeof hslColorTabs)[number]['key']
+
+const activeHslColor = ref<HslColorKeyLocal>('red')
+
+const resetCurrentHslColor = () => {
+  const key = activeHslColor.value
+  const adj = (filterState.value.hslAdjustments as any)[key]
+  if (!adj) return
+  adj.h = 0
+  adj.s = 0
+  adj.l = 0
 }
 
 const cropHistoryPast = ref<CropEditSnapshot[]>([])
@@ -815,6 +1147,163 @@ const clearLivePreviewUrl = () => {
     URL.revokeObjectURL(livePreviewUrl.value)
   }
   livePreviewUrl.value = ''
+}
+
+// 工具：HSL 辅助函数与按颜色分组的 HSL 应用（用于预览与导出）
+const clamp01 = (v: number) => {
+  if (Number.isNaN(v)) return 0
+  if (v < 0) return 0
+  if (v > 1) return 1
+  return v
+}
+
+const normalizeHue = (h: number) => {
+  if (!Number.isFinite(h)) return 0
+  let x = h % 360
+  if (x < 0) x += 360
+  return x
+}
+
+const rgbToHsl = (r: number, g: number, b: number) => {
+  r /= 255
+  g /= 255
+  b /= 255
+
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  let h = 0
+  let s = 0
+  const l = (max + min) / 2
+
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+
+    switch (max) {
+      case r:
+        h = (g - b) / d + (g < b ? 6 : 0)
+        break
+      case g:
+        h = (b - r) / d + 2
+        break
+      case b:
+        h = (r - g) / d + 4
+        break
+    }
+
+    h /= 6
+  }
+
+  return {
+    h: h * 360,
+    s,
+    l,
+  }
+}
+
+const hslToRgb = (h: number, s: number, l: number) => {
+  h = normalizeHue(h) / 360
+  s = clamp01(s)
+  l = clamp01(l)
+
+  if (s === 0) {
+    const v = Math.round(l * 255)
+    return { r: v, g: v, b: v }
+  }
+
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1
+    if (t > 1) t -= 1
+    if (t < 1 / 6) return p + (q - p) * 6 * t
+    if (t < 1 / 2) return q
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
+    return p
+  }
+
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+  const p = 2 * l - q
+
+  const r = hue2rgb(p, q, h + 1 / 3)
+  const g = hue2rgb(p, q, h)
+  const b = hue2rgb(p, q, h - 1 / 3)
+
+  return {
+    r: Math.round(clamp01(r) * 255),
+    g: Math.round(clamp01(g) * 255),
+    b: Math.round(clamp01(b) * 255),
+  }
+}
+
+const classifyHueToColorName = (h: number): keyof ReturnType<typeof createDefaultHslAdjustments> => {
+  const hue = normalizeHue(h)
+  if (hue >= 345 || hue < 15) return 'red'
+  if (hue < 45) return 'orange'
+  if (hue < 75) return 'yellow'
+  if (hue < 150) return 'green'
+  if (hue < 210) return 'cyan'
+  if (hue < 270) return 'blue'
+  return 'purple'
+}
+
+const isAllHslAdjustmentsZero = () => {
+  const adj: any = filterState.value.hslAdjustments
+  if (!adj) return true
+  for (const key of Object.keys(adj)) {
+    const entry = adj[key] || { h: 0, s: 0, l: 0 }
+    if ((entry.h ?? 0) !== 0 || (entry.s ?? 0) !== 0 || (entry.l ?? 0) !== 0) {
+      return false
+    }
+  }
+  return true
+}
+
+const isFilterStateDefault = () => {
+  return (
+    filterState.value.brightness === 100 &&
+    filterState.value.contrast === 100 &&
+    filterState.value.saturation === 100 &&
+    isAllHslAdjustmentsZero()
+  )
+}
+
+const applyHslPerColorToImageData = (imageData: ImageData): ImageData => {
+  const { data } = imageData
+  const hslAdjustments: any = filterState.value.hslAdjustments
+  if (!hslAdjustments || isAllHslAdjustmentsZero()) {
+    return imageData
+  }
+
+  const length = data.length
+  for (let i = 0; i < length; i += 4) {
+    const alpha = data[i + 3]
+    if (alpha === 0) continue
+
+    const r = data[i]
+    const g = data[i + 1]
+    const b = data[i + 2]
+
+    const hsl = rgbToHsl(r || 0, g || 0, b || 0)
+    const colorName = classifyHueToColorName(hsl.h)
+    const adjust = hslAdjustments[colorName] || { h: 0, s: 0, l: 0 }
+
+    if (!adjust || (!adjust.h && !adjust.s && !adjust.l)) {
+      continue
+    }
+
+    let nextH = normalizeHue(hsl.h + (adjust.h ?? 0))
+    let nextS = hsl.s * (1 + (adjust.s ?? 0) / 100)
+    let nextL = hsl.l * (1 + (adjust.l ?? 0) / 100)
+
+    nextS = clamp01(nextS)
+    nextL = clamp01(nextL)
+
+    const rgb = hslToRgb(nextH, nextS, nextL)
+    data[i] = rgb.r
+    data[i + 1] = rgb.g
+    data[i + 2] = rgb.b
+  }
+
+  return imageData
 }
 
 const scheduleLivePreviewRefresh = () => {
@@ -966,10 +1455,42 @@ watch(cropDialogVisible, (open) => {
   }
 })
 
-// 动态计算滤镜样式，用于预览
+// 动态计算滤镜样式，用于裁切区域预览（这里只能做近似的整体效果）
 const cropperStyle = computed(() => {
+  const baseBrightness = filterState.value.brightness
+  const baseContrast = filterState.value.contrast
+  const baseSaturation = filterState.value.saturation
+
+  // 将按颜色分组的 HSL 调整，近似汇总成一个全局 H/S/L，用于 CSS filter 预览
+  const hslAdj: any = filterState.value.hslAdjustments
+  let sumH = 0
+  let sumS = 0
+  let sumL = 0
+  let count = 0
+
+  if (hslAdj) {
+    for (const key of Object.keys(hslAdj)) {
+      const entry = hslAdj[key]
+      if (!entry) continue
+      if ((entry.h ?? 0) !== 0 || (entry.s ?? 0) !== 0 || (entry.l ?? 0) !== 0) {
+        sumH += entry.h ?? 0
+        sumS += entry.s ?? 0
+        sumL += entry.l ?? 0
+        count++
+      }
+    }
+  }
+
+  const avgH = count ? sumH / count : 0
+  const avgS = count ? sumS / count : 0
+  const avgL = count ? sumL / count : 0
+
+  const cssBrightness = Math.max(0, baseBrightness * (1 + avgL / 100))
+  const cssSaturation = Math.max(0, baseSaturation * (1 + avgS / 100))
+  const cssHueRotate = avgH
+
   return {
-    filter: `brightness(${filterState.value.brightness}%) contrast(${filterState.value.contrast}%) saturate(${filterState.value.saturation}%)`
+    filter: `brightness(${cssBrightness}%) contrast(${baseContrast}%) saturate(${cssSaturation}%) hue-rotate(${cssHueRotate}deg)`
   }
 })
 
@@ -1439,7 +1960,26 @@ const createCropEditSnapshot = (): CropEditSnapshot | null => {
 
   return {
     selectedAspectRatio: selectedAspectRatio.value,
-    filterState: { ...filterState.value },
+    filterState: (() => {
+      const src = filterState.value
+      const next: any = {
+        brightness: src.brightness,
+        contrast: src.contrast,
+        saturation: src.saturation,
+        hslAdjustments: createDefaultHslAdjustments(),
+      }
+      if (src.hslAdjustments) {
+        for (const key of Object.keys(src.hslAdjustments)) {
+          const entry = (src.hslAdjustments as any)[key] || { h: 0, s: 0, l: 0 }
+          ;(next.hslAdjustments as any)[key] = {
+            h: entry.h ?? 0,
+            s: entry.s ?? 0,
+            l: entry.l ?? 0,
+          }
+        }
+      }
+      return next
+    })(),
     enableRoundedRect: enableRoundedRect.value,
     roundedRadius: roundedRadius.value,
     enableMargin: enableMargin.value,
@@ -1517,7 +2057,26 @@ const restoreCropEditSnapshot = async (snapshot: CropEditSnapshot) => {
   pendingCropSnapshotApply = cloneCropSnapshot(snapshot)
 
   selectedAspectRatio.value = snapshot.selectedAspectRatio
-  filterState.value = { ...snapshot.filterState }
+  filterState.value = (() => {
+    const src: any = snapshot.filterState as any
+    const next: any = {
+      brightness: src.brightness,
+      contrast: src.contrast,
+      saturation: src.saturation,
+      hslAdjustments: createDefaultHslAdjustments(),
+    }
+    if (src.hslAdjustments) {
+      for (const key of Object.keys(src.hslAdjustments)) {
+        const entry = src.hslAdjustments[key] || { h: 0, s: 0, l: 0 }
+        next.hslAdjustments[key] = {
+          h: entry.h ?? 0,
+          s: entry.s ?? 0,
+          l: entry.l ?? 0,
+        }
+      }
+    }
+    return next
+  })()
   enableRoundedRect.value = snapshot.enableRoundedRect
   roundedRadius.value = snapshot.roundedRadius
   enableMargin.value = snapshot.enableMargin
@@ -2057,11 +2616,7 @@ const handleCropConfirm = async () => {
 // 将滤镜应用到图片文件
 const applyFiltersToImage = async (file: File): Promise<File> => {
   // 如果没有做任何修改，直接返回原文件
-  if (
-    filterState.value.brightness === 100 &&
-    filterState.value.contrast === 100 &&
-    filterState.value.saturation === 100
-  ) {
+  if (isFilterStateDefault()) {
     return file
   }
 
@@ -2079,6 +2634,15 @@ const applyFiltersToImage = async (file: File): Promise<File> => {
   ctx.filter = `brightness(${filterState.value.brightness}%) contrast(${filterState.value.contrast}%) saturate(${filterState.value.saturation}%)`
 
   ctx.drawImage(bitmapOrImg as any, 0, 0, width, height)
+
+  // 按颜色分组应用 HSL 三色调节
+  try {
+    const imageData = ctx.getImageData(0, 0, width, height)
+    const adjusted = applyHslPerColorToImageData(imageData)
+    ctx.putImageData(adjusted, 0, 0)
+  } catch {
+    // 获取/写入像素失败时忽略 HSL 调整，保留基础滤镜效果
+  }
 
   // 重置 filter 以免影响后续操作（虽然这里是一次性的）
   ctx.filter = 'none'
@@ -2897,6 +3461,84 @@ onUnmounted(() => {
   padding-top: 4px;
 }
 
+.crop-layout-inner {
+  display: flex;
+  gap: 18px;
+}
+
+.crop-left-panel {
+  flex: 0 0 360px;
+  min-width: 0;
+  max-height: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.crop-right-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  gap: 14px;
+}
+
+.crop-main-view,
+.crop-preview-view {
+  flex: 1;
+  min-height: 0;
+}
+
+.crop-main-view {
+  border-radius: 14px;
+  overflow: hidden;
+  background: #f8f8f8;
+}
+
+.crop-preview-view {
+  display: flex;
+  flex-direction: column;
+}
+
+.crop-preview-view .live-preview {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.crop-preview-view .live-preview-card {
+  flex: 1;
+}
+
+.crop-preview-view .live-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* 右侧并排时，让裁切框外层与预览卡片外层在视觉尺寸上尽量一致 */
+.crop-right-panel .cropper-wrapper {
+  height: 100%;
+  margin: 0;
+}
+
+.crop-right-panel .live-preview-card {
+  min-height: 0;
+}
+
+@media (max-width: 768px) {
+  .crop-layout-inner {
+    flex-direction: column;
+  }
+
+  .crop-left-panel {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
 .crop-glass-panel {
   position: relative;
   padding: 18px 20px 20px;
@@ -2916,6 +3558,116 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.hsl-panel {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.06);
+}
+
+.hsl-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.hsl-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #606266;
+}
+
+.hsl-color-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.hsl-color-tab {
+  border: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f4f4f5;
+  font-size: 12px;
+  color: #606266;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.hsl-color-tab--red {
+  color: #c45b5b;
+}
+
+.hsl-color-tab--orange {
+  color: #c27a3b;
+}
+
+.hsl-color-tab--yellow {
+  color: #b89b2f;
+}
+
+.hsl-color-tab--green {
+  color: #4a9b6b;
+}
+
+.hsl-color-tab--cyan {
+  color: #3a8f9c;
+}
+
+.hsl-color-tab--blue {
+  color: #4a74c4;
+}
+
+.hsl-color-tab--purple {
+  color: #7b63c4;
+}
+
+.hsl-color-tab.is-active {
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(163, 150, 255, 0.25);
+}
+
+.hsl-color-tab--red.is-active {
+  background: linear-gradient(135deg, #d87373 0%, #c13a3a 100%);
+}
+
+.hsl-color-tab--orange.is-active {
+  background: linear-gradient(135deg, #e9a45b 0%, #cf7c2c 100%);
+}
+
+.hsl-color-tab--yellow.is-active {
+  background: linear-gradient(135deg, #ecd47a 0%, #d4b23a 100%);
+}
+
+.hsl-color-tab--green.is-active {
+  background: linear-gradient(135deg, #7bc193 0%, #45a264 100%);
+}
+
+.hsl-color-tab--cyan.is-active {
+  background: linear-gradient(135deg, #65b9c7 0%, #3c90a0 100%);
+}
+
+.hsl-color-tab--blue.is-active {
+  background: linear-gradient(135deg, #7d9ee0 0%, #496fbe 100%);
+}
+
+.hsl-color-tab--purple.is-active {
+  background: linear-gradient(135deg, #a396ff 0%, #7f63d6 100%);
+}
+
+.hsl-color-reset-btn {
+  margin-left: auto;
+}
+
+.hsl-sliders {
+  margin-top: 4px;
 }
 
 .crop-header-copy {

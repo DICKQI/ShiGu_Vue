@@ -559,6 +559,7 @@
                 selectedAspectRatio === 'circle' || selectedAspectRatio.endsWith('-ellipse'),
               'rounded-rect-preview': showRoundedControls && enableRoundedRect
             }"
+            :style="cropperWrapperStyle"
           >
             <vue-picture-cropper
               v-if="cropImageSrc"
@@ -827,6 +828,30 @@ const scheduleLivePreviewRefresh = () => {
   }, 280)
 }
 
+// 圆角矩形：让“上方操作区的圆角”与“下方预览/最终导出”的半径算法一致
+// 导出算法：radius = (p/100) * (min(w, h)/2)
+// 操作区这里用当前 cropBox 的显示尺寸实时算出像素半径，再用 px 设置 cropper 的 view-box 圆角
+const roundedRectPreviewPx = ref(0)
+const updateRoundedRectPreviewRadius = () => {
+  if (!showRoundedControls.value || !enableRoundedRect.value) {
+    roundedRectPreviewPx.value = 0
+    return
+  }
+  const cropBox = getCropperNumericState('getCropBoxData')
+  const w = cropBox?.width
+  const h = cropBox?.height
+  if (!w || !h) return
+
+  const p = Math.max(0, Math.min(roundedRadius.value, 50))
+  const radius = (p / 100) * (Math.min(w, h) / 2)
+  roundedRectPreviewPx.value = Number.isFinite(radius) ? radius : 0
+}
+
+const cropperWrapperStyle = computed(() => ({
+  // 供 scoped CSS 读取
+  '--rounded-radius-px': `${roundedRectPreviewPx.value}px`,
+}))
+
 const refreshLivePreview = async () => {
   if (!cropDialogVisible.value) return
   const seq = ++livePreviewSeq
@@ -835,6 +860,9 @@ const refreshLivePreview = async () => {
   try {
     const cropperInstance = getCropperInstance()
     if (!cropperInstance) return
+
+    // 同步一次操作区圆角半径（避免只动裁切框时圆角不刷新）
+    updateRoundedRectPreviewRadius()
 
     // 取低分辨率裁切结果用于预览
     let baseBlob: Blob | null = null
@@ -918,6 +946,7 @@ watch(
   () => [selectedAspectRatio.value, enableRoundedRect.value, roundedRadius.value, enableMargin.value, marginPercent.value],
   () => {
     scheduleLivePreviewRefresh()
+    updateRoundedRectPreviewRadius()
     scheduleCropHistorySnapshot()
   }
 )
@@ -973,9 +1002,13 @@ const cropperOptions = computed(() => {
     // 确保裁切框始终在图片范围内
     strict: true, // 严格模式，确保裁切框不超出图片
     ready: () => handleCropperReady(),
-    crop: () => scheduleLivePreviewRefresh(),
+    crop: () => {
+      updateRoundedRectPreviewRadius()
+      scheduleLivePreviewRefresh()
+    },
     cropend: () => scheduleCropHistorySnapshot(120),
     zoom: () => {
+      updateRoundedRectPreviewRadius()
       scheduleLivePreviewRefresh()
       scheduleCropHistorySnapshot(180)
     },
@@ -1535,6 +1568,8 @@ const handleCropperReady = () => {
   const run = async () => {
     await nextTick()
     if (!cropDialogVisible.value) return
+
+    updateRoundedRectPreviewRadius()
 
     if (pendingCropSnapshotApply) {
       if (applyCropperStateFromSnapshot(pendingCropSnapshotApply)) {
@@ -3303,7 +3338,9 @@ onUnmounted(() => {
   --brightness: v-bind('filterState.brightness + "%"');
   --contrast: v-bind('filterState.contrast + "%"');
   --saturate: v-bind('filterState.saturation + "%"');
-  --rounded-radius: v-bind('roundedRadius + "%"');
+  /* 圆角矩形：导出时用“最短边的一半”为上限换算像素半径；
+     操作区预览也用同一公式换算为 px（由 JS 写入 --rounded-radius-px） */
+  --rounded-radius: v-bind('roundedRadius + "%"'); /* 兜底（旧逻辑/极端情况下） */
   width: 100%;
   margin: 12px auto 0;
   padding: 8px;
@@ -3340,7 +3377,7 @@ onUnmounted(() => {
 /* 自由 / 1:1 圆角矩形预览，仅改变裁切框视觉效果，不影响最终像素裁剪顺序 */
 .cropper-wrapper.rounded-rect-preview :deep(.cropper-view-box),
 .cropper-wrapper.rounded-rect-preview :deep(.cropper-face) {
-  border-radius: var(--rounded-radius);
+  border-radius: var(--rounded-radius-px, var(--rounded-radius));
 }
 
 @media (max-width: 768px) {

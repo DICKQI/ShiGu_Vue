@@ -26,6 +26,12 @@
           <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
         <el-button class="search-btn" type="primary" @click="handleSearch">搜索</el-button>
+        <div class="hidden-xs-only">
+          <el-button plain @click="expandAll">全部展开</el-button>
+        </div>
+        <div class="hidden-xs-only">
+          <el-button plain @click="collapseAll">全部收起</el-button>
+        </div>
       </div>
     </el-card>
     <!-- ================= 顶部区域结束 ================= -->
@@ -83,7 +89,11 @@
                 <template #default="{ row }">
                   <div
                     class="category-item-name"
-                    :style="{ paddingLeft: `${Math.max((row.depth || 1) - 1, 0) * 18 + 8}px` }"
+                    :class="{ 'is-child': (row.depth || 1) > 1 }"
+                    :style="{
+                      '--pad-left': `${Math.max((row.depth || 1) - 1, 0) * 18 + 8}px`,
+                      paddingLeft: `${Math.max((row.depth || 1) - 1, 0) * 18 + 8}px`,
+                    }"
                   >
                     <div
                       class="depth-bar"
@@ -619,7 +629,10 @@ const depthColor = (depth?: number) => {
 }
 
 const rowClassName = ({ row }: { row: CategoryNode }) => {
-  return row && (row as any).depth ? `row-depth-${(row as any).depth}` : ''
+  if (!row) return ''
+  const classes: string[] = []
+  if ((row as any).depth) classes.push(`row-depth-${(row as any).depth}`)
+  return classes.join(' ')
 }
 
 const parentTreeOptions = computed(() => {
@@ -664,6 +677,41 @@ const toggleRowExpand = (row: CategoryNode) => {
   } else if (tableRef.value?.store?.toggleRowExpansion) {
     tableRef.value.store.toggleRowExpansion(row, next)
   }
+}
+
+const setRowExpansion = (row: CategoryNode, expanded: boolean) => {
+  if (tableRef.value?.toggleRowExpansion) {
+    tableRef.value.toggleRowExpansion(row, expanded)
+  } else if (tableRef.value?.store?.toggleRowExpansion) {
+    tableRef.value.store.toggleRowExpansion(row, expanded)
+  }
+}
+
+const walkTree = (nodes: CategoryNode[], visitor: (node: CategoryNode) => void) => {
+  nodes.forEach((node) => {
+    visitor(node)
+    if (node.children && node.children.length > 0) walkTree(node.children, visitor)
+  })
+}
+
+const expandAll = async () => {
+  await nextTick()
+  walkTree(displayedTree.value, (node) => {
+    if (node.children && node.children.length > 0) {
+      expandedIds.value.add(node.id)
+      setRowExpansion(node, true)
+    }
+  })
+}
+
+const collapseAll = async () => {
+  await nextTick()
+  walkTree(displayedTree.value, (node) => {
+    if (node.children && node.children.length > 0) {
+      setRowExpansion(node, false)
+    }
+  })
+  expandedIds.value.clear()
 }
 
 const fetchCategoryList = async (force = false) => {
@@ -864,7 +912,28 @@ onUnmounted(() => {
 }
 
 /* PC 表格样式 */
-.category-item-name { display: flex; align-items: center; gap: 10px; font-weight: 500; color: #444; }
+.category-item-name { display: flex; align-items: center; gap: 10px; font-weight: 500; color: #444; position: relative; }
+.category-item-name.is-child::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--pad-left, 8px) - 10px);
+  top: -8px;
+  bottom: -8px;
+  border-left: 1px dashed #d0d3d9;
+  opacity: 0.9;
+  pointer-events: none;
+}
+.category-item-name.is-child::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--pad-left, 8px) - 10px);
+  top: 50%;
+  width: 10px;
+  border-top: 1px dashed #d0d3d9;
+  transform: translateY(-50%);
+  opacity: 0.9;
+  pointer-events: none;
+}
 .folder-icon { color: #8e7dff; font-size: 18px; }
 .depth-bar { width: 4px; height: 20px; border-radius: 2px; background: #dcdfe6; }
 .level-tag { margin-left: 6px; }
@@ -913,6 +982,8 @@ onUnmounted(() => {
 .pc-table :deep(.el-table__placeholder) {
   display: none;
 }
+
+/* 顶级父级锚点（有子类） */
 .action-inline :deep(.el-button.is-link:focus-visible),
 .action-inline :deep(.el-button.is-link:focus),
 .action-inline :deep(.el-button.is-link:active) {

@@ -52,6 +52,9 @@ importers:
       pinia:
         specifier: ^3.0.4
         version: 3.0.4(typescript@5.9.3)(vue@3.5.26(typescript@5.9.3))
+      pinyin-pro:
+        specifier: ^3.28.0
+        version: 3.28.0
       sortablejs:
         specifier: ^1.15.3
         version: 1.15.6
@@ -2246,6 +2249,9 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  pinyin-pro@3.28.0:
+    resolution: {integrity: sha512-mMRty6RisoyYNphJrTo3pnvp3w8OMZBrXm9YSWkxhAfxKj1KZk2y8T2PDIZlDDRsvZ0No+Hz6FI4sZpA6Ey25g==}
 
   plist@3.1.0:
     resolution: {integrity: sha512-uysumyrvkUX0rX/dEVqt8gC3sTBzd4zoWfLeS29nb53imdaXVvLINYXTI2GNqzaMuvacNx4uJQ8+b3zXR0pkgQ==}
@@ -5060,6 +5066,8 @@ snapshots:
       vue: 3.5.26(typescript@5.9.3)
     optionalDependencies:
       typescript: 5.9.3
+
+  pinyin-pro@3.28.0: {}
 
   plist@3.1.0:
     dependencies:

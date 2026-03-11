@@ -3197,7 +3197,7 @@ onUnmounted(() => {
 }
 
 .main-photo-card-shell {
-  display: inline-block;
+  display: block;
   width: 220px;
 }
 
@@ -3214,7 +3214,10 @@ onUnmounted(() => {
 }
 
 .main-photo-actions {
-  margin-top: 10px;
+  width: 220px;
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
 }
 
 .main-photo-preview .el-image {

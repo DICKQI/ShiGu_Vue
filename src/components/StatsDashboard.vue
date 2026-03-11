@@ -146,24 +146,25 @@
     <div class="stats-content" v-loading="loading">
       <el-row :gutter="16" class="overview-row">
         <el-col :xs="8" :sm="12" :md="8">
-          <el-card class="overview-card" shadow="hover">
+          <el-card class="overview-card overview-card--goods" shadow="hover">
             <div class="overview-label">谷子件数</div>
             <div class="overview-value">{{ overview?.goods_count ?? 0 }}</div>
             <div class="overview-sub">不同 Asset 记录数</div>
           </el-card>
         </el-col>
         <el-col :xs="8" :sm="12" :md="8">
-          <el-card class="overview-card" shadow="hover">
+          <el-card class="overview-card overview-card--quantity" shadow="hover">
             <div class="overview-label">总数量</div>
             <div class="overview-value">{{ overview?.quantity_sum ?? 0 }}</div>
             <div class="overview-sub">合计 quantity</div>
           </el-card>
         </el-col>
         <el-col :xs="8" :sm="12" :md="8">
-          <el-card class="overview-card" shadow="hover">
+          <el-card class="overview-card overview-card--value" shadow="hover">
             <div class="overview-label">估算总金额</div>
-            <div class="overview-value">
-              ¥{{ formattedValueSum }}
+            <div class="overview-value overview-value--money">
+              <span class="overview-currency">¥</span>
+              <span class="overview-amount">{{ formattedValueSum }}</span>
             </div>
             <div class="overview-sub">price×quantity 汇总</div>
           </el-card>
@@ -379,7 +380,11 @@ const updateCharts = () => {
     borderWidth: 1,
     textStyle: { color: theme.text },
     extraCssText:
-      'backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-radius: 10px;',
+      'backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-radius: 10px; z-index: 3000;',
+    // 避免 tooltip 被卡片/容器的 overflow 裁剪
+    appendToBody: true,
+    confine: false,
+    renderMode: 'html',
   }
 
   // 状态分布饼图
@@ -435,10 +440,26 @@ const updateCharts = () => {
   const subjectChart = initChart(subjectChartRef.value)
   if (subjectChart) {
     const items = distributions.ip_subject_type || []
+    const rawCounts = items.map((i) => Number(i.goods_count || 0))
+    const logCounts = rawCounts.map((v) => (Number.isFinite(v) && v > 0 ? v : 1))
     subjectChart.setOption({
       color: palette,
       textStyle: baseTextStyle,
-      tooltip: { ...baseTooltip, trigger: 'axis', axisPointer: { type: 'shadow' } },
+      tooltip: {
+        ...baseTooltip,
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        formatter: (params: any) => {
+          const p = Array.isArray(params) ? params[0] : params
+          const idx = typeof p?.dataIndex === 'number' ? p.dataIndex : 0
+          const label = items[idx]?.label ?? p?.axisValue ?? ''
+          const raw = rawCounts[idx] ?? 0
+          return [
+            `<div style="font-weight:600;margin-bottom:6px;">${label}</div>`,
+            `<div>数量：<b>${raw}</b></div>`,
+          ].join('')
+        },
+      },
       grid: { left: 36, right: 18, top: 24, bottom: 48, containLabel: true },
       xAxis: {
         type: 'category',
@@ -448,15 +469,27 @@ const updateCharts = () => {
         axisLabel: { interval: 0, color: theme.textSub },
       },
       yAxis: {
-        type: 'value',
+        type: 'log',
+        min: 1,
+        logBase: 10,
         axisLine: { show: false },
         splitLine: { lineStyle: { color: 'rgba(0,0,0,0.05)' } },
-        axisLabel: { color: theme.textSub },
+        axisLabel: {
+          color: theme.textSub,
+          formatter: (val: number) => {
+            const v = Number(val)
+            if (!Number.isFinite(v) || v <= 0) return ''
+            // 仅展示 1/10/100/1000...，减少对数轴杂讯
+            const p = Math.round(Math.log10(v))
+            const pow = Math.pow(10, p)
+            return Math.abs(v - pow) < 1e-6 ? String(v) : ''
+          },
+        },
       },
       series: [
         {
           type: 'bar',
-          data: items.map((i) => i.goods_count),
+          data: logCounts,
           barMaxWidth: 28,
           itemStyle: { borderRadius: [8, 8, 0, 0] },
         },
@@ -888,6 +921,36 @@ watch(createdDateRange, () => triggerAutoFetch())
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.overview-card::before {
+  content: '';
+  position: absolute;
+  right: -18px;
+  bottom: -22px;
+  width: 132px;
+  height: 132px;
+  transform: rotate(-14deg);
+  opacity: 0.085;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  filter: saturate(1.05);
+}
+
+.overview-card--goods::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23D4AF37' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 38h84v56H18z'/%3E%3Cpath d='M28 38V26h64v12'/%3E%3Cpath d='M44 60h32'/%3E%3Cpath d='M44 72h32'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.overview-card--quantity::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23A29BFE' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M28 30h64v64H28z'/%3E%3Cpath d='M38 44h44'/%3E%3Cpath d='M38 60h30'/%3E%3Cpath d='M38 76h36'/%3E%3Ccircle cx='84' cy='60' r='6'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.overview-card--value::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23F6D365' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='60' cy='60' r='36'/%3E%3Ccircle cx='60' cy='60' r='26'/%3E%3Cpath d='M52 46h18'/%3E%3Cpath d='M52 74h18'/%3E%3Cpath d='M60 44v32'/%3E%3Cpath d='M54 54c2-3 10-3 12 0s-2 6-6 6-8 3-6 6 10 3 12 0'/%3E%3C/g%3E%3C/svg%3E");
 }
 
 .overview-label {
@@ -901,6 +964,23 @@ watch(createdDateRange, () => triggerAutoFetch())
   font-weight: 700;
   color: var(--text-dark);
   margin-bottom: 4px;
+}
+
+.overview-value--money {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.overview-currency {
+  font-size: 0.65em;
+  font-weight: 600;
+  color: var(--text-light);
+  letter-spacing: 0.02em;
+}
+
+.overview-amount {
+  font-variant-numeric: tabular-nums;
 }
 
 .overview-sub {
@@ -934,6 +1014,14 @@ watch(createdDateRange, () => triggerAutoFetch())
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .overview-card::before {
+    width: 96px;
+    height: 96px;
+    right: -16px;
+    bottom: -18px;
+    opacity: 0.06;
   }
 
   .overview-sub {

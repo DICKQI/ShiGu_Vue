@@ -125,28 +125,29 @@
                 </div>
                 <div v-loading="characterLoadingMap[row.id]" class="character-content">
                   <template v-if="characterMap[row.id]?.length">
-                    <div
-                      v-for="char in characterMap[row.id]"
-                      :key="char.id"
-                      class="character-row"
-                    >
-                      <div class="char-info-row">
-                        <el-avatar :size="40" :src="char.avatar || undefined" shape="square" class="char-avatar table-avatar">
+                    <div class="character-grid character-grid--desktop">
+                      <div
+                        v-for="char in characterMap[row.id]"
+                        :key="char.id"
+                        class="character-tile"
+                        :class="{ clickable: authStore.isAdmin }"
+                        @click="authStore.isAdmin && handleEditCharacter(char)"
+                      >
+                        <el-avatar :size="40" :src="char.avatar || undefined" shape="square" class="char-avatar tile-avatar">
                           <el-icon><UserFilled /></el-icon>
                         </el-avatar>
-                        <div class="char-details">
-                          <span class="char-name">{{ char.name }}</span>
-                          <span v-if="false" :class="['gender-badge', char.gender]">
-                            {{ getGenderLabel(char.gender) }}
-                          </span>
-                        </div>
-                      </div>
-                      <div class="char-actions" v-if="authStore.isAdmin">
-                        <el-button link type="primary" @click="handleEditCharacter(char)" title="编辑">
-                          <el-icon :size="16"><Edit /></el-icon>
-                        </el-button>
-                        <el-button link type="danger" @click="handleDeleteCharacter(char)" title="删除">
-                          <el-icon :size="16"><Delete /></el-icon>
+                        <div class="character-name-compact" :title="char.name">{{ char.name }}</div>
+
+                        <el-button
+                          v-if="authStore.isAdmin"
+                          class="tile-delete-btn"
+                          size="small"
+                          text
+                          type="danger"
+                          @click.stop="handleDeleteCharacter(char)"
+                          title="删除"
+                        >
+                          <el-icon><Delete /></el-icon>
                         </el-button>
                       </div>
                     </div>
@@ -171,7 +172,13 @@
           <!-- 修改点：添加 sortable="custom" 和 prop -->
           <el-table-column prop="subject_type" label="作品类型" width="120" align="center" sortable="custom">
             <template #default="{ row }">
-              <el-tag v-if="row.subject_type" size="small" :type="getSubjectTypeTagType(row.subject_type)">
+              <el-tag
+                v-if="row.subject_type"
+                size="small"
+                effect="plain"
+                class="subject-type-tag"
+                :type="getSubjectTypeTagType(row.subject_type)"
+              >
                 {{ getSubjectTypeLabel(row.subject_type) }}
               </el-tag>
               <span v-else class="no-type">-</span>
@@ -294,36 +301,27 @@
                 </el-button>
               </div>
               <template v-if="characterMap[item.id]?.length">
-                <div
-                  v-for="char in characterMap[item.id]"
-                  :key="char.id"
-                  class="character-card"
-                >
-                  <el-avatar :size="50" :src="char.avatar || undefined" shape="square" class="char-avatar">
-                    <el-icon><UserFilled /></el-icon>
-                  </el-avatar>
-                  <div class="char-info">
-                    <div class="name-line">
-                      <span class="name">{{ char.name }}</span>
-                      <span v-if="false" :class="['gender-badge', char.gender]">
-                        {{ getGenderLabel(char.gender) }}
-                      </span>
-                    </div>
-                  </div>
-                  <div class="char-actions-mobile" v-if="authStore.isAdmin">
+                <div class="character-grid character-grid--mobile">
+                  <div
+                    v-for="char in characterMap[item.id]"
+                    :key="char.id"
+                    class="character-tile"
+                    :class="{ clickable: authStore.isAdmin }"
+                    @click="authStore.isAdmin && handleEditCharacter(char)"
+                  >
+                    <el-avatar :size="46" :src="char.avatar || undefined" shape="square" class="char-avatar tile-avatar">
+                      <el-icon><UserFilled /></el-icon>
+                    </el-avatar>
+                    <div class="character-name-compact" :title="char.name">{{ char.name }}</div>
+
                     <el-button
-                      size="small"
-                      text
-                      type="primary"
-                      @click.stop="handleEditCharacter(char)"
-                    >
-                      <el-icon><Edit /></el-icon>
-                    </el-button>
-                    <el-button
+                      v-if="authStore.isAdmin"
+                      class="tile-delete-btn"
                       size="small"
                       text
                       type="danger"
                       @click.stop="handleDeleteCharacter(char)"
+                      title="删除"
                     >
                       <el-icon><Delete /></el-icon>
                     </el-button>
@@ -1845,6 +1843,19 @@ const handleBGMClose = () => {
   font-style: italic;
 }
 
+/* 作品类型标签（动画/游戏）：低饱和配色，贴合页面调性 */
+:deep(.subject-type-tag.el-tag--success) {
+  --el-tag-bg-color: #edf6f2;
+  --el-tag-border-color: #bfe3d3;
+  --el-tag-text-color: #2f7a60;
+}
+
+:deep(.subject-type-tag.el-tag--danger) {
+  --el-tag-bg-color: #f7eeee;
+  --el-tag-border-color: #e5c2c6;
+  --el-tag-text-color: #9a3f4b;
+}
+
 /* 展开区域样式 */
 .character-expand-section {
   padding: 16px;
@@ -1866,6 +1877,72 @@ const handleBGMClose = () => {
 
 .character-content {
   min-height: 50px;
+}
+
+/* 角色列表 Grid（PC + 移动端共用） */
+.character-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.character-grid--desktop {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+.character-grid--mobile {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+}
+
+.character-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #f2f6fc;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.character-tile.clickable {
+  cursor: pointer;
+}
+
+.character-tile.clickable:hover {
+  transform: translateY(-1px);
+  border-color: #e6e2ff;
+  box-shadow: 0 6px 16px rgba(142, 125, 255, 0.10);
+}
+
+.tile-avatar {
+  flex-shrink: 0;
+}
+
+.character-name-compact {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-delete-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px;
+  height: auto;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.tile-delete-btn:hover {
+  background: rgba(255, 255, 255, 1);
 }
 
 .character-row {
@@ -2133,6 +2210,19 @@ const handleBGMClose = () => {
   font-size: 14px;
   font-weight: 600;
   color: #303133;
+}
+
+@media (max-width: 768px) {
+  .character-grid--mobile {
+    gap: 8px;
+  }
+  .character-tile {
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+  .character-name-compact {
+    font-size: 13px;
+  }
 }
 
 .character-card {

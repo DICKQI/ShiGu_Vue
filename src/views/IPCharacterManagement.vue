@@ -252,41 +252,61 @@
 
         <!-- 内容区域 -->
         <!-- 修改点：遍历 sortedIpList，保持顺序一致 -->
-        <div class="mobile-view-inner" ref="mobileListRef">
-          <div v-for="item in sortedIpList" :key="item.id" class="ip-card-item">
-            <div class="card-main" @click="toggleExpand(item.id)">
-              <div class="card-info">
-                <div class="name-row">
-                  <h3 class="name-text">{{ item.name }}</h3>
-                  <span class="character-count-badge">{{ item.character_count ?? (characterMap[item.id]?.length || 0) }}</span>
+        <div class="mobile-view-inner" ref="mobileListRef" :class="{ 'has-index-bar': showIndexBar }">
+          <div
+            v-for="item in sortedIpList"
+            :key="item.id"
+            class="ip-card-item"
+            :data-index-anchor="firstIdByIndexKey[getIndexKey(item.name)] === item.id ? getIndexKey(item.name) : undefined"
+          >
+            <div
+              class="ip-swipe-item"
+              :class="{ open: openSwipeId === item.id, dragging: swipeTouch.id === item.id && swipeTouch.dragging }"
+              @touchstart="onCardTouchStart($event, item.id)"
+              @touchmove="onCardTouchMove($event)"
+              @touchend="onCardTouchEnd"
+              @touchcancel="onCardTouchEnd"
+            >
+              <div class="swipe-actions" v-if="authStore.isAdmin">
+                <button class="swipe-action-btn edit" type="button" @click.stop="handleEditIP(item)">
+                  <el-icon><Edit /></el-icon>
+                  <span>编辑</span>
+                </button>
+                <button class="swipe-action-btn delete" type="button" @click.stop="handleDeleteIP(item)">
+                  <el-icon><Delete /></el-icon>
+                  <span>删除</span>
+                </button>
+              </div>
+
+              <div class="swipe-content" :style="getSwipeContentStyle(item.id)">
+                <div class="card-main" @click="handleMobileCardClick(item.id)">
+                  <div class="card-info">
+                    <div class="name-row">
+                      <h3 class="name-text">{{ item.name }}</h3>
+                      <span class="character-count-badge">{{ item.character_count ?? (characterMap[item.id]?.length || 0) }}</span>
+                    </div>
+                    <div class="keyword-row">
+                      <span v-for="keyword in item.keywords || []" :key="keyword.id" class="mini-tag">
+                        {{ keyword.value }}
+                      </span>
+                      <span v-if="!item.keywords?.length" class="no-tag">暂无关键词</span>
+                    </div>
+                  </div>
+                  <div class="card-drag-handle mobile-drag-handle" v-if="authStore.isAdmin" @click.stop>
+                    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                      <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                      <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                  </div>
                 </div>
-                <div class="keyword-row">
-                  <span v-for="keyword in item.keywords || []" :key="keyword.id" class="mini-tag">
-                    {{ keyword.value }}
-                  </span>
-                  <span v-if="!item.keywords?.length" class="no-tag">暂无关键词</span>
-                </div>
-              </div>
-              <div class="card-arrow">
-                <el-icon :class="{ rotated: expandedIPs.includes(item.id) }">
-                  <ArrowRight />
-                </el-icon>
-              </div>
-              <div class="card-drag-handle mobile-drag-handle" v-if="authStore.isAdmin" @click.stop>
-                <svg viewBox="0 0 16 16" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                  <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                  <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-              </div>
-            </div>
 
             <!-- 展开的角色列表 -->
-            <div
-              v-if="expandedIPs.includes(item.id)"
-              v-loading="characterLoadingMap[item.id]"
-              class="character-list"
-            >
+                <div
+                  v-if="expandedIPs.includes(item.id)"
+                  v-loading="characterLoadingMap[item.id]"
+                  class="character-list"
+                >
               <div class="character-list-header">
                 <span>角色列表</span>
                 <el-button
@@ -329,16 +349,20 @@
                 </div>
               </template>
               <el-empty v-else description="暂无角色" :image-size="60" />
+                </div>
+              </div>
             </div>
+          </div>
+        </div>
 
-            <div class="card-footer" v-if="authStore.isAdmin">
-              <div class="footer-action" @click.stop="handleEditIP(item)" title="编辑作品">
-                <el-icon><Edit /></el-icon>
-              </div>
-              <div class="footer-action delete" @click.stop="handleDeleteIP(item)" title="删除作品">
-                <el-icon><Delete /></el-icon>
-              </div>
-            </div>
+        <div v-if="showIndexBar" class="az-index-bar">
+          <div
+            v-for="k in indexBarKeys"
+            :key="k"
+            class="az-index-item"
+            @click.stop="scrollToIndexKey(k)"
+          >
+            {{ k }}
           </div>
         </div>
       </div>
@@ -749,7 +773,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, reactive, watch } from 'vue'
+import { pinyin } from 'pinyin-pro'
 import {
   Plus,
   Edit,
@@ -811,13 +836,24 @@ const metadataStore = useMetadataStore()
 
 onMounted(() => {
   window.addEventListener('resize', updateWindowWidth)
+  document.addEventListener('click', handleDocumentClick, true)
   fetchIPList()
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateWindowWidth)
+  document.removeEventListener('click', handleDocumentClick, true)
   destroySortables()
 })
+
+const handleDocumentClick = (evt: MouseEvent) => {
+  if (!isMobile.value) return
+  if (openSwipeId.value == null) return
+  const target = evt.target as HTMLElement | null
+  if (!target) return
+  if (target.closest('.ip-swipe-item')) return
+  closeSwipe(openSwipeId.value)
+}
 
 // 下拉刷新相关状态
 const scrollContainerRef = ref<HTMLElement | null>(null)
@@ -835,9 +871,129 @@ let sortableTable: ReturnType<typeof Sortable.create> | null = null
 let sortableMobile: ReturnType<typeof Sortable.create> | null = null
 const isSorting = ref(false)
 
+// 移动端：侧滑操作（编辑/删除）
+const SWIPE_ACTION_WIDTH = 132 // px
+const openSwipeId = ref<number | null>(null)
+const swipeOffsetMap = ref<Record<number, number>>({})
+const swipeTouch = reactive({
+  id: null as number | null,
+  startX: 0,
+  startY: 0,
+  dragging: false,
+  moved: false,
+})
+
 // 修复：获取页面滚动高度的辅助函数
 const getScrollTop = () => {
   return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
+}
+
+const closeSwipe = (id?: number) => {
+  const targetId = id ?? openSwipeId.value
+  if (targetId == null) return
+  swipeOffsetMap.value = { ...swipeOffsetMap.value, [targetId]: 0 }
+  if (openSwipeId.value === targetId) openSwipeId.value = null
+}
+
+const openSwipe = (id: number) => {
+  openSwipeId.value = id
+  swipeOffsetMap.value = { ...swipeOffsetMap.value, [id]: -SWIPE_ACTION_WIDTH }
+}
+
+const shouldDisableSwipe = () => {
+  if (!isMobile.value) return true
+  if (isSorting.value) return true
+  if (isDragging.value) return true
+  if (pullDistance.value > 0) return true
+  return false
+}
+
+const onCardTouchStart = (e: TouchEvent, id: number) => {
+  if (shouldDisableSwipe()) return
+  const target = e.target as HTMLElement | null
+  if (target?.closest?.('.mobile-drag-handle')) return
+  const t = e.touches?.[0]
+  if (!t) return
+
+  if (openSwipeId.value != null && openSwipeId.value !== id) {
+    closeSwipe(openSwipeId.value)
+  }
+
+  swipeTouch.id = id
+  swipeTouch.startX = t.clientX
+  swipeTouch.startY = t.clientY
+  swipeTouch.dragging = false
+  swipeTouch.moved = false
+
+  if (swipeOffsetMap.value[id] == null) {
+    swipeOffsetMap.value = { ...swipeOffsetMap.value, [id]: openSwipeId.value === id ? -SWIPE_ACTION_WIDTH : 0 }
+  }
+}
+
+const onCardTouchMove = (e: TouchEvent) => {
+  if (shouldDisableSwipe()) return
+  const id = swipeTouch.id
+  if (id == null) return
+  const t = e.touches?.[0]
+  if (!t) return
+
+  const dx = t.clientX - swipeTouch.startX
+  const dy = t.clientY - swipeTouch.startY
+
+  if (!swipeTouch.dragging) {
+    const absX = Math.abs(dx)
+    const absY = Math.abs(dy)
+    if (absX < 10) return
+    if (absX <= absY + 6) return
+    swipeTouch.dragging = true
+  }
+
+  swipeTouch.moved = true
+  if (e.cancelable) e.preventDefault()
+
+  const base = openSwipeId.value === id ? -SWIPE_ACTION_WIDTH : 0
+  let nextOffset = base + dx
+  nextOffset = Math.min(0, Math.max(-SWIPE_ACTION_WIDTH, nextOffset))
+  swipeOffsetMap.value = { ...swipeOffsetMap.value, [id]: nextOffset }
+}
+
+const onCardTouchEnd = () => {
+  const id = swipeTouch.id
+  if (id == null) return
+
+  if (swipeTouch.dragging) {
+    const offset = swipeOffsetMap.value[id] ?? 0
+    if (offset <= -SWIPE_ACTION_WIDTH / 2) {
+      openSwipe(id)
+    } else {
+      closeSwipe(id)
+    }
+  }
+
+  swipeTouch.id = null
+  swipeTouch.dragging = false
+}
+
+const handleMobileCardClick = async (ipId: number) => {
+  if (swipeTouch.moved) {
+    swipeTouch.moved = false
+    return
+  }
+
+  if (openSwipeId.value === ipId) {
+    closeSwipe(ipId)
+    return
+  }
+
+  await toggleExpand(ipId)
+}
+
+const getSwipeContentStyle = (id: number) => {
+  const offset = swipeOffsetMap.value[id] ?? (openSwipeId.value === id ? -SWIPE_ACTION_WIDTH : 0)
+  return {
+    transform: `translateX(${offset}px)`,
+    transition: swipeTouch.id === id && swipeTouch.dragging ? 'none' : 'transform 0.22s ease',
+  }
 }
 
 // 下拉刷新逻辑
@@ -964,6 +1120,61 @@ const sortedIpList = computed(() => {
     return sortState.value.order === 'descending' ? -result : result
   })
 })
+
+// 移动端：A-Z 索引条（按拼音首字母）
+const INDEX_BAR_THRESHOLD = 30
+const showIndexBar = computed(() => isMobile.value && sortedIpList.value.length > INDEX_BAR_THRESHOLD)
+
+const getIndexKey = (name: string) => {
+  const raw = (name || '').trim()
+  if (!raw) return '#'
+  const first = raw.charAt(0)
+  if (/[A-Za-z]/.test(first)) return first.toUpperCase()
+  if (/[0-9]/.test(first)) return '#'
+
+  try {
+    const py = pinyin(raw, { pattern: 'first', toneType: 'none' })
+    const letter = (py || '').trim().replace(/\s+/g, '')[0]
+    if (letter && /[A-Za-z]/.test(letter)) return letter.toUpperCase()
+  } catch {}
+  return '#'
+}
+
+const firstIdByIndexKey = computed(() => {
+  const map: Record<string, number> = {}
+  for (const item of sortedIpList.value) {
+    const key = getIndexKey(item.name)
+    if (map[key] == null) map[key] = item.id
+  }
+  return map
+})
+
+const indexBarKeys = computed(() => {
+  const present = new Set(Object.keys(firstIdByIndexKey.value))
+  const keys: string[] = []
+  if (present.has('#')) keys.push('#')
+  for (let i = 0; i < 26; i++) {
+    const k = String.fromCharCode(65 + i)
+    if (present.has(k)) keys.push(k)
+  }
+  return keys
+})
+
+const scrollToIndexKey = async (key: string) => {
+  if (!showIndexBar.value) return
+  await nextTick()
+  const el = document.querySelector(`[data-index-anchor="${key}"]`) as HTMLElement | null
+  if (!el) return
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+watch(
+  () => sortedIpList.value.map((x) => x.id).join(','),
+  () => {
+    // 筛选/刷新导致列表变化时，关闭已打开的侧滑，避免残留偏移
+    if (openSwipeId.value != null) closeSwipe(openSwipeId.value)
+  }
+)
 
 const destroySortables = () => {
   if (sortableTable) {
@@ -1745,9 +1956,16 @@ const handleBGMClose = () => {
   box-shadow: 0 0 0 1px #e4e7ed inset;
 }
 
-/* 品牌色按钮 */
-.search-btn,
+/* 品牌色按钮（用于弹窗提交等主操作） */
 .submit-btn {
+  background: linear-gradient(135deg, #a396ff 0%, #8e7dff 100%);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+}
+
+/* 搜索按钮默认样式（PC 保持现有强样式；移动端会在 media query 内弱化） */
+.search-btn {
   background: linear-gradient(135deg, #a396ff 0%, #8e7dff 100%);
   border: none;
   border-radius: 8px;
@@ -2040,6 +2258,47 @@ const handleBGMClose = () => {
   gap: 14px;
 }
 
+.mobile-view-inner.has-index-bar {
+  padding-right: 22px;
+}
+
+.az-index-bar {
+  position: fixed;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 4px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(17, 24, 39, 0.06);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 8px 18px rgba(17, 24, 39, 0.08);
+}
+
+.az-index-item {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #5a4bff;
+  user-select: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.az-index-item:active {
+  background: rgba(90, 75, 255, 0.10);
+}
+
 /* 下拉刷新相关样式 */
 .pull-indicator {
   position: relative;
@@ -2083,12 +2342,73 @@ const handleBGMClose = () => {
   transition: transform 0.2s;
 }
 
+.ip-swipe-item {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.swipe-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 132px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(17, 24, 39, 0.06);
+  background: linear-gradient(180deg, #fafbff 0%, #f7f5ff 100%);
+}
+
+.swipe-action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: #5a4bff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.swipe-action-btn .el-icon {
+  font-size: 16px;
+}
+
+.swipe-action-btn.edit {
+  border-bottom: 1px solid rgba(17, 24, 39, 0.06);
+}
+
+.swipe-action-btn.delete {
+  color: #f56c6c;
+}
+
+.swipe-action-btn:active {
+  background: rgba(90, 75, 255, 0.06);
+}
+
+.swipe-action-btn.delete:active {
+  background: rgba(245, 108, 108, 0.08);
+}
+
+.swipe-content {
+  position: relative;
+  z-index: 1;
+  background: #fff;
+  will-change: transform;
+}
+
 .ip-card-item:active {
   transform: scale(0.98);
 }
 
 .card-main {
-  padding: 16px;
+  padding: 14px 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -2337,6 +2657,18 @@ const handleBGMClose = () => {
 
   .filter-select {
     width: 100% !important;
+  }
+
+  /* 移动端：弱化“搜索”按钮，把视觉重点留给“新增 / 导入” */
+  .search-btn {
+    background: transparent !important;
+    border: 1px solid #8e7dff !important;
+    color: #5a4bff !important;
+    box-shadow: none !important;
+  }
+
+  .search-btn:active {
+    background: rgba(90, 75, 255, 0.08) !important;
   }
 }
 

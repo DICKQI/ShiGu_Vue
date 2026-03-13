@@ -44,14 +44,7 @@ export const useGuziStore = defineStore('guzi', () => {
         ...filters.value,
         page: pagination.value.page,
       })
-      
-      console.log('API响应数据:', response)
-      console.log('响应数据类型:', typeof response)
-      console.log('是否为数组:', Array.isArray(response))
-      console.log('results:', response?.results)
-      console.log('results类型:', typeof response?.results)
-      console.log('results是否为数组:', Array.isArray(response?.results))
-      
+
       // 处理分页响应格式（根据新的 API 文档）
       let results: GoodsListItem[] = []
       let count = 0
@@ -80,7 +73,6 @@ export const useGuziStore = defineStore('guzi', () => {
         }
         // 如果没有 results 字段，但响应是对象，可能是直接返回的数据
         else {
-          console.warn('响应对象没有 results 字段，尝试直接使用:', responseObj)
           // 如果对象有 id 字段，可能是单个对象，包装成数组
           if (responseObj.id) {
             results = [responseObj]
@@ -93,7 +85,6 @@ export const useGuziStore = defineStore('guzi', () => {
       }
       // 其他情况
       else {
-        console.warn('无法识别的响应格式:', response)
         results = []
         count = 0
       }
@@ -107,18 +98,13 @@ export const useGuziStore = defineStore('guzi', () => {
         next,
         previous,
       }
-      
-      console.log('数据已更新，列表长度:', guziList.value.length)
-      console.log('分页信息:', pagination.value)
-      
+
       // 如果结果为空，清除错误信息（可能是正常的空结果）
       if (results.length === 0 && !error.value) {
         // 空结果不是错误，不需要设置错误信息
       }
     } catch (err: any) {
       error.value = err.message || '搜索失败'
-      console.error('搜索谷子失败:', err)
-      console.error('错误详情:', err.response?.data || err)
       guziList.value = []
     } finally {
       loading.value = false
@@ -135,7 +121,6 @@ export const useGuziStore = defineStore('guzi', () => {
       return data
     } catch (err: any) {
       error.value = err.message || '获取详情失败'
-      console.error('获取谷子详情失败:', err)
       return null
     }
   }

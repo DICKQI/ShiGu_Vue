@@ -15,6 +15,11 @@ export function getGoodsList(params?: GoodsSearchParams) {
   return request.get<PaginatedResponse<GoodsListItem>>('/api/goods/', { params })
 }
 
+// 获取相似谷子随机展示列表
+export function getSimilarRandomGoodsList(params?: GoodsSearchParams) {
+  return request.get<PaginatedResponse<GoodsListItem>>('/api/goods/similar-random/', { params })
+}
+
 // 获取谷子统计图表数据（Dashboard）
 export function getGoodsStats(params?: GoodsStatsParams) {
   return request.get<GoodsStatsResponse>('/api/goods/stats/', { params })

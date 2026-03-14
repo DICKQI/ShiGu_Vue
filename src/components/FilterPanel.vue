@@ -9,6 +9,28 @@
         <div class="filter-header">
           <span>筛选谷子</span>
           <div class="filter-actions">
+            <!-- 视图模式切换 - 滑块样式 -->
+            <div class="view-mode-toggle">
+              <div class="toggle-slider" :class="{ 'is-similar': guziStore.viewMode === 'similar' }">
+                <div class="slider-bg"></div>
+                <button
+                  class="toggle-option"
+                  :class="{ active: guziStore.viewMode === 'standard' }"
+                  @click="handleViewModeChange('standard')"
+                >
+                  <el-icon><List /></el-icon>
+                  <span>标准</span>
+                </button>
+                <button
+                  class="toggle-option"
+                  :class="{ active: guziStore.viewMode === 'similar' }"
+                  @click="handleViewModeChange('similar')"
+                >
+                  <el-icon><MagicStick /></el-icon>
+                  <span>相似</span>
+                </button>
+              </div>
+            </div>
             <!-- 重置按钮改为图标形式 -->
             <el-button
               text
@@ -169,7 +191,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { ArrowDown, RefreshLeft } from '@element-plus/icons-vue'
+import { ArrowDown, RefreshLeft, List, MagicStick } from '@element-plus/icons-vue'
 import { useGuziStore } from '@/stores/guzi'
 import { useLocationStore } from '@/stores/location'
 import { getIPList, getCharacterList, getCategoryTree, getThemeList } from '@/api/metadata'
@@ -331,6 +353,11 @@ const handleReset = () => {
   guziStore.resetFilters()
 }
 
+// 视图模式切换处理函数
+const handleViewModeChange = (mode: 'standard' | 'similar') => {
+  guziStore.setViewMode(mode)
+}
+
 // 同步外部筛选条件
 watch(
   () => guziStore.filters,
@@ -409,7 +436,69 @@ onUnmounted(() => {})
 .filter-actions {
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+/* 视图模式切换 - 滑块样式 */
+.view-mode-toggle {
+  display: flex;
+  align-items: center;
+}
+
+.toggle-slider {
+  position: relative;
+  display: flex;
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.slider-bg {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc(50% - 4px);
+  height: calc(100% - 6px);
+  background: #ffffff;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 0;
+}
+
+.toggle-slider.is-similar .slider-bg {
+  transform: translateX(calc(100% + 2px));
+}
+
+.toggle-option {
+  position: relative;
+  display: flex;
+  align-items: center;
   gap: 4px;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: #909399;
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.3s;
+  z-index: 1;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.toggle-option:hover {
+  color: #606266;
+}
+
+.toggle-option.active {
+  color: var(--primary-gold);
+  font-weight: 500;
+}
+
+.toggle-option .el-icon {
+  font-size: 14px;
 }
 
 .icon-btn {
@@ -604,6 +693,32 @@ onUnmounted(() => {})
   /* 与上方移动端状态组设置保持一致，避免被二次覆盖 */
   .status-group {
     margin-left: 0 !important;
+  }
+
+  /* 移动端优化：缩小切换按钮 */
+  .toggle-option {
+    padding: 4px 8px;
+    font-size: 12px;
+    gap: 2px;
+  }
+
+  .toggle-option .el-icon {
+    font-size: 13px;
+  }
+
+  .toggle-slider {
+    padding: 2px;
+  }
+
+  .slider-bg {
+    top: 2px;
+    left: 2px;
+    width: calc(50% - 3px);
+    height: calc(100% - 4px);
+  }
+
+  .toggle-slider.is-similar .slider-bg {
+    transform: translateX(calc(100% + 1px));
   }
 }
 

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getGoodsList, getGoodsDetail } from '@/api/goods'
+import { getGoodsList, getGoodsDetail, getSimilarRandomGoodsList } from '@/api/goods'
 import type { GoodsListItem, GoodsDetail, GoodsSearchParams } from '@/api/types'
 import { debounce } from 'lodash-es'
 
@@ -10,6 +10,7 @@ export const useGuziStore = defineStore('guzi', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const filters = ref<GoodsSearchParams>({})
+  const viewMode = ref<'standard' | 'similar'>('standard')
   const pagination = ref({
     count: 0,
     page: 1,
@@ -40,10 +41,15 @@ export const useGuziStore = defineStore('guzi', () => {
     }
 
     try {
-      const response = await getGoodsList({
-        ...filters.value,
-        page: pagination.value.page,
-      })
+      const response = viewMode.value === 'similar'
+        ? await getSimilarRandomGoodsList({
+            ...filters.value,
+            page: pagination.value.page,
+          })
+        : await getGoodsList({
+            ...filters.value,
+            page: pagination.value.page,
+          })
 
       // 处理分页响应格式（根据新的 API 文档）
       let results: GoodsListItem[] = []
@@ -143,17 +149,26 @@ export const useGuziStore = defineStore('guzi', () => {
     return _searchGuzi(params)
   }
 
+  // 设置视图模式
+  function setViewMode(mode: 'standard' | 'similar') {
+    viewMode.value = mode
+    pagination.value.page = 1  // 切换视图时重置到第一页
+    _searchGuzi()
+  }
+
   return {
     guziList,
     loading,
     error,
     filters,
+    viewMode,
     pagination,
     searchGuzi,
     searchGuziImmediate,
     fetchGoodsDetail,
     resetFilters,
     setPage,
+    setViewMode,
   }
 })
 

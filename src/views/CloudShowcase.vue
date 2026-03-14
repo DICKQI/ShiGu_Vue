@@ -55,9 +55,9 @@
         </Transition>
       </div>
 
-      <!-- 分页 - 悬浮固定在底部 -->
+      <!-- 分页 - 悬浮固定在底部（相似视图不显示分页） -->
       <div
-        v-if="guziStore.pagination.count > 0"
+        v-if="guziStore.pagination.count > 0 && guziStore.viewMode === 'standard'"
         class="pagination-container"
         :class="{ 'pagination-visible': showPagination || !isMobile }"
       >

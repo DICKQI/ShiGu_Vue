@@ -413,6 +413,28 @@ onMounted(async () => {
   isMobile.value = window.innerWidth < 768
   collapsed.value = isMobile.value
 
+  // 从 store 同步初始筛选条件到本地状态
+  localFilters.value = {
+    ip: guziStore.filters.ip,
+    character: guziStore.filters.character,
+    category: guziStore.filters.category,
+    theme: guziStore.filters.theme,
+    status: guziStore.filters.status,
+    status__in: guziStore.filters.status__in,
+    is_official: guziStore.filters.is_official,
+    location: guziStore.filters.location,
+    group_by: guziStore.filters.group_by,
+  }
+
+  // 同步状态多选
+  if (guziStore.filters.status__in) {
+    selectedStatuses.value = guziStore.filters.status__in.split(',') as GoodsStatus[]
+  } else if (guziStore.filters.status) {
+    selectedStatuses.value = [guziStore.filters.status]
+  } else {
+    selectedStatuses.value = []
+  }
+
   // 加载基础数据
   try {
     const [ipList, characterList, categoryTree, themeList] = await Promise.all([

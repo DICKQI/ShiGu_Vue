@@ -458,7 +458,8 @@ let statsRefreshCompleteHandler: (() => void) | null = null
 const handleShowcaseRefresh = async () => {
   try {
     if (activeTab.value === 'barn') {
-      await guziStore.searchGuziImmediate()
+      // 重新应用当前的筛选条件进行搜索
+      await guziStore.searchGuziImmediate(guziStore.filters)
       return
     }
     if (activeTab.value === 'showcase') {

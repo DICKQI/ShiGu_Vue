@@ -160,6 +160,15 @@ export interface GoodsSearchParams {
   search?: string
   page?: number
   page_size?: number
+  /**
+   * 分组显示参数：
+   * - ip：按 IP 作品分组
+   * - character：按角色分组
+   * - category：按品类分组
+   * - theme：按主题分组
+   * - undefined：不分组（默认）
+   */
+  group_by?: 'ip' | 'character' | 'category' | 'theme'
 }
 
 // 统计看板查询参数（复用列表筛选 + 统计专用参数）

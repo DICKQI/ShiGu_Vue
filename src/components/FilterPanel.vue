@@ -16,6 +16,7 @@
                 <button
                   class="toggle-option"
                   :class="{ active: guziStore.viewMode === 'standard' }"
+                  :disabled="!!localFilters.group_by"
                   @click="handleViewModeChange('standard')"
                 >
                   <el-icon><List /></el-icon>
@@ -24,6 +25,7 @@
                 <button
                   class="toggle-option"
                   :class="{ active: guziStore.viewMode === 'similar' }"
+                  :disabled="!!localFilters.group_by"
                   @click="handleViewModeChange('similar')"
                 >
                   <el-icon><MagicStick /></el-icon>
@@ -181,6 +183,23 @@
                 check-strictly
               />
             </div>
+
+            <!-- 分组显示筛选 -->
+            <div class="filter-item">
+              <label>分组显示</label>
+              <el-select
+                v-model="localFilters.group_by"
+                placeholder="不分组"
+                clearable
+                @change="handleFilterChange"
+                style="width: 100%"
+              >
+                <el-option label="按IP分组" value="ip" />
+                <el-option label="按角色分组" value="character" />
+                <el-option label="按品类分组" value="category" />
+                <el-option label="按主题分组" value="theme" />
+              </el-select>
+            </div>
           </div>
         </div>
       </transition>
@@ -232,6 +251,7 @@ const localFilters = ref<GoodsSearchParams>({
   status__in: undefined,
   is_official: undefined,
   location: undefined,
+  group_by: undefined,
 })
 
 // 本地状态多选
@@ -326,6 +346,7 @@ const handleFilterChange = () => {
     theme: localFilters.value.theme || undefined,
     is_official: localFilters.value.is_official,
     location: localFilters.value.location || undefined,
+    group_by: localFilters.value.group_by || undefined,
   }
 
   applyStatusToFilters(filters)
@@ -348,6 +369,7 @@ const handleReset = () => {
     status__in: undefined,
     is_official: undefined,
     location: undefined,
+    group_by: undefined,
   }
   selectedStatuses.value = []
   guziStore.resetFilters()
@@ -371,6 +393,7 @@ watch(
       status__in: newFilters.status__in,
       is_official: newFilters.is_official,
       location: newFilters.location,
+      group_by: newFilters.group_by,
     }
 
     // 同步 store 中的状态到本地多选
@@ -488,13 +511,18 @@ onUnmounted(() => {})
   white-space: nowrap;
 }
 
-.toggle-option:hover {
+.toggle-option:hover:not(:disabled) {
   color: #606266;
 }
 
 .toggle-option.active {
   color: var(--primary-gold);
   font-weight: 500;
+}
+
+.toggle-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .toggle-option .el-icon {
@@ -583,8 +611,8 @@ onUnmounted(() => {})
 /* PC 大屏：强制单行显示，使用更稳定的分配方式 */
 @media (min-width: 1280px) {
   .filter-content {
-    /* 使用更稳定的分配方式：前4个等宽，状态自适应，是否官谷压缩，位置略宽 */
-    grid-template-columns: repeat(4, 1fr) auto minmax(80px, 0.8fr) 1.2fr;
+    /* 使用更稳定的分配方式：前4个等宽，状态自适应，是否官谷压缩，位置略宽，分组显示略宽 */
+    grid-template-columns: repeat(4, 1fr) auto minmax(80px, 0.8fr) 1.1fr 1.1fr;
     gap: 12px;
     align-items: start;     /* 顶部对齐，确保所有元素垂直位置一致 */
     white-space: nowrap;    /* 防止内部元素由于挤压而换行 */
@@ -623,9 +651,8 @@ onUnmounted(() => {})
 /* 针对 1280px 以下、769px 以上的屏幕（如 13寸笔记本） */
 @media (min-width: 769px) and (max-width: 1279px) {
   .filter-content {
-    /* 在这个区间，如果 7 个实在塞不下，才允许它自适应缩放，
-       但仍优先保持单行，除非总宽小于 900px */
-    grid-template-columns: repeat(7, minmax(80px, 1fr));
+    /* 在这个区间，8 个筛选器自适应缩放 */
+    grid-template-columns: repeat(8, minmax(80px, 1fr));
     gap: 8px;
   }
 }

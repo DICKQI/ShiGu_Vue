@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { getGoodsList, getGoodsDetail, getSimilarRandomGoodsList } from '@/api/goods'
 import type { GoodsListItem, GoodsDetail, GoodsSearchParams } from '@/api/types'
 import { debounce } from 'lodash-es'
@@ -51,14 +51,14 @@ export const useGuziStore = defineStore('guzi', () => {
             page: pagination.value.page,
           })
 
-      // 处理分页响应格式（根据新的 API 文档）
+      // 统一处理为扁平列表格式
       let results: GoodsListItem[] = []
       let count = 0
       let page = pagination.value.page
       let page_size = pagination.value.page_size
       let next: number | null = null
       let previous: number | null = null
-      
+
       // 如果响应本身就是数组（某些情况下可能直接返回数组，向后兼容）
       if (Array.isArray(response)) {
         results = response
@@ -94,7 +94,7 @@ export const useGuziStore = defineStore('guzi', () => {
         results = []
         count = 0
       }
-      
+
       // 更新数据
       guziList.value = results
       pagination.value = {
@@ -106,7 +106,7 @@ export const useGuziStore = defineStore('guzi', () => {
       }
 
       // 如果结果为空，清除错误信息（可能是正常的空结果）
-      if (results.length === 0 && !error.value) {
+      if (guziList.value.length === 0 && !error.value) {
         // 空结果不是错误，不需要设置错误信息
       }
     } catch (err: any) {

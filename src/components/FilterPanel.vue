@@ -148,9 +148,9 @@
             class="status-group"
             @change="handleStatusChange"
           >
-            <el-checkbox-button label="in_cabinet">在馆</el-checkbox-button>
-            <el-checkbox-button label="outdoor">出街中</el-checkbox-button>
-            <el-checkbox-button label="sold">已售出</el-checkbox-button>
+            <el-checkbox-button class="status-chip status-chip--in-cabinet" label="in_cabinet">在馆</el-checkbox-button>
+            <el-checkbox-button class="status-chip status-chip--outdoor" label="outdoor">出街中</el-checkbox-button>
+            <el-checkbox-button class="status-chip status-chip--sold" label="sold">已售出</el-checkbox-button>
           </el-checkbox-group>
         </div>
 
@@ -629,6 +629,31 @@ onUnmounted(() => {})
   align-items: center;
 }
 
+/* 统一筛选控件的高度与圆角（下拉框/输入框/状态按钮严格对齐） */
+.filter-panel {
+  --filter-control-height: 32px;
+  --filter-control-radius: 8px;
+}
+
+@media (max-width: 768px) {
+  .filter-panel {
+    --filter-control-height: 36px;
+  }
+}
+
+::deep(.el-input__wrapper),
+::deep(.el-select__wrapper) {
+  border-radius: var(--filter-control-radius) !important;
+  height: var(--filter-control-height);
+  min-height: var(--filter-control-height);
+  background-color: #fff !important;
+}
+
+::deep(.el-input__inner),
+::deep(.el-select__selected-item) {
+  line-height: var(--filter-control-height);
+}
+
 
 /* PC 大屏：强制单行显示，使用更稳定的分配方式 */
 @media (min-width: 1280px) {
@@ -651,14 +676,15 @@ onUnmounted(() => {})
   }
 
   .filter-item--status .status-group {
-    gap: 0px;               /* PC 端取消间隙，使用按钮组样式更省空间 */
+    gap: 6px;               /* PC 大屏：稍微隔开一点点 */
     align-items: stretch;   /* 确保按钮组内部元素高度一致 */
   }
 
-  :deep(.el-checkbox-button__inner) {
-    padding: 8px 12px !important; /* 缩小按钮内边距 */
+  .filter-item--status :deep(.el-checkbox-button__inner) {
+    padding: 0 12px !important; /* 高度统一，横向留白即可 */
     font-size: 13px !important;
-    height: 32px;           /* 与 Element Plus 输入框默认高度一致 */
+    height: var(--filter-control-height);
+    min-height: var(--filter-control-height);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -691,29 +717,23 @@ onUnmounted(() => {})
   }
 
   /* 移除 Element Plus 按钮组默认的连接效果，改为独立的圆角胶囊 */
-  :deep(.el-checkbox-button__inner) {
+  .filter-item--status :deep(.el-checkbox-button__inner) {
     width: 100%;
-    padding: 10px 4px !important; /* 增加上下高度，方便手指点击 */
+    padding: 0 8px !important; /* 高度由变量控制，避免各控件不齐 */
     font-size: 13px !important;
     border: 1px solid var(--el-border-color-light) !important;
-    border-radius: 8px !important; /* 全圆角胶囊感 */
+    border-radius: var(--filter-control-radius) !important;
     background-color: #f9fafb !important;
     box-shadow: none !important;
     transition: all 0.2s ease;
-  }
-
-  /* 选中状态的视觉增强 */
-  :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
-    background-color: rgba(var(--accent-purple-rgb, 103, 58, 183), 0.1) !important;
-    color: var(--accent-purple, #673ab7) !important;
-    border-color: var(--accent-purple, #673ab7) !important;
-    font-weight: bold;
+    height: var(--filter-control-height);
+    min-height: var(--filter-control-height);
   }
 
   /* 首尾也保持一致圆角，避免 Element 默认样式干扰 */
-  :deep(.el-checkbox-button:first-child .el-checkbox-button__inner),
-  :deep(.el-checkbox-button:last-child .el-checkbox-button__inner) {
-    border-radius: 8px !important;
+  .filter-item--status :deep(.el-checkbox-button:first-child .el-checkbox-button__inner),
+  .filter-item--status :deep(.el-checkbox-button:last-child .el-checkbox-button__inner) {
+    border-radius: var(--filter-control-radius) !important;
   }
 }
 
@@ -772,14 +792,8 @@ onUnmounted(() => {})
 }
 
 /* 状态按钮样式，保持与之前单选按钮风格一致 */
-::deep(.el-checkbox-button__inner) {
+.filter-item--status :deep(.el-checkbox-button__inner) {
   border-color: var(--border-color);
-}
-
-::deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
-  background-color: var(--accent-purple);
-  border-color: var(--accent-purple);
-  color: #fff;
 }
 /* PC 端状态组微调：增加间隙，弱化“合并式”按钮组观感 */
 @media (min-width: 769px) {
@@ -787,19 +801,106 @@ onUnmounted(() => {})
     gap: 12px;
   }
 
-  :deep(.el-checkbox-button__inner) {
+  .filter-item--status :deep(.el-checkbox-button__inner) {
     border: 1px solid #dcdfe6 !important;
-    border-radius: 6px !important; /* PC 端圆角稍尖一点，显得干练 */
+    border-radius: var(--filter-control-radius) !important;
     margin-right: 0;
   }
 }
 
-/* 统一输入框圆角 */
-:deep(.el-input__wrapper),
-:deep(.el-select__wrapper) {
-  border-radius: 8px !important;
-  background-color: #fff !important;
+/* 状态筛选：多选胶囊 Chip（按状态语义着色） */
+.filter-item--status {
+  --status-in-cabinet: #0ea371; /* 翠绿：安全/存储中 */
+  --status-outdoor: #d4a017; /* 香槟金/橙黄：活跃/携带中 */
+  --status-sold: #6b7280; /* 中性灰：已售出 */
+  --status-chip-bg: #f3f4f6;
+  --status-chip-border: #d1d5db;
+  --status-chip-text: #374151;
 }
+
+.filter-item--status :deep(.status-chip .el-checkbox-button__inner) {
+  background-color: var(--status-chip-bg) !important;
+  border: 1px solid var(--status-chip-border) !important;
+  border-radius: var(--filter-control-radius) !important;
+  color: var(--status-chip-text) !important;
+  font-weight: 600;
+  gap: 6px;
+  justify-content: center;
+  box-shadow: none !important;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+  height: var(--filter-control-height);
+  min-height: var(--filter-control-height);
+  padding: 0 12px !important;
+}
+
+.filter-item--status :deep(.status-chip .el-checkbox-button__inner)::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.9;
+  flex: 0 0 auto;
+}
+
+/* 仅激活态：小圆点微微闪烁（呼吸感） */
+.filter-item--status :deep(.status-chip.is-checked .el-checkbox-button__inner)::before {
+  animation: statusDotPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes statusDotPulse {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-item--status :deep(.status-chip.is-checked .el-checkbox-button__inner)::before {
+    animation: none;
+  }
+}
+
+.filter-item--status :deep(.status-chip:not(.is-disabled):hover .el-checkbox-button__inner) {
+  background-color: #eef2f7 !important;
+  border-color: #9ca3af !important;
+}
+
+.filter-item--status :deep(.status-chip.is-focus .el-checkbox-button__inner) {
+  box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.18) !important;
+}
+
+.filter-item--status :deep(.status-chip--in-cabinet.is-checked .el-checkbox-button__inner) {
+  color: var(--status-in-cabinet) !important;
+  background-color: rgba(14, 163, 113, 0.12) !important;
+  border-color: rgba(14, 163, 113, 0.55) !important;
+}
+
+.filter-item--status :deep(.status-chip--outdoor.is-checked .el-checkbox-button__inner) {
+  color: var(--status-outdoor) !important;
+  background-color: rgba(212, 160, 23, 0.14) !important;
+  border-color: rgba(212, 160, 23, 0.55) !important;
+}
+
+.filter-item--status :deep(.status-chip--sold .el-checkbox-button__inner) {
+  color: var(--status-sold) !important;
+  font-weight: 500;
+}
+
+.filter-item--status :deep(.status-chip--sold.is-checked .el-checkbox-button__inner) {
+  background-color: #e5e7eb !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* 输入类控件的高度/圆角已在上方统一变量中设置 */
 </style>
 
 

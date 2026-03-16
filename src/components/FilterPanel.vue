@@ -432,7 +432,10 @@ onMounted(async () => {
   } else if (guziStore.filters.status) {
     selectedStatuses.value = [guziStore.filters.status]
   } else {
-    selectedStatuses.value = []
+    // 页面首次进入且未指定状态时，默认选中“在馆”
+    selectedStatuses.value = ['in_cabinet']
+    // 触发一次筛选，确保列表与默认状态一致
+    handleFilterChange()
   }
 
   // 加载基础数据

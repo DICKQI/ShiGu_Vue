@@ -512,6 +512,45 @@
               />
               <span class="filter-value">{{ filterState.saturation }}%</span>
             </div>
+            <div class="filter-item">
+              <span class="filter-label">旋转</span>
+              <el-slider
+                v-model="filterState.rotation"
+                :min="-180"
+                :max="180"
+                :format-tooltip="(val: number) => `${val}°`"
+              />
+              <span class="filter-value">
+                {{ filterState.rotation }}°
+              </span>
+            </div>
+            <div class="perspective-panel">
+              <div class="perspective-title">透视矫正</div>
+              <div class="filter-item" style="margin-bottom: 10px;">
+                <span class="filter-label">水平透视</span>
+                <el-slider
+                  v-model="filterState.perspectiveHorizontal"
+                  :min="-100"
+                  :max="100"
+                  :format-tooltip="(val: number) => val + '%'"
+                />
+                <span class="filter-value">
+                  {{ filterState.perspectiveHorizontal > 0 ? '+' : '' }}{{ filterState.perspectiveHorizontal }}%
+                </span>
+              </div>
+              <div class="filter-item" style="margin-bottom: 0;">
+                <span class="filter-label">垂直透视</span>
+                <el-slider
+                  v-model="filterState.perspectiveVertical"
+                  :min="-100"
+                  :max="100"
+                  :format-tooltip="(val: number) => val + '%'"
+                />
+                <span class="filter-value">
+                  {{ filterState.perspectiveVertical > 0 ? '+' : '' }}{{ filterState.perspectiveVertical }}%
+                </span>
+              </div>
+            </div>
             <!-- HSL 调节 -->
             <div class="hsl-panel">
               <div class="hsl-header-row">
@@ -739,6 +778,45 @@
                     :format-tooltip="(val: number) => val + '%'"
                   />
                   <span class="filter-value">{{ filterState.saturation }}%</span>
+                </div>
+                <div class="filter-item">
+                  <span class="filter-label">旋转</span>
+                  <el-slider
+                    v-model="filterState.rotation"
+                    :min="-180"
+                    :max="180"
+                    :format-tooltip="(val: number) => `${val}°`"
+                  />
+                  <span class="filter-value">
+                    {{ filterState.rotation }}°
+                  </span>
+                </div>
+                <div class="perspective-panel">
+                  <div class="perspective-title">透视矫正</div>
+                  <div class="filter-item" style="margin-bottom: 10px;">
+                    <span class="filter-label">水平透视</span>
+                    <el-slider
+                      v-model="filterState.perspectiveHorizontal"
+                      :min="-100"
+                      :max="100"
+                      :format-tooltip="(val: number) => val + '%'"
+                    />
+                    <span class="filter-value">
+                      {{ filterState.perspectiveHorizontal > 0 ? '+' : '' }}{{ filterState.perspectiveHorizontal }}%
+                    </span>
+                  </div>
+                  <div class="filter-item" style="margin-bottom: 0;">
+                    <span class="filter-label">垂直透视</span>
+                    <el-slider
+                      v-model="filterState.perspectiveVertical"
+                      :min="-100"
+                      :max="100"
+                      :format-tooltip="(val: number) => val + '%'"
+                    />
+                    <span class="filter-value">
+                      {{ filterState.perspectiveVertical > 0 ? '+' : '' }}{{ filterState.perspectiveVertical }}%
+                    </span>
+                  </div>
                 </div>
                 <!-- HSL 调节 -->
                 <div class="hsl-panel">
@@ -1071,6 +1149,10 @@ const createDefaultFilterState = () => ({
   contrast: 100,
   saturation: 100,
   hslAdjustments: createDefaultHslAdjustments(),
+  // 几何变换相关：透视 + 旋转
+  rotation: 0,
+  perspectiveHorizontal: 0,
+  perspectiveVertical: 0,
 })
 
 const filterState = ref(createDefaultFilterState())
@@ -1262,7 +1344,18 @@ const isFilterStateDefault = () => {
     filterState.value.brightness === 100 &&
     filterState.value.contrast === 100 &&
     filterState.value.saturation === 100 &&
+    (filterState.value.rotation ?? 0) === 0 &&
+    (filterState.value.perspectiveHorizontal ?? 0) === 0 &&
+    (filterState.value.perspectiveVertical ?? 0) === 0 &&
     isAllHslAdjustmentsZero()
+  )
+}
+
+const isTransformStateDefault = () => {
+  return (
+    (filterState.value.rotation ?? 0) === 0 &&
+    (filterState.value.perspectiveHorizontal ?? 0) === 0 &&
+    (filterState.value.perspectiveVertical ?? 0) === 0
   )
 }
 
@@ -1290,7 +1383,7 @@ const applyHslPerColorToImageData = (imageData: ImageData): ImageData => {
       continue
     }
 
-    let nextH = normalizeHue(hsl.h + (adjust.h ?? 0))
+    const nextH = normalizeHue(hsl.h + (adjust.h ?? 0))
     let nextS = hsl.s * (1 + (adjust.s ?? 0) / 100)
     let nextL = hsl.l * (1 + (adjust.l ?? 0) / 100)
 
@@ -1388,6 +1481,16 @@ const refreshLivePreview = async () => {
 
     let workingFile = new File([baseBlob], `preview_${Date.now()}.png`, { type: 'image/png' })
 
+    // 先应用几何变换：透视 + 旋转
+    if (!isTransformStateDefault()) {
+      try {
+        const transformedBlob = await applyPerspectiveAndRotateToBlob(workingFile)
+        workingFile = new File([transformedBlob], `preview_${Date.now()}.png`, { type: 'image/png' })
+      } catch (e) {
+        // 几何变换失败时忽略，不中断预览流程
+      }
+    }
+
     // 形状与补白/圆角顺序尽量贴近最终导出
     if (selectedAspectRatio.value === 'circle') {
       const masked = await applyCircleMaskToBlob(workingFile)
@@ -1460,6 +1563,9 @@ const cropperStyle = computed(() => {
   const baseBrightness = filterState.value.brightness
   const baseContrast = filterState.value.contrast
   const baseSaturation = filterState.value.saturation
+  const baseRotation = filterState.value.rotation ?? 0
+  const perspectiveHorizontal = filterState.value.perspectiveHorizontal ?? 0
+  const perspectiveVertical = filterState.value.perspectiveVertical ?? 0
 
   // 将按颜色分组的 HSL 调整，近似汇总成一个全局 H/S/L，用于 CSS filter 预览
   const hslAdj: any = filterState.value.hslAdjustments
@@ -1489,8 +1595,22 @@ const cropperStyle = computed(() => {
   const cssSaturation = Math.max(0, baseSaturation * (1 + avgS / 100))
   const cssHueRotate = avgH
 
+  const transformParts: string[] = []
+  const rotateYDeg = (perspectiveHorizontal / 100) * 20
+  const rotateXDeg = (perspectiveVertical / 100) * -20
+  if (perspectiveHorizontal !== 0) {
+    transformParts.push(`rotateY(${rotateYDeg}deg)`)
+  }
+  if (perspectiveVertical !== 0) {
+    transformParts.push(`rotateX(${rotateXDeg}deg)`)
+  }
+  if (baseRotation) {
+    transformParts.push(`rotate(${baseRotation}deg)`)
+  }
+
   return {
-    filter: `brightness(${cssBrightness}%) contrast(${baseContrast}%) saturate(${cssSaturation}%) hue-rotate(${cssHueRotate}deg)`
+    filter: `brightness(${cssBrightness}%) contrast(${baseContrast}%) saturate(${cssSaturation}%) hue-rotate(${cssHueRotate}deg)`,
+    transform: transformParts.length ? `perspective(800px) ${transformParts.join(' ')}` : undefined,
   }
 })
 
@@ -1967,6 +2087,9 @@ const createCropEditSnapshot = (): CropEditSnapshot | null => {
         contrast: src.contrast,
         saturation: src.saturation,
         hslAdjustments: createDefaultHslAdjustments(),
+        rotation: src.rotation ?? 0,
+        perspectiveHorizontal: src.perspectiveHorizontal ?? 0,
+        perspectiveVertical: src.perspectiveVertical ?? 0,
       }
       if (src.hslAdjustments) {
         for (const key of Object.keys(src.hslAdjustments)) {
@@ -2064,6 +2187,9 @@ const restoreCropEditSnapshot = async (snapshot: CropEditSnapshot) => {
       contrast: src.contrast,
       saturation: src.saturation,
       hslAdjustments: createDefaultHslAdjustments(),
+      rotation: src.rotation ?? 0,
+      perspectiveHorizontal: src.perspectiveHorizontal ?? 0,
+      perspectiveVertical: src.perspectiveVertical ?? 0,
     }
     if (src.hslAdjustments) {
       for (const key of Object.keys(src.hslAdjustments)) {
@@ -2374,6 +2500,272 @@ const applyMarginToBlob = async (input: Blob, marginPercent: number) => {
   return outBlob
 }
 
+// 仅旋转几何变换：基于当前 filterState 中的旋转参数
+const applyRotateToBlob = async (input: Blob): Promise<Blob> => {
+  const bitmapOrImg = await blobToImageBitmap(input)
+  const width = (bitmapOrImg as any).width
+  const height = (bitmapOrImg as any).height
+
+  // 画布放大到对角线，避免旋转裁切内容
+  const diag = Math.sqrt(width * width + height * height)
+  const canvasSize = Math.ceil(diag)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = canvasSize
+  canvas.height = canvasSize
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 不可用')
+
+  ctx.clearRect(0, 0, canvasSize, canvasSize)
+
+  const cx = canvasSize / 2
+  const cy = canvasSize / 2
+
+  const rotDeg = filterState.value.rotation ?? 0
+
+  const rotRad = (rotDeg * Math.PI) / 180
+
+  ctx.save()
+  ctx.translate(cx, cy)
+  if (rotRad !== 0) {
+    ctx.rotate(rotRad)
+  }
+
+  ctx.drawImage(bitmapOrImg as any, -width / 2, -height / 2, width, height)
+  ctx.restore()
+
+  const outBlob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('透视/旋转处理失败'))), 'image/png', 0.92)
+  })
+
+  return outBlob
+}
+
+type Affine2DMatrix = {
+  a: number
+  b: number
+  c: number
+  d: number
+  e: number
+  f: number
+}
+
+const computeAffineFromTriangles = (
+  src1: { x: number; y: number },
+  src2: { x: number; y: number },
+  src3: { x: number; y: number },
+  dst1: { x: number; y: number },
+  dst2: { x: number; y: number },
+  dst3: { x: number; y: number },
+): Affine2DMatrix => {
+  // Canvas 2D transform: x' = a*x + c*y + e, y' = b*x + d*y + f
+  const x1 = src1.x
+  const y1 = src1.y
+  const x2 = src2.x
+  const y2 = src2.y
+  const x3 = src3.x
+  const y3 = src3.y
+
+  const X1 = dst1.x
+  const Y1 = dst1.y
+  const X2 = dst2.x
+  const Y2 = dst2.y
+  const X3 = dst3.x
+  const Y3 = dst3.y
+
+  const den = x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2)
+  if (!Number.isFinite(den) || Math.abs(den) < 1e-8) {
+    return { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }
+  }
+
+  const a = (X1 * (y2 - y3) + X2 * (y3 - y1) + X3 * (y1 - y2)) / den
+  const b = (Y1 * (y2 - y3) + Y2 * (y3 - y1) + Y3 * (y1 - y2)) / den
+  const c = (X1 * (x3 - x2) + X2 * (x1 - x3) + X3 * (x2 - x1)) / den
+  const d = (Y1 * (x3 - x2) + Y2 * (x1 - x3) + Y3 * (x2 - x1)) / den
+  const e =
+    (X1 * (x2 * y3 - x3 * y2) + X2 * (x3 * y1 - x1 * y3) + X3 * (x1 * y2 - x2 * y1)) / den
+  const f =
+    (Y1 * (x2 * y3 - x3 * y2) + Y2 * (x3 * y1 - x1 * y3) + Y3 * (x1 * y2 - x2 * y1)) / den
+
+  return { a, b, c, d, e, f }
+}
+
+const applyPerspectiveAndRotateToBlob = async (input: Blob): Promise<Blob> => {
+  const hVal = filterState.value.perspectiveHorizontal ?? 0
+  const vVal = filterState.value.perspectiveVertical ?? 0
+  const rotDeg = filterState.value.rotation ?? 0
+
+  // 纯旋转：保持现有实现，避免改变输出尺寸/观感
+  if (!hVal && !vVal) {
+    return await applyRotateToBlob(input)
+  }
+
+  const bitmapOrImg = await blobToImageBitmap(input)
+  const width = (bitmapOrImg as any).width
+  const height = (bitmapOrImg as any).height
+
+  // 画布放大到对角线，尽量避免透视导致的裁切
+  const diag = Math.sqrt(width * width + height * height)
+  const canvasSize = Math.ceil(diag)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = canvasSize
+  canvas.height = canvasSize
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 不可用')
+
+  ctx.clearRect(0, 0, canvasSize, canvasSize)
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+
+  const srcCx = width / 2
+  const srcCy = height / 2
+  const dstCx = canvasSize / 2
+  const dstCy = canvasSize / 2
+
+  const focal = Math.max(width, height) * 1.25
+  const maxAngleRad = (Math.PI * 45) / 180 // 45deg，数值更稳
+  const angleY = (hVal / 100) * maxAngleRad
+  const angleX = (vVal / 100) * maxAngleRad
+
+  const cosY = Math.cos(angleY)
+  const sinY = Math.sin(angleY)
+  const cosX = Math.cos(angleX)
+  const sinX = Math.sin(angleX)
+
+  const projectPoint = (x: number, y: number) => {
+    // 以源图中心为原点的 3D 点（z=0 的平面）
+    const X = x - srcCx
+    const Y = y - srcCy
+    const Z = 0
+
+    // 绕 Y 轴旋转（对应"水平透视"），取反以与 CSS rotateY 保持一致
+    const X1 = X * cosY - Z * sinY
+    const Z1 = X * sinY + Z * cosY
+
+    // 绕 X 轴旋转（对应"垂直透视"），取反以与 CSS rotateX 保持一致
+    const Y2 = Y * cosX + Z1 * sinX
+    const Z2 = -Y * sinX + Z1 * cosX
+
+    const denom = focal + Z2
+    const safeDenom = Math.abs(denom) < 1e-4 ? (denom >= 0 ? 1e-4 : -1e-4) : denom
+    const scale = focal / safeDenom
+
+    return {
+      x: dstCx + X1 * scale,
+      y: dstCy + Y2 * scale,
+    }
+  }
+
+  const stripCount = 64
+  const stripW = width / stripCount
+
+  // 网格近似：用细竖条上的两次三角形仿射，组合出透视映射
+  for (let i = 0; i < stripCount; i++) {
+    const x0 = i * stripW
+    const x1 = (i + 1) * stripW
+    const sw = x1 - x0
+    if (sw <= 0) continue
+
+    const p00 = projectPoint(x0, 0)
+    const p10 = projectPoint(x1, 0)
+    const p01 = projectPoint(x0, height)
+    const p11 = projectPoint(x1, height)
+
+    // triangle A: (x0,0) -> p00, (x1,0) -> p10, (x1,h) -> p11
+    {
+      ctx.save()
+      ctx.beginPath()
+      ctx.moveTo(p00.x, p00.y)
+      ctx.lineTo(p10.x, p10.y)
+      ctx.lineTo(p11.x, p11.y)
+      ctx.closePath()
+      ctx.clip()
+
+      const m = computeAffineFromTriangles(
+        { x: x0, y: 0 },
+        { x: x1, y: 0 },
+        { x: x1, y: height },
+        { x: p00.x, y: p00.y },
+        { x: p10.x, y: p10.y },
+        { x: p11.x, y: p11.y },
+      )
+
+      ctx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f)
+      ctx.drawImage(bitmapOrImg as any, x0, 0, sw, height, x0, 0, sw, height)
+      ctx.restore()
+    }
+
+    // triangle B: (x0,0) -> p00, (x1,h) -> p11, (x0,h) -> p01
+    {
+      ctx.save()
+      ctx.beginPath()
+      ctx.moveTo(p00.x, p00.y)
+      ctx.lineTo(p11.x, p11.y)
+      ctx.lineTo(p01.x, p01.y)
+      ctx.closePath()
+      ctx.clip()
+
+      const m = computeAffineFromTriangles(
+        { x: x0, y: 0 },
+        { x: x1, y: height },
+        { x: x0, y: height },
+        { x: p00.x, y: p00.y },
+        { x: p11.x, y: p11.y },
+        { x: p01.x, y: p01.y },
+      )
+
+      ctx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f)
+      ctx.drawImage(bitmapOrImg as any, x0, 0, sw, height, x0, 0, sw, height)
+      ctx.restore()
+    }
+  }
+
+  if (!rotDeg) {
+    const outBlob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error('导出透视图片失败'))),
+        'image/png',
+        0.92,
+      )
+    })
+    return outBlob
+  }
+
+  // 先透视后旋转：旋转画布再次放大，避免旋转裁切
+  const rotDiag = Math.sqrt(canvasSize * canvasSize + canvasSize * canvasSize)
+  const finalSize = Math.ceil(rotDiag)
+  const finalCanvas = document.createElement('canvas')
+  finalCanvas.width = finalSize
+  finalCanvas.height = finalSize
+  const finalCtx = finalCanvas.getContext('2d')
+  if (!finalCtx) throw new Error('Canvas 不可用')
+
+  finalCtx.clearRect(0, 0, finalSize, finalSize)
+  finalCtx.imageSmoothingEnabled = true
+  finalCtx.imageSmoothingQuality = 'high'
+
+  const cx = finalSize / 2
+  const cy = finalSize / 2
+  const rotRad = (rotDeg * Math.PI) / 180
+
+  finalCtx.save()
+  finalCtx.translate(cx, cy)
+  finalCtx.rotate(rotRad)
+  finalCtx.drawImage(canvas, -canvasSize / 2, -canvasSize / 2)
+  finalCtx.restore()
+
+  const outBlob = await new Promise<Blob>((resolve, reject) => {
+    finalCanvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error('导出透视/旋转图片失败'))),
+      'image/png',
+      0.92,
+    )
+  })
+
+  return outBlob
+}
+
 // 确认裁切
 const handleCropConfirm = async () => {
   if (!pictureCropperRef.value || !cropImageFile.value) {
@@ -2496,6 +2888,26 @@ const handleCropConfirm = async () => {
       ElMessage.error('无法获取裁切结果，请重试')
       cropping.value = false
       return
+    }
+
+    // 几何变换（在形状与边距处理之前）：透视 + 旋转
+    if (!isTransformStateDefault()) {
+      try {
+        const transformedBlob = await applyPerspectiveAndRotateToBlob(croppedFile)
+        const transformedFile = new File(
+          [transformedBlob],
+          `main_photo_${Date.now()}.png`,
+          { type: 'image/png' },
+        )
+        if (previewUrl && previewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(previewUrl)
+        }
+        croppedFile = transformedFile
+        previewUrl = URL.createObjectURL(transformedBlob)
+      } catch (e: any) {
+        ElMessage.error('透视/几何变换处理失败：' + (e?.message || '未知错误'))
+        // 出错时继续后续流程，使用未变换结果
+      }
     }
 
     // 圆形裁切：真正输出圆形区域（圆外透明 PNG）
@@ -3580,6 +3992,19 @@ onUnmounted(() => {
   font-size: 13px;
   font-weight: 500;
   color: #606266;
+}
+
+.perspective-panel {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.06);
+}
+
+.perspective-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #606266;
+  margin-bottom: 6px;
 }
 
 .hsl-color-tabs {

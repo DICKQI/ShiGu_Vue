@@ -17,6 +17,24 @@ export interface CropFilterState {
   contrast: number
   saturation: number
   hslAdjustments: HslAdjustments
+  /**
+   * 旋转角度（-180 ~ 180，单位：度）
+   */
+  rotation?: number
+
+  /**
+   * 水平透视（-100 ~ 100）
+   * - 负值：从左侧更“近”
+   * - 正值：从右侧更“近”
+   */
+  perspectiveHorizontal: number
+
+  /**
+   * 垂直透视（-100 ~ 100）
+   * - 负值：从上方更“近”
+   * - 正值：从下方更“近”
+   */
+  perspectiveVertical: number
 }
 
 export const createDefaultHslAdjustments = (): HslAdjustments => ({
@@ -35,6 +53,9 @@ const cloneFilterState = (state: CropFilterState): CropFilterState => {
     contrast: state.contrast,
     saturation: state.saturation,
     hslAdjustments: createDefaultHslAdjustments(),
+    rotation: state.rotation ?? 0,
+    perspectiveHorizontal: state.perspectiveHorizontal ?? 0,
+    perspectiveVertical: state.perspectiveVertical ?? 0,
   }
 
   for (const key of Object.keys(state.hslAdjustments) as HslColorKey[]) {
@@ -103,6 +124,9 @@ export const normalizeCropSnapshot = (snapshot: CropEditSnapshot): CropEditSnaps
       brightness: roundNumber(snapshot.filterState.brightness),
       contrast: roundNumber(snapshot.filterState.contrast),
       saturation: roundNumber(snapshot.filterState.saturation),
+      rotation: roundNumber(snapshot.filterState.rotation ?? 0),
+      perspectiveHorizontal: roundNumber(snapshot.filterState.perspectiveHorizontal ?? 0),
+      perspectiveVertical: roundNumber(snapshot.filterState.perspectiveVertical ?? 0),
     },
     roundedRadius: roundNumber(snapshot.roundedRadius),
     marginPercent: roundNumber(snapshot.marginPercent),

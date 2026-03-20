@@ -156,7 +156,11 @@ const goToAdd = () => {
 }
 
 // 移动端为页面切换添加向上滑入动画，PC 端使用轻量淡入
-const pageTransitionName = computed(() => (isMobile.value ? 'page-slide-up' : 'page-fade'))
+// 管理后台页面不应用过渡动画（由 AdminDashboard 内部处理）
+const pageTransitionName = computed(() => {
+  if (route.path.startsWith('/admin')) return 'no-transition'
+  return isMobile.value ? 'page-slide-up' : 'page-fade'
+})
 
 const handleRefresh = async () => {
   if (refreshLoading.value) return
@@ -407,6 +411,17 @@ onUnmounted(() => {
 }
 
 /* 页面过渡动画 */
+.no-transition-enter-active,
+.no-transition-leave-active {
+  transition: none;
+}
+
+.no-transition-enter-from,
+.no-transition-leave-to {
+  opacity: 1;
+  transform: none;
+}
+
 .page-fade-enter-active,
 .page-fade-leave-active {
   transition: opacity 0.2s ease, transform 0.2s ease;

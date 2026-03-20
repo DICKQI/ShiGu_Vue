@@ -112,6 +112,10 @@
       </div>
       <el-divider />
       <div class="form-actions">
+        <el-button v-if="authStore.isAdmin" type="primary" @click="goToAdmin">
+          <el-icon style="margin-right: 6px;"><Key /></el-icon>
+          进入管理后台
+        </el-button>
         <el-button :loading="refreshingUser" @click="handleRefreshUser">刷新信息</el-button>
         <el-button type="danger" plain @click="handleLogout">退出登录</el-button>
       </div>
@@ -131,7 +135,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Setting, Link, InfoFilled, Document, User } from '@element-plus/icons-vue'
+import { Setting, Link, InfoFilled, Document, User, Key } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { updateBaseURL, getCurrentBaseURL, resetBaseURL } from '@/utils/request'
@@ -241,6 +245,10 @@ const handleRefreshUser = async () => {
   } finally {
     refreshingUser.value = false
   }
+}
+
+const goToAdmin = () => {
+  router.push('/admin')
 }
 
 const handleLogout = async () => {

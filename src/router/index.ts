@@ -96,8 +96,72 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/Settings.vue'),
     meta: {
       title: '设置',
-      // 不要求登录，未登录也可进入设置页配置后端地址
     },
+  },
+  {
+    path: '/admin',
+    name: 'AdminDashboard',
+    component: () => import('@/views/admin/AdminDashboard.vue'),
+    meta: {
+      title: '管理后台',
+      requiresAuth: true,
+      requiresAdmin: true,
+      hideTopNav: true,
+      hideBottomNav: true,
+    },
+    redirect: '/admin/users',
+    children: [
+      {
+        path: 'users',
+        name: 'AdminUsers',
+        component: () => import('@/views/admin/UserManagement.vue'),
+        meta: {
+          title: '用户管理',
+          requiresAuth: true,
+          requiresAdmin: true,
+        },
+      },
+      {
+        path: 'goods',
+        name: 'AdminGoods',
+        component: () => import('@/views/admin/GoodsManagement.vue'),
+        meta: {
+          title: '谷子管理',
+          requiresAuth: true,
+          requiresAdmin: true,
+        },
+      },
+      {
+        path: 'ip',
+        name: 'AdminIP',
+        component: () => import('@/views/IPCharacterManagement.vue'),
+        meta: {
+          title: 'IP与角色管理',
+          requiresAuth: true,
+          requiresAdmin: true,
+        },
+      },
+      {
+        path: 'categories',
+        name: 'AdminCategories',
+        component: () => import('@/views/CategoryManagement.vue'),
+        meta: {
+          title: '品类管理',
+          requiresAuth: true,
+          requiresAdmin: true,
+        },
+      },
+      {
+        path: 'themes',
+        name: 'AdminThemes',
+        component: () => import('@/views/ThemeManagement.vue'),
+        meta: {
+          title: '主题管理',
+          requiresAuth: true,
+          requiresAdmin: true,
+        },
+      },
+    ],
   },
 ]
 
@@ -113,6 +177,7 @@ router.beforeEach(async (to, from, next) => {
   await authStore.initFromStorage()
 
   const requiresAuth = to.meta.requiresAuth === true
+  const requiresAdmin = to.meta.requiresAdmin === true
   const isPublic = to.meta.public === true
 
   if (requiresAuth && !authStore.isAuthenticated) {
@@ -122,6 +187,10 @@ router.beforeEach(async (to, from, next) => {
   if (isPublic && authStore.isAuthenticated && to.name === 'Login') {
     const redirect = (to.query.redirect as string) || '/showcase'
     next(typeof redirect === 'string' ? redirect : '/showcase')
+    return
+  }
+  if (requiresAdmin && !authStore.isAdmin) {
+    next({ name: 'Settings' })
     return
   }
   next()

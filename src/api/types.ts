@@ -499,3 +499,20 @@ export interface BGMGetCharactersResponse {
   characters: BGMCharacter[]
 }
 
+// ==================== 管理员模块 ====================
+
+export interface AdminRole {
+  id: number
+  name: string
+  created_at: string
+}
+
+export interface AdminUser {
+  id: number
+  username: string
+  role: AdminRole
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+

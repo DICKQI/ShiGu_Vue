@@ -106,9 +106,11 @@
               {{ row.quantity }}
             </template>
           </el-table-column>
-          <el-table-column prop="user_id" label="归属用户" width="120">
+          <el-table-column prop="user_id" label="归属用户" width="150">
             <template #default="{ row }">
-              <span class="user-badge">{{ row.user_id || '—' }}</span>
+              <span class="user-badge">
+                {{ row.user?.username ?? row.user_id ?? '—' }}
+              </span>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="150" align="right" fixed="right">

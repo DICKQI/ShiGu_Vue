@@ -100,6 +100,10 @@
 
           <div class="info-section">
             <div class="info-card">
+              <div v-if="detail.user?.username" class="info-row">
+                <span class="info-label">谷主</span>
+                <span class="info-value">{{ detail.user.username }}</span>
+              </div>
               <div class="info-row">
                 <span class="info-label">IP作品</span>
                 <span class="info-value">{{ detail.ip.name }}</span>

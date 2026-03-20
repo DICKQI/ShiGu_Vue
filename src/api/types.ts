@@ -114,6 +114,16 @@ export interface GoodsListItem {
   status: GoodsStatus
   quantity: number
   is_official?: boolean
+  /**
+   * 归属用户：
+   * - 新接口会返回 `user: { id, username }`
+   * - 旧接口/兼容字段可能仅返回 `user_id`
+   */
+  user?: {
+    id: number
+    username: string
+  } | null
+  user_id?: number | null
 }
 
 // 谷子详情（完整版）

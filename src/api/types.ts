@@ -92,7 +92,7 @@ export interface Theme {
 }
 
 // 谷子状态
-export type GoodsStatus = 'in_cabinet' | 'outdoor' | 'sold'
+export type GoodsStatus = 'draft' | 'in_cabinet' | 'outdoor' | 'sold'
 
 // 补充图片
 export interface GuziImage {
@@ -136,6 +136,11 @@ export interface GoodsDetail extends GoodsListItem {
   created_at: string
   updated_at: string
   additional_photos: GuziImage[]
+}
+
+export interface GoodsCreateResponse extends GoodsDetail {
+  merged?: boolean
+  saved_as_draft?: boolean
 }
 
 // 分页响应

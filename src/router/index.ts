@@ -82,6 +82,15 @@ const routes: RouteRecordRaw[] = [
     },
   },
   {
+    path: '/goods/drafts',
+    name: 'GoodsDrafts',
+    component: () => import('@/views/GoodsDrafts.vue'),
+    meta: {
+      title: '草稿箱',
+      requiresAuth: true,
+    },
+  },
+  {
     path: '/goods/:id/edit',
     name: 'GoodsEdit',
     component: () => import('@/views/GoodsForm.vue'),

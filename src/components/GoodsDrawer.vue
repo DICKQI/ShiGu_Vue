@@ -288,6 +288,7 @@ const drawerSize = computed(() => {
 const statusText = computed(() => {
   if (!detail.value) return ''
   const map: Record<string, string> = {
+    draft: '草稿',
     in_cabinet: '在馆',
     outdoor: '出街中',
     sold: '已售出',
@@ -298,6 +299,7 @@ const statusText = computed(() => {
 const statusTagType = computed(() => {
   if (!detail.value) return ''
   const map: Record<string, string> = {
+    draft: 'info',
     in_cabinet: 'success',
     outdoor: 'warning',
     sold: 'info',

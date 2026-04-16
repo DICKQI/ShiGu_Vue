@@ -2,6 +2,7 @@ import request from '@/utils/request'
 import type {
   GoodsListItem,
   GoodsDetail,
+  GoodsCreateResponse,
   PaginatedResponse,
   GoodsSearchParams,
   GoodsInput,
@@ -32,7 +33,7 @@ export function getGoodsDetail(id: string) {
 
 // 创建谷子（主数据 JSON）。201 新建成功返回详情，200 合并成功返回详情且 merged: true
 export function createGoods(data: GoodsInput) {
-  return request.post<GoodsDetail & { merged?: boolean }>('/api/goods/', data)
+  return request.post<GoodsCreateResponse>('/api/goods/', data)
 }
 
 // 更新谷子（主数据 JSON）

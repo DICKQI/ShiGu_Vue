@@ -116,6 +116,7 @@
             <el-col :xs="24" :sm="12">
               <el-form-item label="状态" prop="status" class="is-required">
                 <el-radio-group v-model="formData.status" class="status-segmented">
+                  <el-radio-button label="draft">草稿</el-radio-button>
                   <el-radio-button label="in_cabinet">在馆</el-radio-button>
                   <el-radio-button label="outdoor">出街中</el-radio-button>
                   <el-radio-button label="sold">已售出</el-radio-button>
@@ -388,13 +389,19 @@
       <div class="sticky-action-inner">
         <el-button class="sticky-btn sticky-btn--secondary" @click="handleCancel">取消</el-button>
         <el-button class="sticky-btn sticky-btn--secondary" @click="handleReset">重置</el-button>
+        <el-button class="sticky-btn sticky-btn--secondary" @click="goDrafts">
+          草稿箱
+        </el-button>
+        <el-button class="sticky-btn sticky-btn--secondary" @click="submitByMode('draft')" :loading="submitting">
+          保存草稿
+        </el-button>
         <el-button
           type="primary"
           class="sticky-btn sticky-btn--primary"
-          @click="handleSubmit"
+          @click="submitByMode('publish')"
           :loading="submitting"
         >
-          提交
+          {{ isEditMode ? '保存修改' : '发布' }}
         </el-button>
       </div>
     </div>
@@ -1048,7 +1055,7 @@ import VuePictureCropper, { cropper } from 'vue-picture-cropper'
 import { useLocationStore } from '@/stores/location'
 import { createGoods, updateGoods, getGoodsDetail, uploadMainPhoto, uploadAdditionalPhotos, deleteAdditionalPhoto, updateAdditionalPhotoLabel } from '@/api/goods'
 import { getIPList, getCharacterList, getCategoryList, getThemeList, createTheme } from '@/api/metadata'
-import type { GoodsDetail, IP, Character, Category, GuziImage, Theme, GoodsDuplicateCandidate, GoodsInput } from '@/api/types'
+import type { GoodsCreateResponse, GoodsDetail, GoodsDuplicateCandidate, GoodsInput, GoodsStatus, IP, Character, Category, GuziImage, Theme } from '@/api/types'
 import {
   areCropSnapshotsEqual,
   cloneCropSnapshot,
@@ -1065,6 +1072,7 @@ const locationStore = useLocationStore()
 
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
+const isEditMode = computed(() => Boolean(route.params.id))
 
 // 新建去重：409 时弹窗状态与待重试请求体
 const duplicateDialogVisible = ref(false)
@@ -1085,7 +1093,7 @@ const formData = ref({
   characters: [] as number[],
   category: undefined as number | undefined,
   theme: undefined as number | string | undefined | null, // 允许字符串，用于新创建的主题名
-  status: 'in_cabinet' as 'in_cabinet' | 'outdoor' | 'sold',
+  status: 'in_cabinet' as GoodsStatus,
   location: undefined as number | undefined,
   quantity: 1,
   price: undefined as number | undefined,
@@ -3162,7 +3170,10 @@ const handlePhotoLabelChange = async (photo: ExistingPhoto) => {
 }
 
 /** 新建或合并成功后的统一处理：上传主图/附件、提示、跳转 */
-const onCreateOrMergeSuccess = async (result: GoodsDetail & { merged?: boolean }) => {
+const onCreateOrMergeSuccess = async (
+  result: GoodsCreateResponse,
+  mode: 'draft' | 'publish',
+) => {
   const id = result.id
   if (mainPhotoFile.value) {
     await uploadMainPhoto(id, mainPhotoFile.value)
@@ -3170,76 +3181,108 @@ const onCreateOrMergeSuccess = async (result: GoodsDetail & { merged?: boolean }
   if (newAdditionalPhotoFiles.value.length > 0) {
     await handleAdditionalPhotosUpload(id)
   }
-  ElMessage.success(result.merged ? '已合并到已有谷子' : '创建成功')
+  if (result.merged) {
+    ElMessage.success('已合并到已有谷子')
+  } else if (result.saved_as_draft || mode === 'draft') {
+    ElMessage.success('草稿已保存')
+  } else {
+    ElMessage.success('创建成功')
+  }
   router.push({ name: 'CloudShowcase' })
 }
 
-const handleSubmit = async () => {
+const runDraftValidation = () => {
+  if (!formData.value.name?.trim()) {
+    ElMessage.warning('草稿至少需要填写谷子名称')
+    return false
+  }
+  if (!formData.value.ip) {
+    ElMessage.warning('草稿至少需要选择IP')
+    return false
+  }
+  if (!formData.value.category) {
+    ElMessage.warning('草稿至少需要选择品类')
+    return false
+  }
+  return true
+}
+
+const buildSubmitData = async (mode: 'draft' | 'publish') => {
+  const themeId = await ensureThemeCreated()
+  const { main_photo, theme, ...restForm } = formData.value
+  const effectiveStatus: GoodsStatus =
+    mode === 'draft'
+      ? 'draft'
+      : (restForm.status === 'draft' ? 'in_cabinet' : restForm.status)
+  const submitData: GoodsInput = {
+    ...restForm,
+    status: effectiveStatus,
+    price: restForm.price?.toString(),
+    ip_id: restForm.ip,
+    character_ids: restForm.characters,
+    category_id: restForm.category,
+    theme_id: themeId,
+  }
+  if (!restForm.purchase_date) {
+    delete (submitData as any).purchase_date
+  }
+  return submitData
+}
+
+const submitByMode = async (mode: 'draft' | 'publish') => {
   if (!formRef.value) return
 
-  await formRef.value.validate(async (valid) => {
+  if (mode === 'publish') {
+    const valid = await formRef.value.validate().catch(() => false)
     if (!valid) return
+  } else if (!runDraftValidation()) {
+    return
+  }
 
-    submitting.value = true
-    let submitData: GoodsInput | null = null
-    try {
-      // 确保主题已创建（如果是新主题，先创建获取ID）
-      const themeId = await ensureThemeCreated()
+  submitting.value = true
+  let submitData: GoodsInput | null = null
+  try {
+    submitData = await buildSubmitData(mode)
 
-      const { main_photo, theme, ...restForm } = formData.value
-      submitData = {
-        ...restForm,
-        price: restForm.price?.toString(),
-        ip_id: restForm.ip,
-        character_ids: restForm.characters,
-        category_id: restForm.category,
-        theme_id: themeId, // 使用确保创建后的theme_id（不包含theme字段）
+    if (route.params.id) {
+      const id = route.params.id as string
+      await updateGoods(id, submitData)
+
+      if (mainPhotoFile.value) {
+        await uploadMainPhoto(id, mainPhotoFile.value)
       }
-      // purchase_date 为空字符串时不上传该字段
-      if (!restForm.purchase_date && submitData) {
-        delete (submitData as any).purchase_date
-      }
+      await handleAdditionalPhotosUpload(id)
 
-      if (route.params.id) {
-        const id = route.params.id as string
-        await updateGoods(id, submitData!)
-
-        // 上传主图（如果有新文件）
-        if (mainPhotoFile.value) {
-          await uploadMainPhoto(id, mainPhotoFile.value)
-        }
-
-        // 处理附件图片
-        await handleAdditionalPhotosUpload(id)
-
-        ElMessage.success('更新成功')
-        router.push({ name: 'CloudShowcase' })
-      } else {
-        // 新建：默认 auto，检测到重复时后端返回 409
-        const result = await createGoods({ ...submitData!, merge_strategy: 'auto' })
-        await onCreateOrMergeSuccess(result)
-      }
-    } catch (err: any) {
-      if (err.response?.status === 409) {
-        const data = err.response?.data
-        if (data?.code === 'goods_duplicate' && Array.isArray(data?.candidates) && submitData) {
-          pendingCreatePayload.value = { ...submitData }
-          duplicateCandidates.value = data.candidates
-          duplicateSelectedId.value = null
-          duplicateDialogVisible.value = true
-        } else {
-          ElMessage.error(data?.detail || err.message || '提交失败')
-        }
-      } else if (err.response?.status === 400) {
-        const detail = err.response?.data?.detail
-        ElMessage.warning(detail || err.message || '请求参数错误')
-      } else {
-        ElMessage.error(err.message || '提交失败')
-      }
-    } finally {
-      submitting.value = false
+      ElMessage.success(mode === 'draft' ? '草稿已保存' : '更新成功')
+      router.push({ name: 'CloudShowcase' })
+    } else {
+      const createPayload: GoodsInput =
+        mode === 'publish'
+          ? { ...submitData, merge_strategy: 'auto' }
+          : submitData
+      const result = await createGoods(createPayload)
+      await onCreateOrMergeSuccess(result, mode)
     }
-  })
+  } catch (err: any) {
+    if (mode === 'publish' && err.response?.status === 409) {
+      const data = err.response?.data
+      if (data?.code === 'goods_duplicate' && Array.isArray(data?.candidates) && submitData) {
+        pendingCreatePayload.value = { ...submitData }
+        duplicateCandidates.value = data.candidates
+        duplicateSelectedId.value = null
+        duplicateDialogVisible.value = true
+      } else {
+        ElMessage.error(data?.detail || err.message || '提交失败')
+      }
+    } else if (err.response?.status === 400) {
+      const detail = err.response?.data?.detail
+      ElMessage.warning(detail || err.message || '请求参数错误')
+    } else {
+      ElMessage.error(err.message || '提交失败')
+    }
+  } finally {
+    submitting.value = false
+  }
 }
 
 const setDuplicateSelectedId = (id: string | null) => {
@@ -3275,7 +3318,7 @@ const handleDuplicateMerge = async () => {
     duplicateCandidates.value = []
     duplicateSelectedId.value = null
     pendingCreatePayload.value = null
-    await onCreateOrMergeSuccess(result)
+    await onCreateOrMergeSuccess(result, 'publish')
   } catch (err: any) {
     if (err.response?.status === 400) {
       const detail = err.response?.data?.detail
@@ -3299,7 +3342,7 @@ const handleDuplicateNew = async () => {
     duplicateCandidates.value = []
     duplicateSelectedId.value = null
     pendingCreatePayload.value = null
-    await onCreateOrMergeSuccess(result)
+    await onCreateOrMergeSuccess(result, 'publish')
   } catch (err: any) {
     ElMessage.error(err.message || '创建失败')
   } finally {
@@ -3313,6 +3356,10 @@ const handleReset = () => {
 
 const handleCancel = () => {
   router.back()
+}
+
+const goDrafts = () => {
+  router.push({ name: 'GoodsDrafts' })
 }
 
 // 处理附件图片上传
@@ -3369,7 +3416,7 @@ onMounted(async () => {
         characters: data.characters.map(c => c.id),
         category: data.category.id,
         theme: data.theme?.id || null,
-        status: data.status as 'in_cabinet' | 'outdoor' | 'sold',
+        status: data.status as GoodsStatus,
         location: data.location || undefined,
         quantity: data.quantity,
         price: data.price ? parseFloat(data.price) : undefined,

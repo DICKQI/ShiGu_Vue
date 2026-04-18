@@ -1,8 +1,22 @@
 <template>
-  <div class="goods-form">
-    <div class="goods-form-header">
+  <div class="goods-form" :class="{ 'goods-form--mobile-dock': isMobile }">
+    <div class="goods-form-header" :class="{ 'goods-form-header--mobile': isMobile }">
       <div class="goods-form-title">
         {{ formTitle }}
+      </div>
+      <div v-if="isMobile" class="goods-form-header-actions">
+        <el-button text type="primary" class="header-drafts-btn" @click="goDrafts">
+          草稿箱
+        </el-button>
+        <el-dropdown trigger="click" @command="handleMobileMoreCommand">
+          <el-button text class="header-more-btn" :icon="MoreFilled" circle aria-label="更多" />
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="cancel">取消</el-dropdown-item>
+              <el-dropdown-item command="reset">重置</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
 
@@ -384,8 +398,8 @@
 
       </el-form>
 
-    <!-- 底部吸底操作栏 -->
-    <div class="sticky-action-bar">
+    <!-- 底部：桌面端五按钮 -->
+    <div v-if="!isMobile" class="sticky-action-bar">
       <div class="sticky-action-inner">
         <el-button class="sticky-btn sticky-btn--secondary" @click="handleCancel">取消</el-button>
         <el-button class="sticky-btn sticky-btn--secondary" @click="handleReset">重置</el-button>
@@ -403,6 +417,36 @@
         >
           {{ isEditMode ? '保存修改' : '发布' }}
         </el-button>
+      </div>
+    </div>
+
+    <!-- 移动端：底部渐变遮罩 + 双按钮直接悬浮（滑至页面底部附近时显示） -->
+    <div
+      v-if="isMobile"
+      class="mobile-form-dock-wrap"
+      :class="{ 'mobile-form-dock-wrap--visible': mobileFormDockVisible }"
+      aria-label="表单主操作"
+    >
+      <div class="mobile-form-dock-stack">
+        <!-- 全宽渐变铺在按钮背后，避免透出下方白色卡片形成「白条」 -->
+        <div class="mobile-form-dock-fade" aria-hidden="true" />
+        <div class="mobile-form-dock-actions">
+          <el-button
+            class="mobile-form-dock-btn mobile-form-dock-btn--draft"
+            @click="submitByMode('draft')"
+            :loading="submitting"
+          >
+            保存草稿
+          </el-button>
+          <el-button
+            type="primary"
+            class="mobile-form-dock-btn mobile-form-dock-btn--publish"
+            @click="submitByMode('publish')"
+            :loading="submitting"
+          >
+            {{ isEditMode ? '保存修改' : '发布' }}
+          </el-button>
+        </div>
       </div>
     </div>
 
@@ -1048,7 +1092,7 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadFile } from 'element-plus'
-import { Plus, Delete, Picture, Camera as CameraIcon, Edit, RefreshLeft } from '@element-plus/icons-vue'
+import { Plus, Delete, Picture, Camera as CameraIcon, Edit, RefreshLeft, MoreFilled } from '@element-plus/icons-vue'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { Capacitor } from '@capacitor/core'
 import VuePictureCropper, { cropper } from 'vue-picture-cropper'
@@ -1622,11 +1666,10 @@ const cropperStyle = computed(() => {
   }
 })
 
-// 计算是否为移动端
-const isMobile = computed(() => {
-  if (typeof window === 'undefined') return false
-  return window.innerWidth < 768
-})
+// 视口宽度（用于 isMobile 等，随 resize 更新）
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
+
+const isMobile = computed(() => windowWidth.value < 768)
 
 // 裁切器配置
 const cropperOptions = computed(() => {
@@ -1720,14 +1763,12 @@ const formTitle = computed(() => {
 
 // H5 移动端：用 input[file] + capture 实现“拍照/相册”（不同浏览器表现可能不同）
 const isH5Mobile = computed(() => {
-  if (typeof window === 'undefined') return false
-  return !Capacitor.isNativePlatform() && window.innerWidth < 768
+  return !Capacitor.isNativePlatform() && windowWidth.value < 768
 })
 
 // 原生移动端（Capacitor）环境：支持调用相机/相册
 const isNativeMobile = computed(() => {
-  if (typeof window === 'undefined') return false
-  return Capacitor.isNativePlatform() && window.innerWidth < 768
+  return Capacitor.isNativePlatform() && windowWidth.value < 768
 })
 
 // 移动端上传：使用“拍照/相册”动作面板替代默认文件选择
@@ -3350,12 +3391,43 @@ const handleDuplicateNew = async () => {
   }
 }
 
-const handleReset = () => {
-  formRef.value?.resetFields()
+const handleReset = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要重置表单吗？当前填写内容将恢复为进入页面时的状态（未保存的修改会丢失）。',
+      '重置表单',
+      {
+        type: 'warning',
+        confirmButtonText: '重置',
+        cancelButtonText: '取消',
+      }
+    )
+    formRef.value?.resetFields()
+  } catch {
+    /* 用户取消 */
+  }
 }
 
-const handleCancel = () => {
-  router.back()
+const handleCancel = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要离开吗？未保存的修改将丢失。',
+      '离开页面',
+      {
+        type: 'warning',
+        confirmButtonText: '离开',
+        cancelButtonText: '留在页面',
+      }
+    )
+    router.back()
+  } catch {
+    /* 用户取消 */
+  }
+}
+
+const handleMobileMoreCommand = (command: string) => {
+  if (command === 'cancel') void handleCancel()
+  else if (command === 'reset') void handleReset()
 }
 
 const goDrafts = () => {
@@ -3381,7 +3453,38 @@ const handleAdditionalPhotosUpload = async (goodsId: string) => {
   }
 }
 
+const syncWindowWidth = () => {
+  if (typeof window !== 'undefined') {
+    windowWidth.value = window.innerWidth
+  }
+  void nextTick(() => checkMobileFormDockScroll())
+}
+
+/** 移动端：滑至底部附近才显示底部渐变 + 双按钮（与 CloudShowcase 分页器逻辑一致） */
+const mobileFormDockVisible = ref(false)
+const MOBILE_FORM_DOCK_BOTTOM_THRESHOLD_PX = 100
+
+const checkMobileFormDockScroll = () => {
+  if (typeof window === 'undefined') return
+  if (!isMobile.value) {
+    mobileFormDockVisible.value = false
+    return
+  }
+  const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+  const windowHeight = window.innerHeight
+  const documentHeight = document.documentElement.scrollHeight
+  const distanceToBottom = documentHeight - (scrollTop + windowHeight)
+  mobileFormDockVisible.value = distanceToBottom <= MOBILE_FORM_DOCK_BOTTOM_THRESHOLD_PX
+}
+
+const handleWindowScrollForDock = () => {
+  checkMobileFormDockScroll()
+}
+
 onMounted(async () => {
+  syncWindowWidth()
+  window.addEventListener('resize', syncWindowWidth)
+  window.addEventListener('scroll', handleWindowScrollForDock, { passive: true })
   // 加载基础数据
   try {
     const [ipList, characterList, categoryList, themeList] = await Promise.all([
@@ -3441,10 +3544,15 @@ onMounted(async () => {
       ElMessage.error('加载数据失败')
     }
   }
+
+  await nextTick()
+  checkMobileFormDockScroll()
 })
 
 // 组件卸载时清理预览URL
 onUnmounted(() => {
+  window.removeEventListener('resize', syncWindowWidth)
+  window.removeEventListener('scroll', handleWindowScrollForDock)
   resetCropHistorySession()
   newAdditionalPhotoFiles.value.forEach((photo) => {
     if (photo.preview) {
@@ -3477,8 +3585,41 @@ onUnmounted(() => {
   margin: 0 auto;
 }
 
+/* 移动端：为底部渐变与按钮区预留滚动空间（与云展柜分页区类似） */
+.goods-form--mobile-dock {
+  padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+}
+
 .goods-form-header {
   margin-bottom: 16px;
+}
+
+.goods-form-header--mobile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.goods-form-header--mobile .goods-form-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.goods-form-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.header-drafts-btn {
+  padding: 6px 10px;
+  font-size: 14px;
+}
+
+.header-more-btn {
+  font-size: 20px;
 }
 
 .goods-form-title {
@@ -3489,6 +3630,156 @@ onUnmounted(() => {
 
 .goods-el-form {
   margin-top: 4px;
+}
+
+/* 底部操作栏：横向排列；窄屏换行时用居中对齐，避免最后一个按钮单独落在第二行时贴左 */
+.sticky-action-bar {
+  margin-top: 12px;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.sticky-action-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.sticky-action-inner :deep(.el-button) {
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .sticky-action-inner {
+    justify-content: center;
+  }
+
+  .sticky-action-inner :deep(.el-button) {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}
+
+/* 移动端：底部渐变遮罩 + 按钮浮于其上（无白色胶囊底框） */
+.mobile-form-dock-wrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 8px);
+  z-index: 999;
+  pointer-events: none;
+  background: transparent;
+  transform: translateY(calc(100% + 24px));
+  opacity: 0;
+  transition:
+    transform 0.3s ease,
+    opacity 0.3s ease;
+}
+
+.mobile-form-dock-wrap--visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.mobile-form-dock-stack {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px 10px;
+  box-sizing: border-box;
+  isolation: isolate;
+}
+
+/* 与页面底色 --secondary-gray / #F5F5F7 一致；自下而上过渡到透明，并与白卡片衔接 */
+.mobile-form-dock-fade {
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  margin-left: -50vw;
+  bottom: 0;
+  width: 100vw;
+  height: min(200px, 42vh);
+  min-height: 140px;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    var(--secondary-gray) 0%,
+    rgba(245, 245, 247, 0.92) 28%,
+    rgba(245, 245, 247, 0.55) 55%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+.mobile-form-dock-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
+  pointer-events: auto;
+  background: transparent;
+}
+
+.mobile-form-dock-btn {
+  flex: 1;
+  min-height: 44px;
+  margin: 0;
+  border-radius: 999px !important;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 覆盖 .goods-form 内对 .el-button 的全局圆角，避免底部条被切成方角白条感 */
+.goods-form .mobile-form-dock-wrap :deep(.mobile-form-dock-btn.el-button) {
+  border-radius: 999px !important;
+}
+
+/* 次要：极浅紫底 + 品牌紫字，无描边 */
+.mobile-form-dock-btn--draft {
+  flex: 4;
+  color: #a289ff !important;
+  background: #f7f3ff !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.mobile-form-dock-btn--draft:hover,
+.mobile-form-dock-btn--draft:focus {
+  color: #a289ff !important;
+  background: rgba(162, 137, 255, 0.12) !important;
+  border: none !important;
+}
+
+/* 主 CTA：主题香槟金（与 variables / 全站 primary 一致）+ 白字 */
+.mobile-form-dock-btn--publish {
+  flex: 6;
+  --el-button-bg-color: var(--primary-gold);
+  --el-button-border-color: var(--primary-gold);
+  --el-button-hover-bg-color: var(--primary-gold-dark);
+  --el-button-hover-border-color: var(--primary-gold-dark);
+  --el-button-active-bg-color: var(--primary-gold-dark);
+  --el-button-active-border-color: var(--primary-gold-dark);
+  color: #ffffff !important;
+  background-color: var(--primary-gold) !important;
+  border-color: var(--primary-gold) !important;
+}
+
+.mobile-form-dock-btn--publish:hover,
+.mobile-form-dock-btn--publish:focus {
+  color: #ffffff !important;
+  background-color: var(--primary-gold-dark) !important;
+  border-color: var(--primary-gold-dark) !important;
+}
+
+@supports not (bottom: env(safe-area-inset-bottom)) {
+  .mobile-form-dock-wrap {
+    bottom: 72px;
+  }
 }
 
 /* 分区卡片布局 */

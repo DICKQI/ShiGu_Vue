@@ -133,12 +133,18 @@ export const isAllHslAdjustmentsZero = (hslAdjustments: HslAdjustments) => {
 
 export const isFilterStateDefault = (state: CropFilterStateInput) => {
   return (
+    isColorFilterStateDefault(state) &&
+    (state.rotation ?? 0) === 0 &&
+    (state.perspectiveHorizontal ?? 0) === 0 &&
+    (state.perspectiveVertical ?? 0) === 0
+  )
+}
+
+export const isColorFilterStateDefault = (state: CropFilterStateInput) => {
+  return (
     state.brightness === 100 &&
     state.contrast === 100 &&
     state.saturation === 100 &&
-    (state.rotation ?? 0) === 0 &&
-    (state.perspectiveHorizontal ?? 0) === 0 &&
-    (state.perspectiveVertical ?? 0) === 0 &&
     isAllHslAdjustmentsZero(state.hslAdjustments)
   )
 }
@@ -221,7 +227,7 @@ export const applyFiltersToImage = async (
   file: File,
   filterState: CropFilterStateInput,
 ): Promise<File> => {
-  if (isFilterStateDefault(filterState)) {
+  if (isColorFilterStateDefault(filterState)) {
     return file
   }
 
@@ -309,7 +315,11 @@ export const computeCropperStyle = (
   }
 
   return {
-    filter: `brightness(${cssBrightness}%) contrast(${baseContrast}%) saturate(${cssSaturation}%) hue-rotate(${cssHueRotate}deg)`,
+    '--brightness': `${cssBrightness}%`,
+    '--contrast': `${baseContrast}%`,
+    '--saturate': `${cssSaturation}%`,
+    '--hue-rotate': `${cssHueRotate}deg`,
     transform: transformParts.length ? `perspective(800px) ${transformParts.join(' ')}` : undefined,
+    transformOrigin: 'center center',
   }
 }

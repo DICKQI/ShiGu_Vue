@@ -1,10 +1,42 @@
 import { blobToImageBitmap } from './imageUtils'
 
-export const applyCircleMaskToBlob = async (input: Blob) => {
+export interface CircleMaskOptions {
+  outputSize?: number
+}
+
+export interface EllipseMaskOptions {
+  outputWidth?: number
+  outputHeight?: number
+}
+
+const normalizeSize = (value: number | undefined, fallback: number) => {
+  const next = Number.isFinite(value) && value && value > 0 ? value : fallback
+  return Math.max(1, Math.round(next))
+}
+
+const getCenteredSourceRect = (
+  sourceWidth: number,
+  sourceHeight: number,
+  targetWidth: number,
+  targetHeight: number,
+) => {
+  const sw = Math.min(sourceWidth, targetWidth)
+  const sh = Math.min(sourceHeight, targetHeight)
+
+  return {
+    sx: (sourceWidth - sw) / 2,
+    sy: (sourceHeight - sh) / 2,
+    sw,
+    sh,
+  }
+}
+
+export const applyCircleMaskToBlob = async (input: Blob, options: CircleMaskOptions = {}) => {
   const bitmapOrImg = await blobToImageBitmap(input)
   const width = (bitmapOrImg as any).width
   const height = (bitmapOrImg as any).height
-  const size = Math.min(width, height)
+  const size = normalizeSize(options.outputSize, Math.min(width, height))
+  const sourceRect = getCenteredSourceRect(width, height, size, size)
 
   const canvas = document.createElement('canvas')
   canvas.width = size
@@ -19,9 +51,17 @@ export const applyCircleMaskToBlob = async (input: Blob) => {
   ctx.closePath()
   ctx.clip()
 
-  const sx = Math.max(0, Math.floor((width - size) / 2))
-  const sy = Math.max(0, Math.floor((height - size) / 2))
-  ctx.drawImage(bitmapOrImg as any, sx, sy, size, size, 0, 0, size, size)
+  ctx.drawImage(
+    bitmapOrImg as any,
+    sourceRect.sx,
+    sourceRect.sy,
+    sourceRect.sw,
+    sourceRect.sh,
+    0,
+    0,
+    size,
+    size,
+  )
   ctx.restore()
 
   const outBlob = await new Promise<Blob>((resolve, reject) => {
@@ -30,12 +70,15 @@ export const applyCircleMaskToBlob = async (input: Blob) => {
   return outBlob
 }
 
-export const applyEllipseMaskToBlob = async (input: Blob) => {
+export const applyEllipseMaskToBlob = async (input: Blob, options: EllipseMaskOptions = {}) => {
   const bitmapOrImg = await blobToImageBitmap(input)
   const width = (bitmapOrImg as any).width
   const height = (bitmapOrImg as any).height
 
-  const size = Math.max(width, height)
+  const ellipseWidth = normalizeSize(options.outputWidth, width)
+  const ellipseHeight = normalizeSize(options.outputHeight, height)
+  const size = Math.max(ellipseWidth, ellipseHeight)
+  const sourceRect = getCenteredSourceRect(width, height, ellipseWidth, ellipseHeight)
 
   const canvas = document.createElement('canvas')
   canvas.width = size
@@ -45,17 +88,17 @@ export const applyEllipseMaskToBlob = async (input: Blob) => {
 
   ctx.clearRect(0, 0, size, size)
 
-  const offsetX = (size - width) / 2
-  const offsetY = (size - height) / 2
+  const offsetX = (size - ellipseWidth) / 2
+  const offsetY = (size - ellipseHeight) / 2
 
   ctx.save()
   ctx.beginPath()
 
   if (typeof ctx.ellipse === 'function') {
-    ctx.ellipse(size / 2, size / 2, width / 2, height / 2, 0, 0, Math.PI * 2)
+    ctx.ellipse(size / 2, size / 2, ellipseWidth / 2, ellipseHeight / 2, 0, 0, Math.PI * 2)
   } else {
     ctx.translate(size / 2, size / 2)
-    ctx.scale(width / 2, height / 2)
+    ctx.scale(ellipseWidth / 2, ellipseHeight / 2)
     ctx.arc(0, 0, 1, 0, Math.PI * 2)
   }
   ctx.closePath()
@@ -66,7 +109,17 @@ export const applyEllipseMaskToBlob = async (input: Blob) => {
     ctx.save()
   }
 
-  ctx.drawImage(bitmapOrImg as any, offsetX, offsetY, width, height)
+  ctx.drawImage(
+    bitmapOrImg as any,
+    sourceRect.sx,
+    sourceRect.sy,
+    sourceRect.sw,
+    sourceRect.sh,
+    offsetX,
+    offsetY,
+    ellipseWidth,
+    ellipseHeight,
+  )
   ctx.restore()
 
   const outBlob = await new Promise<Blob>((resolve, reject) => {

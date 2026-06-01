@@ -48,41 +48,74 @@ const computeAffineFromTriangles = (
   return { a, b, c, d, e, f }
 }
 
+const normalizeRotation = (rotation: number) => {
+  if (!Number.isFinite(rotation)) return 0
+  let next = rotation % 360
+  if (next > 180) next -= 360
+  if (next <= -180) next += 360
+  return Math.abs(next) < 1e-8 ? 0 : next
+}
+
+const getRotationTrig = (rotation: number) => {
+  const rad = (normalizeRotation(rotation) * Math.PI) / 180
+  const rawCos = Math.cos(rad)
+  const rawSin = Math.sin(rad)
+  return {
+    rad,
+    cos: Math.abs(rawCos) < 1e-10 ? 0 : rawCos,
+    sin: Math.abs(rawSin) < 1e-10 ? 0 : rawSin,
+  }
+}
+
+const getRotatedBounds = (width: number, height: number, rotation: number) => {
+  const { cos, sin } = getRotationTrig(rotation)
+  return {
+    width: Math.max(1, Math.ceil(Math.abs(width * cos) + Math.abs(height * sin))),
+    height: Math.max(1, Math.ceil(Math.abs(width * sin) + Math.abs(height * cos))),
+  }
+}
+
+const canvasToPngBlob = async (canvas: HTMLCanvasElement, errorMessage: string): Promise<Blob> => {
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error(errorMessage))), 'image/png', 0.92)
+  })
+}
+
+const drawRotatedToCanvas = (
+  source: CanvasImageSource,
+  width: number,
+  height: number,
+  rotation: number,
+) => {
+  const bounds = getRotatedBounds(width, height, rotation)
+  const canvas = document.createElement('canvas')
+  canvas.width = bounds.width
+  canvas.height = bounds.height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas unavailable')
+
+  ctx.clearRect(0, 0, bounds.width, bounds.height)
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+
+  const { rad } = getRotationTrig(rotation)
+  ctx.save()
+  ctx.translate(bounds.width / 2, bounds.height / 2)
+  if (rad !== 0) {
+    ctx.rotate(rad)
+  }
+  ctx.drawImage(source, -width / 2, -height / 2, width, height)
+  ctx.restore()
+
+  return canvas
+}
+
 export const applyRotateToBlob = async (input: Blob, rotation: number): Promise<Blob> => {
   const bitmapOrImg = await blobToImageBitmap(input)
   const width = (bitmapOrImg as any).width
   const height = (bitmapOrImg as any).height
-
-  const diag = Math.sqrt(width * width + height * height)
-  const canvasSize = Math.ceil(diag)
-
-  const canvas = document.createElement('canvas')
-  canvas.width = canvasSize
-  canvas.height = canvasSize
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Canvas 不可用')
-
-  ctx.clearRect(0, 0, canvasSize, canvasSize)
-
-  const cx = canvasSize / 2
-  const cy = canvasSize / 2
-
-  const rotRad = (rotation * Math.PI) / 180
-
-  ctx.save()
-  ctx.translate(cx, cy)
-  if (rotRad !== 0) {
-    ctx.rotate(rotRad)
-  }
-
-  ctx.drawImage(bitmapOrImg as any, -width / 2, -height / 2, width, height)
-  ctx.restore()
-
-  const outBlob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('透视/旋转处理失败'))), 'image/png', 0.92)
-  })
-
-  return outBlob
+  const canvas = drawRotatedToCanvas(bitmapOrImg as any, width, height, rotation)
+  return await canvasToPngBlob(canvas, 'Failed to export rotated image')
 }
 
 export interface TransformState {
@@ -115,24 +148,8 @@ export const applyPerspectiveAndRotateToBlob = async (
   const width = (bitmapOrImg as any).width
   const height = (bitmapOrImg as any).height
 
-  const diag = Math.sqrt(width * width + height * height)
-  const canvasSize = Math.ceil(diag)
-
-  const canvas = document.createElement('canvas')
-  canvas.width = canvasSize
-  canvas.height = canvasSize
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Canvas 不可用')
-
-  ctx.clearRect(0, 0, canvasSize, canvasSize)
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
-
   const srcCx = width / 2
   const srcCy = height / 2
-  const dstCx = canvasSize / 2
-  const dstCy = canvasSize / 2
-
   const focal = Math.max(width, height) * 1.25
   const maxAngleRad = (Math.PI * 45) / 180
   const angleY = (hVal / 100) * maxAngleRad
@@ -143,7 +160,7 @@ export const applyPerspectiveAndRotateToBlob = async (
   const cosX = Math.cos(angleX)
   const sinX = Math.sin(angleX)
 
-  const projectPoint = (x: number, y: number) => {
+  const projectPointRelative = (x: number, y: number) => {
     const X = x - srcCx
     const Y = y - srcCy
     const Z = 0
@@ -159,10 +176,44 @@ export const applyPerspectiveAndRotateToBlob = async (
     const scale = focal / safeDenom
 
     return {
-      x: dstCx + X1 * scale,
-      y: dstCy + Y2 * scale,
+      x: X1 * scale,
+      y: Y2 * scale,
     }
   }
+
+  const corners = [
+    projectPointRelative(0, 0),
+    projectPointRelative(width, 0),
+    projectPointRelative(width, height),
+    projectPointRelative(0, height),
+  ]
+  const minX = Math.min(...corners.map((p) => p.x))
+  const maxX = Math.max(...corners.map((p) => p.x))
+  const minY = Math.min(...corners.map((p) => p.y))
+  const maxY = Math.max(...corners.map((p) => p.y))
+  const padding = 2
+  const canvasWidth = Math.max(1, Math.ceil(maxX - minX + padding * 2))
+  const canvasHeight = Math.max(1, Math.ceil(maxY - minY + padding * 2))
+  const offsetX = -minX + padding
+  const offsetY = -minY + padding
+
+  const projectPoint = (x: number, y: number) => {
+    const point = projectPointRelative(x, y)
+    return {
+      x: point.x + offsetX,
+      y: point.y + offsetY,
+    }
+  }
+
+  const canvas = document.createElement('canvas')
+  canvas.width = canvasWidth
+  canvas.height = canvasHeight
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas unavailable')
+
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
 
   const stripCount = 64
   const stripW = width / stripCount
@@ -226,45 +277,9 @@ export const applyPerspectiveAndRotateToBlob = async (
   }
 
   if (!rotDeg) {
-    const outBlob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (b) => (b ? resolve(b) : reject(new Error('导出透视图片失败'))),
-        'image/png',
-        0.92,
-      )
-    })
-    return outBlob
+    return await canvasToPngBlob(canvas, 'Failed to export perspective image')
   }
 
-  const rotDiag = Math.sqrt(canvasSize * canvasSize + canvasSize * canvasSize)
-  const finalSize = Math.ceil(rotDiag)
-  const finalCanvas = document.createElement('canvas')
-  finalCanvas.width = finalSize
-  finalCanvas.height = finalSize
-  const finalCtx = finalCanvas.getContext('2d')
-  if (!finalCtx) throw new Error('Canvas 不可用')
-
-  finalCtx.clearRect(0, 0, finalSize, finalSize)
-  finalCtx.imageSmoothingEnabled = true
-  finalCtx.imageSmoothingQuality = 'high'
-
-  const cx = finalSize / 2
-  const cy = finalSize / 2
-  const rotRad = (rotDeg * Math.PI) / 180
-
-  finalCtx.save()
-  finalCtx.translate(cx, cy)
-  finalCtx.rotate(rotRad)
-  finalCtx.drawImage(canvas, -canvasSize / 2, -canvasSize / 2)
-  finalCtx.restore()
-
-  const outBlob = await new Promise<Blob>((resolve, reject) => {
-    finalCanvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error('导出透视/旋转图片失败'))),
-      'image/png',
-      0.92,
-    )
-  })
-
-  return outBlob
+  const finalCanvas = drawRotatedToCanvas(canvas, canvasWidth, canvasHeight, rotDeg)
+  return await canvasToPngBlob(finalCanvas, 'Failed to export transformed image')
 }

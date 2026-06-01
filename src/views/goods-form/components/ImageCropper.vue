@@ -353,7 +353,7 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { RefreshLeft } from '@element-plus/icons-vue'
 import VuePictureCropper, { cropper } from 'vue-picture-cropper'
 import type { CropEditSnapshot, CropNumericState } from '@/views/goods-form/cropHistory'
-import { createDefaultFilterState, isFilterStateDefault, isTransformStateDefault, applyFiltersToImage, computeCropperStyle, blobToImageBitmap } from '@/views/goods-form/imageUtils'
+import { createDefaultFilterState, isTransformStateDefault, applyFiltersToImage, computeCropperStyle, blobToImageBitmap } from '@/views/goods-form/imageUtils'
 import { applyCircleMaskToBlob, applyEllipseMaskToBlob, applyRoundedRectMaskToBlob, applyFreeCropSquareBlob, applyMarginToBlob } from '@/views/goods-form/imageMask'
 import { applyPerspectiveAndRotateToBlob } from '@/views/goods-form/imageTransform'
 import { useCropHistory } from '@/views/goods-form/composables/useCropHistory'
@@ -532,6 +532,86 @@ const { livePreviewUrl, livePreviewLoading } = livePreview
 let livePreviewSeq = 0
 const clearLivePreviewUrl = livePreview.clearUrl
 
+type ImageDimensions = { width: number; height: number }
+
+const getBlobDimensions = async (blob: Blob): Promise<ImageDimensions> => {
+  const bitmapOrImg = await blobToImageBitmap(blob)
+  return {
+    width: Math.max(1, Math.round((bitmapOrImg as any).width || 1)),
+    height: Math.max(1, Math.round((bitmapOrImg as any).height || 1)),
+  }
+}
+
+const getCircleMaskOptions = (dimensions: ImageDimensions | null) => (
+  dimensions ? { outputSize: Math.min(dimensions.width, dimensions.height) } : undefined
+)
+
+const getEllipseMaskOptions = (dimensions: ImageDimensions | null) => (
+  dimensions ? { outputWidth: dimensions.width, outputHeight: dimensions.height } : undefined
+)
+
+const parseAspectRatioParts = (value: string): [number, number] | null => {
+  const ratioText = value.replace('-ellipse', '')
+  const parts = ratioText.split(':').map(Number)
+  if (!parts[0] || !parts[1]) return null
+  return [parts[0], parts[1]]
+}
+
+const scaleDimensionsToMaxSide = (width: number, height: number, maxSide: number): ImageDimensions => {
+  const safeWidth = Number.isFinite(width) && width > 0 ? width : maxSide
+  const safeHeight = Number.isFinite(height) && height > 0 ? height : maxSide
+  const scale = maxSide / Math.max(safeWidth, safeHeight, 1)
+  return {
+    width: Math.max(1, Math.round(safeWidth * scale)),
+    height: Math.max(1, Math.round(safeHeight * scale)),
+  }
+}
+
+const getCurrentCropDimensions = (): ImageDimensions | null => {
+  const cropData = getCropperNumericState('getData')
+  const cropBoxData = getCropperNumericState('getCropBoxData')
+  const width = cropData?.width || cropBoxData?.width
+  const height = cropData?.height || cropBoxData?.height
+
+  if (!width || !height) return null
+  return { width, height }
+}
+
+const getCropOutputDimensions = (maxSide: number): ImageDimensions => {
+  if (selectedAspectRatio.value === 'circle' || selectedAspectRatio.value === '1:1') {
+    return { width: maxSide, height: maxSide }
+  }
+
+  const fixedRatio = parseAspectRatioParts(selectedAspectRatio.value)
+  if (fixedRatio) {
+    return scaleDimensionsToMaxSide(fixedRatio[0], fixedRatio[1], maxSide)
+  }
+
+  const currentCropDimensions = getCurrentCropDimensions()
+  if (currentCropDimensions) {
+    return scaleDimensionsToMaxSide(currentCropDimensions.width, currentCropDimensions.height, maxSide)
+  }
+
+  return { width: maxSide, height: maxSide }
+}
+
+const getCropperExportOptions = (maxSide: number, mimeType: string, quality: number) => ({
+  ...getCropOutputDimensions(maxSide),
+  mimeType,
+  quality,
+})
+
+const getBaseCropMime = () => (
+  selectedAspectRatio.value === 'circle' || selectedAspectRatio.value.endsWith('-ellipse')
+    ? 'image/png'
+    : (props.imageFile.type || 'image/png')
+)
+
+const getMimeExtension = (mime: string) => {
+  const ext = mime.includes('/') ? mime.split('/')[1] : 'png'
+  return ext === 'jpeg' ? 'jpg' : ext
+}
+
 const scheduleLivePreviewRefresh = () => {
   if (!dialogVisible.value) return
   livePreview.scheduleRefresh(refreshLivePreview, 280)
@@ -548,18 +628,21 @@ const refreshLivePreview = async () => {
     updateRoundedRectPreviewRadius()
 
     let baseBlob: Blob | null = null
+    const previewExportOptions = getCropperExportOptions(768, 'image/png', 0.92)
     if (typeof instance.getBlob === 'function') {
-      try { baseBlob = await instance.getBlob({ width: 768, height: 768, mimeType: 'image/png', quality: 0.92 }) } catch { baseBlob = null }
+      try { baseBlob = await instance.getBlob(previewExportOptions) } catch { baseBlob = null }
     }
     if (!baseBlob && typeof instance.getDataURL === 'function') {
       try {
-        const dataURL = instance.getDataURL({ width: 768, height: 768, mimeType: 'image/png', quality: 0.92 })
+        const dataURL = instance.getDataURL(previewExportOptions)
         if (dataURL) { const resp = await fetch(dataURL); baseBlob = await resp.blob() }
       } catch { baseBlob = null }
     }
     if (!baseBlob) return
 
     let workingFile = new File([baseBlob], `preview_${Date.now()}.png`, { type: 'image/png' })
+    const usesOvalMask = selectedAspectRatio.value === 'circle' || selectedAspectRatio.value.endsWith('-ellipse')
+    const maskReferenceDimensions = usesOvalMask ? await getBlobDimensions(workingFile) : null
 
     if (!isTransformStateDefault(filterState.value)) {
       try {
@@ -573,10 +656,10 @@ const refreshLivePreview = async () => {
     }
 
     if (selectedAspectRatio.value === 'circle') {
-      const masked = await applyCircleMaskToBlob(workingFile)
+      const masked = await applyCircleMaskToBlob(workingFile, getCircleMaskOptions(maskReferenceDimensions))
       workingFile = new File([masked], `preview_${Date.now()}.png`, { type: 'image/png' })
     } else if (selectedAspectRatio.value.endsWith('-ellipse')) {
-      const masked = await applyEllipseMaskToBlob(workingFile)
+      const masked = await applyEllipseMaskToBlob(workingFile, getEllipseMaskOptions(maskReferenceDimensions))
       workingFile = new File([masked], `preview_${Date.now()}.png`, { type: 'image/png' })
     } else if (selectedAspectRatio.value === 'free') {
       if (enableRoundedRect.value && roundedRadius.value > 0) {
@@ -626,20 +709,22 @@ const handleCropConfirm = async () => {
 
     let croppedFile: File | null = null
     let previewUrl: string = ''
+    const cropMime = getBaseCropMime()
+    const cropExportOptions = getCropperExportOptions(2000, cropMime, 0.9)
 
     if (typeof cropperInstance.getFile === 'function') {
       try {
-        croppedFile = await cropperInstance.getFile({ width: 2000, height: 2000, mimeType: props.imageFile.type || 'image/png', quality: 0.9 })
+        croppedFile = await cropperInstance.getFile(cropExportOptions)
         if (croppedFile) previewUrl = URL.createObjectURL(croppedFile)
       } catch { /* fall through */ }
     }
 
     if (!croppedFile && typeof cropperInstance.getBlob === 'function') {
       try {
-        const mime = (selectedAspectRatio.value === 'circle' || selectedAspectRatio.value.endsWith('-ellipse')) ? 'image/png' : (props.imageFile.type || 'image/png')
-        const blob = await cropperInstance.getBlob({ width: 2000, height: 2000, mimeType: mime, quality: 0.9 })
+        const mime = cropExportOptions.mimeType
+        const blob = await cropperInstance.getBlob(cropExportOptions)
         if (blob) {
-          const ext = mime.includes('/') ? mime.split('/')[1] : 'png'
+          const ext = getMimeExtension(mime)
           croppedFile = new File([blob], `main_photo_${Date.now()}.${ext}`, { type: mime })
           previewUrl = URL.createObjectURL(blob)
         }
@@ -648,12 +733,12 @@ const handleCropConfirm = async () => {
 
     if (!croppedFile && typeof cropperInstance.getDataURL === 'function') {
       try {
-        const mime = (selectedAspectRatio.value === 'circle' || selectedAspectRatio.value.endsWith('-ellipse')) ? 'image/png' : (props.imageFile.type || 'image/png')
-        const dataURL = cropperInstance.getDataURL({ width: 2000, height: 2000, mimeType: mime, quality: 0.9 })
+        const mime = cropExportOptions.mimeType
+        const dataURL = cropperInstance.getDataURL(cropExportOptions)
         if (dataURL) {
           const response = await fetch(dataURL)
           const blob = await response.blob()
-          const ext = mime.includes('/') ? mime.split('/')[1] : 'png'
+          const ext = getMimeExtension(mime)
           croppedFile = new File([blob], `main_photo_${Date.now()}.${ext}`, { type: mime })
           previewUrl = dataURL
         }
@@ -664,13 +749,13 @@ const handleCropConfirm = async () => {
       const nativeCropper = pictureCropperRef.value.cropper || pictureCropperRef.value.$cropper || (cropperInstance.cropper || null)
       if (nativeCropper && typeof nativeCropper.getCroppedCanvas === 'function') {
         try {
-          const canvas = nativeCropper.getCroppedCanvas({ width: 2000, height: 2000, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' })
+          const canvas = nativeCropper.getCroppedCanvas({ width: cropExportOptions.width, height: cropExportOptions.height, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' })
           if (canvas) {
-            const mime = (selectedAspectRatio.value === 'circle' || selectedAspectRatio.value.endsWith('-ellipse')) ? 'image/png' : (props.imageFile.type || 'image/png')
+            const mime = cropExportOptions.mimeType
             const blob = await new Promise<Blob>((resolve, reject) => {
               canvas.toBlob((b: Blob | null) => b ? resolve(b) : reject(new Error('Canvas toBlob failed')), mime, 0.9)
             })
-            const ext = mime.includes('/') ? mime.split('/')[1] : 'png'
+            const ext = getMimeExtension(mime)
             croppedFile = new File([blob], `main_photo_${Date.now()}.${ext}`, { type: mime })
             previewUrl = URL.createObjectURL(blob)
           }
@@ -679,6 +764,9 @@ const handleCropConfirm = async () => {
     }
 
     if (!croppedFile) { cropping.value = false; return }
+
+    const usesOvalMask = selectedAspectRatio.value === 'circle' || selectedAspectRatio.value.endsWith('-ellipse')
+    const maskReferenceDimensions = usesOvalMask ? await getBlobDimensions(croppedFile) : null
 
     if (!isTransformStateDefault(filterState.value)) {
       try {
@@ -695,14 +783,14 @@ const handleCropConfirm = async () => {
 
     if (selectedAspectRatio.value === 'circle') {
       try {
-        const maskedBlob = await applyCircleMaskToBlob(croppedFile)
+        const maskedBlob = await applyCircleMaskToBlob(croppedFile, getCircleMaskOptions(maskReferenceDimensions))
         if (previewUrl?.startsWith('blob:')) URL.revokeObjectURL(previewUrl)
         croppedFile = new File([maskedBlob], `main_photo_${Date.now()}.png`, { type: 'image/png' })
         previewUrl = URL.createObjectURL(maskedBlob)
       } catch { cropping.value = false; return }
     } else if (selectedAspectRatio.value.endsWith('-ellipse')) {
       try {
-        const maskedBlob = await applyEllipseMaskToBlob(croppedFile)
+        const maskedBlob = await applyEllipseMaskToBlob(croppedFile, getEllipseMaskOptions(maskReferenceDimensions))
         if (previewUrl?.startsWith('blob:')) URL.revokeObjectURL(previewUrl)
         croppedFile = new File([maskedBlob], `main_photo_${Date.now()}.png`, { type: 'image/png' })
         previewUrl = URL.createObjectURL(maskedBlob)
@@ -866,7 +954,7 @@ const handleCropDialogClose = () => {
 .live-preview-placeholder { font-size: 12px; color: #909399; }
 
 .cropper-wrapper { --rounded-radius: v-bind('roundedRadius + "%"'); width: 100%; margin: 12px auto 0; padding: 8px; border-radius: 18px; background: radial-gradient(circle at top, rgba(255,255,255,0.26), rgba(255,255,255,0.06)); border: 1px solid rgba(255,255,255,0.24); box-shadow: 0 20px 48px rgba(15,23,42,0.28), 0 0 0 1px rgba(255,255,255,0.16); }
-:deep(.cropper-canvas img), :deep(.cropper-view-box img) { filter: brightness(var(--brightness)) contrast(var(--contrast)) saturate(var(--saturate)) !important; }
+:deep(.cropper-canvas img), :deep(.cropper-view-box img) { filter: brightness(var(--brightness, 100%)) contrast(var(--contrast, 100%)) saturate(var(--saturate, 100%)) hue-rotate(var(--hue-rotate, 0deg)) !important; }
 
 .cropper-wrapper.circle-crop :deep(.cropper-view-box), .cropper-wrapper.circle-crop :deep(.cropper-face) { border-radius: 50%; }
 .cropper-wrapper.rounded-rect-preview :deep(.cropper-view-box), .cropper-wrapper.rounded-rect-preview :deep(.cropper-face) { border-radius: var(--rounded-radius-px, var(--rounded-radius)); }

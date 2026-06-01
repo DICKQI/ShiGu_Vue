@@ -1,144 +1,269 @@
 # 常见问题与故障排除
 
-本文档收集了项目开发和使用过程中遇到的常见问题及解决方案。
+本文档收集当前项目开发、构建、部署、认证和移动端调试中常见的问题。
 
-## 开发环境问题
+## 开发环境
 
-### Q1: 开发环境下 API 请求跨域？
+### Q1: API 跨域或请求不到后端？
 
-**A**: 开发服务器已配置代理，无需手动处理跨域。如仍有问题，检查 `vite.config.ts` 中的代理配置。
+检查：
 
-### Q2: 构建失败，类型检查错误？
+- 开发环境是否通过 `pnpm dev` 启动
+- `vite.config.ts` 中 `/api` 代理目标是否是 `http://127.0.0.1:8000`
+- 后端是否启动并监听对应端口
+- 设置页是否保存了其他后端地址，覆盖了开发代理
 
-**A**: 运行 `pnpm type-check` 查看具体错误，修复类型问题后再构建。或使用 `pnpm build-only` 跳过类型检查。
+后端地址优先级为：
 
-### Q3: 移动端样式异常？
+1. `localStorage.pickgoods_api_base_url`
+2. `localStorage.shigu_api_base_url`
+3. `VITE_API_BASE_URL`
+4. `当前协议://当前主机名:8000`
 
-**A**: 检查响应式断点是否正确，使用浏览器开发者工具检查不同屏幕尺寸下的样式。
+### Q2: `.env` 修改后不生效？
 
-## 生产环境问题
+- `.env` 必须放在项目根目录
+- 变量名必须以 `VITE_` 开头
+- 修改后需要重启 `pnpm dev`
+- 如果设置页保存过地址，本地存储会优先于 `.env`
 
-### Q4: 生产环境 API 请求失败？
+### Q3: 构建失败，类型检查报错？
 
-**A**: 
-- 检查环境变量 `VITE_API_BASE_URL` 是否正确配置
-- 检查后端 CORS 配置
-- 确认后端服务正常运行
+先单独执行：
 
-### Q5: 构建产物过大？
+```bash
+pnpm type-check
+```
 
-**A**: 
-- 检查是否有未使用的依赖
-- 使用代码分割优化
-- 启用生产环境压缩
+修复类型错误后再执行：
 
-## 功能相关问题
+```bash
+pnpm build
+```
 
-### Q6: BGM 导入功能无法使用？
+临时只验证 Vite 构建可用：
 
-**A**: 
-- 检查后端 BGM 导入接口是否正常
-- 查看浏览器控制台的错误信息
-- 确认网络连接正常
+```bash
+pnpm build-only
+```
 
-### Q7: 图片上传失败？
+### Q4: ESLint 后文件被自动改了？
 
-**A**: 
-- 检查文件大小是否超出限制
-- 确认后端接口正常
-- 查看浏览器控制台错误信息
+`pnpm lint` 的脚本是：
 
-### Q8: 搜索功能触发限流？
+```bash
+eslint . --fix --cache
+```
 
-**A**: 
-- 搜索已使用 300ms 防抖，但频繁快速输入仍可能触发限流
-- 建议等待几秒后重试
-- 检查后端限流阈值配置
+这是预期行为。提交前请检查自动修复产生的 diff。
 
-## 移动端问题
+## 认证与权限
 
-### Q9: 移动端原生功能无法使用（相机、文件系统等）？
+### Q5: 访问页面被跳到登录页？
 
-**A**: 
-- 确认已安装对应的 Capacitor 插件
-- 运行 `npx cap sync` 同步插件到原生项目
-- 检查原生项目中的权限配置
-- 在真实设备上测试（模拟器可能不支持部分功能）
+以下路由需要登录：
 
-### Q10: 移动端 Live Reload 不工作？
+- `/showcase`
+- `/location`
+- `/ipcharacter`
+- `/category`
+- `/theme`
+- `/goods/*`
+- `/admin/*`
 
-**A**: 
-- 确保设备和电脑在同一网络
-- 检查防火墙设置
-- 使用 `npx cap run -l --external` 启动，确保使用了正确的 IP 地址
+如果 Token 过期或后端返回 `401`，前端会清理本地 Token 并跳转 `/login?redirect=...`。
 
-## 环境配置问题
+### Q6: 管理后台打不开？
 
-### Q11: 环境变量不生效？
+管理后台需要当前用户角色为 `Admin`。前端判断逻辑为：
 
-**A**: 
-- 确认 `.env` 文件在项目根目录
-- 环境变量必须以 `VITE_` 开头
-- 修改环境变量后需要重启开发服务器
+```ts
+user.role.toLowerCase() === 'admin'
+```
 
-### Q12: 后端地址配置不生效？
+如果不是管理员，会跳转到设置页。后端也应同步做权限校验。
 
-**A**: 
-- 检查设置页中的后端地址配置
-- 确认 `localStorage` 中的键名正确（`pickgoods_api_base_url`）
-- 检查浏览器控制台是否有错误信息
+### Q7: 登录后 API 仍然 401？
 
-## 性能问题
+检查：
 
-### Q13: 首屏加载慢？
+- 登录接口是否返回 `access_token`
+- 本地存储是否存在 `pickgoods_access_token`
+- 请求头是否带有 `Authorization: Bearer <token>`
+- 后端 Token 格式是否和前端约定一致
 
-**A**: 
-- 检查网络连接
-- 确认后端接口响应时间
-- 检查是否有大量同步请求
-- 使用浏览器性能分析工具定位问题
+## 功能问题
 
-### Q14: 页面切换卡顿？
+### Q8: 新增谷子出现 409 冲突？
 
-**A**: 
-- 检查是否有未清理的定时器或事件监听器
-- 确认数据请求是否使用了合适的缓存策略
-- 使用 Vue DevTools 检查组件渲染性能
+这是重复检测场景。前端不会弹全局错误，而是由业务层展示候选谷子并让用户选择新建或合并。
 
-## 依赖问题
+### Q9: 搜索太快触发 429？
 
-### Q15: 依赖安装失败？
+谷仓搜索有 `300ms` 防抖，但后端仍可能限流。等待几秒后再试，或检查后端限流策略。
 
-**A**: 
-- 清除缓存：`pnpm store prune`
-- 删除 `node_modules` 和锁文件后重新安装
-- 检查 Node.js 和 pnpm 版本是否符合要求
+### Q10: 图片上传失败？
 
-### Q16: 类型定义缺失？
+检查：
 
-**A**: 
-- 运行 `pnpm install` 确保所有依赖已安装
-- 检查 `src/api/types.ts` 中的类型定义是否完整
-- 使用 `pnpm type-check` 检查类型错误
+- 是否使用了 `FormData`
+- 后端是否接受对应字段名，例如 `main_photo`、`additional_photos`
+- 文件大小和格式是否被后端拒绝
+- 认证 Token 是否有效
+- 浏览器控制台 Network 里的响应详情
 
-## 浏览器兼容性
+### Q11: BGM 导入失败？
 
-### Q17: 某些浏览器功能异常？
+检查：
 
-**A**: 
-- 检查浏览器版本是否符合要求（Chrome 90+、Firefox 88+、Safari 14+、Edge 90+）
-- 使用浏览器开发者工具检查控制台错误
-- 确认浏览器是否支持所需的 Web API
+- `/api/bgm/search-subjects/`
+- `/api/bgm/get-characters-by-id/`
+- `/api/bgm/create-characters/`
+- 后端是否能访问 Bangumi
+- 当前账号是否有创建公共元数据权限
 
-## 获取帮助
+## 生产部署
 
-如果以上问题都无法解决，可以：
+### Q12: 生产环境 API 地址不对？
 
-1. 查看项目 GitHub Issues
-2. 检查相关依赖的官方文档
-3. 查看浏览器控制台的详细错误信息
-4. 联系项目维护者
+前端 API 路径本身已经包含 `/api/...`，所以 `VITE_API_BASE_URL` 应配置到 origin：
 
----
+```bash
+VITE_API_BASE_URL=https://api.example.com pnpm build
+```
 
-*本文档持续更新，如有新问题请及时反馈。*
+实际请求：
+
+```text
+https://api.example.com/api/goods/
+```
+
+同源 Nginx 反代时：
+
+```bash
+VITE_API_BASE_URL=https://app.example.com pnpm build
+```
+
+实际请求：
+
+```text
+https://app.example.com/api/goods/
+```
+
+### Q13: 刷新页面后 404？
+
+这是 SPA history fallback 未配置。Nginx 需要：
+
+```nginx
+location / {
+    try_files $uri $uri/ /index.html;
+}
+```
+
+### Q14: `pnpm deploy` 部署失败？
+
+检查：
+
+- `pnpm build` 是否成功
+- `deploy.cjs` 中的 host、port、username、password、remotePath 是否正确
+- 远端目录是否存在且账号有权限
+- 远端是否安装 `unzip`
+- 本地网络是否能连接服务器 SSH 端口
+
+安全提醒：不要把真实服务器密码提交到公开仓库。
+
+## 移动端
+
+### Q15: 真机无法连接后端？
+
+不要在真机中使用：
+
+```text
+localhost
+127.0.0.1
+```
+
+它们会指向手机自身。请改用：
+
+- 电脑局域网 IP，例如 `http://192.168.1.10:8000`
+- 测试服务器域名
+- 生产 HTTPS 域名
+
+同时确认后端监听 `0.0.0.0`，防火墙放行端口。
+
+### Q16: Capacitor 修改后没有同步到 Android？
+
+执行：
+
+```bash
+pnpm build
+pnpm exec cap sync android
+```
+
+如果只复制 Web 产物：
+
+```bash
+pnpm exec cap copy android
+```
+
+### Q17: 相机不可用？
+
+检查：
+
+- 是否安装 `@capacitor/camera`
+- 是否执行过 `pnpm exec cap sync`
+- AndroidManifest 或 iOS Info.plist 是否配置权限
+- 是否在真机上测试
+
+### Q18: Live Reload 不工作？
+
+检查：
+
+- `pnpm dev -- --host 0.0.0.0` 是否启动
+- 手机与电脑是否在同一网络
+- 防火墙是否允许 Vite 端口
+- 是否使用 `pnpm exec cap run android -l --external`
+
+## 依赖与环境
+
+### Q19: 依赖安装失败？
+
+检查 Node 和 pnpm 版本：
+
+```bash
+node -v
+pnpm -v
+```
+
+项目要求：
+
+- Node.js `^20.19.0 || >=22.12.0`
+- pnpm `>=9.0.0`
+
+可尝试：
+
+```bash
+pnpm store prune
+pnpm install
+```
+
+### Q20: patch-package 补丁没有生效？
+
+检查：
+
+- 是否使用 pnpm 安装
+- `package.json` 中 `pnpm.patchedDependencies` 是否存在
+- `patches/@capacitor-community__http@1.4.1.patch` 是否存在
+
+重新安装依赖后再验证。
+
+## 获取更多信息
+
+定位问题时优先查看：
+
+1. 浏览器控制台 Console
+2. 浏览器 Network 面板
+3. 后端日志
+4. `docs/API.md`
+5. `src/utils/request.ts`
+6. 对应页面或 store 的源码

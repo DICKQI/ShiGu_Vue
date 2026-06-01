@@ -584,11 +584,16 @@ onUnmounted(() => {
 }
 
 .selection-fab {
-  background: linear-gradient(135deg, #2f7d7e 0%, #38a3a5 100%);
+  background: #ffffff;
+  color: var(--primary-gold);
+  border: 1px solid rgba(212, 175, 55, 0.48);
 }
 
 .selection-fab:hover {
-  box-shadow: 0 6px 20px rgba(56, 163, 165, 0.45);
+  background: linear-gradient(135deg, var(--primary-gold), var(--primary-gold-light));
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.46);
 }
 
 .selection-confirm-fab {

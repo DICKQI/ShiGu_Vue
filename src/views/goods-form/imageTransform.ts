@@ -110,6 +110,72 @@ const drawRotatedToCanvas = (
   return canvas
 }
 
+const clampPerspectiveValue = (value: number) => {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(-100, Math.min(100, value))
+}
+
+const getPerspectiveSegmentCount = (value: number) => {
+  const absValue = Math.abs(value)
+  if (!absValue) return 1
+  return Math.max(8, Math.ceil((absValue / 100) * 48))
+}
+
+const expandTriangle = (
+  points: [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }],
+  amount = 0.35,
+) => {
+  const cx = (points[0].x + points[1].x + points[2].x) / 3
+  const cy = (points[0].y + points[1].y + points[2].y) / 3
+
+  return points.map((point) => {
+    const dx = point.x - cx
+    const dy = point.y - cy
+    const length = Math.sqrt(dx * dx + dy * dy)
+    if (!length) return point
+
+    return {
+      x: point.x + (dx / length) * amount,
+      y: point.y + (dy / length) * amount,
+    }
+  }) as typeof points
+}
+
+const drawTexturedTriangle = (
+  ctx: CanvasRenderingContext2D,
+  image: CanvasImageSource,
+  src1: { x: number; y: number },
+  src2: { x: number; y: number },
+  src3: { x: number; y: number },
+  dst1: { x: number; y: number },
+  dst2: { x: number; y: number },
+  dst3: { x: number; y: number },
+) => {
+  const m = computeAffineFromTriangles(src1, src2, src3, dst1, dst2, dst3)
+  const clipPoints = expandTriangle([dst1, dst2, dst3])
+  const minX = Math.min(src1.x, src2.x, src3.x)
+  const minY = Math.min(src1.y, src2.y, src3.y)
+  const maxX = Math.max(src1.x, src2.x, src3.x)
+  const maxY = Math.max(src1.y, src2.y, src3.y)
+  const sx = Math.floor(minX)
+  const sy = Math.floor(minY)
+  const sw = Math.ceil(maxX) - sx
+  const sh = Math.ceil(maxY) - sy
+
+  if (sw <= 0 || sh <= 0) return
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.moveTo(clipPoints[0].x, clipPoints[0].y)
+  ctx.lineTo(clipPoints[1].x, clipPoints[1].y)
+  ctx.lineTo(clipPoints[2].x, clipPoints[2].y)
+  ctx.closePath()
+  ctx.clip()
+  ctx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f)
+  ctx.drawImage(image, sx, sy, sw, sh, sx, sy, sw, sh)
+  ctx.restore()
+}
+
 export const applyRotateToBlob = async (input: Blob, rotation: number): Promise<Blob> => {
   const bitmapOrImg = await blobToImageBitmap(input)
   const width = (bitmapOrImg as any).width
@@ -132,8 +198,8 @@ export const applyPerspectiveAndRotateToBlob = async (
   input: Blob,
   transformState: TransformState,
 ): Promise<Blob> => {
-  const hVal = transformState.perspectiveHorizontal ?? 0
-  const vVal = transformState.perspectiveVertical ?? 0
+  const hVal = clampPerspectiveValue(transformState.perspectiveHorizontal ?? 0)
+  const vVal = clampPerspectiveValue(transformState.perspectiveVertical ?? 0)
   const rotDeg = transformState.rotation ?? 0
 
   if (isTransformIdentity(transformState)) {
@@ -152,7 +218,7 @@ export const applyPerspectiveAndRotateToBlob = async (
   const srcCy = height / 2
   const focal = Math.max(width, height) * 1.25
   const maxAngleRad = (Math.PI * 45) / 180
-  const angleY = (hVal / 100) * maxAngleRad
+  const angleY = -(hVal / 100) * maxAngleRad
   const angleX = (vVal / 100) * maxAngleRad
 
   const cosY = Math.cos(angleY)
@@ -215,64 +281,32 @@ export const applyPerspectiveAndRotateToBlob = async (
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
 
-  const stripCount = 64
-  const stripW = width / stripCount
+  const xSegments = getPerspectiveSegmentCount(hVal)
+  const ySegments = getPerspectiveSegmentCount(vVal)
+  const stepX = width / xSegments
+  const stepY = height / ySegments
 
-  for (let i = 0; i < stripCount; i++) {
-    const x0 = i * stripW
-    const x1 = (i + 1) * stripW
-    const sw = x1 - x0
-    if (sw <= 0) continue
+  for (let yIndex = 0; yIndex < ySegments; yIndex++) {
+    const y0 = yIndex * stepY
+    const y1 = yIndex === ySegments - 1 ? height : (yIndex + 1) * stepY
+    if (y1 <= y0) continue
 
-    const p00 = projectPoint(x0, 0)
-    const p10 = projectPoint(x1, 0)
-    const p01 = projectPoint(x0, height)
-    const p11 = projectPoint(x1, height)
+    for (let xIndex = 0; xIndex < xSegments; xIndex++) {
+      const x0 = xIndex * stepX
+      const x1 = xIndex === xSegments - 1 ? width : (xIndex + 1) * stepX
+      if (x1 <= x0) continue
 
-    {
-      ctx.save()
-      ctx.beginPath()
-      ctx.moveTo(p00.x, p00.y)
-      ctx.lineTo(p10.x, p10.y)
-      ctx.lineTo(p11.x, p11.y)
-      ctx.closePath()
-      ctx.clip()
+      const s00 = { x: x0, y: y0 }
+      const s10 = { x: x1, y: y0 }
+      const s01 = { x: x0, y: y1 }
+      const s11 = { x: x1, y: y1 }
+      const p00 = projectPoint(x0, y0)
+      const p10 = projectPoint(x1, y0)
+      const p01 = projectPoint(x0, y1)
+      const p11 = projectPoint(x1, y1)
 
-      const m = computeAffineFromTriangles(
-        { x: x0, y: 0 },
-        { x: x1, y: 0 },
-        { x: x1, y: height },
-        { x: p00.x, y: p00.y },
-        { x: p10.x, y: p10.y },
-        { x: p11.x, y: p11.y },
-      )
-
-      ctx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f)
-      ctx.drawImage(bitmapOrImg as any, x0, 0, sw, height, x0, 0, sw, height)
-      ctx.restore()
-    }
-
-    {
-      ctx.save()
-      ctx.beginPath()
-      ctx.moveTo(p00.x, p00.y)
-      ctx.lineTo(p11.x, p11.y)
-      ctx.lineTo(p01.x, p01.y)
-      ctx.closePath()
-      ctx.clip()
-
-      const m = computeAffineFromTriangles(
-        { x: x0, y: 0 },
-        { x: x1, y: height },
-        { x: x0, y: height },
-        { x: p00.x, y: p00.y },
-        { x: p11.x, y: p11.y },
-        { x: p01.x, y: p01.y },
-      )
-
-      ctx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f)
-      ctx.drawImage(bitmapOrImg as any, x0, 0, sw, height, x0, 0, sw, height)
-      ctx.restore()
+      drawTexturedTriangle(ctx, bitmapOrImg as any, s00, s10, s11, p00, p10, p11)
+      drawTexturedTriangle(ctx, bitmapOrImg as any, s00, s11, s01, p00, p11, p01)
     }
   }
 

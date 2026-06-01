@@ -302,8 +302,8 @@ export const computeCropperStyle = (
   const cssHueRotate = avgH
 
   const transformParts: string[] = []
-  const rotateYDeg = (perspectiveHorizontal / 100) * 20
-  const rotateXDeg = (perspectiveVertical / 100) * -20
+  const rotateYDeg = (perspectiveHorizontal / 100) * -20
+  const rotateXDeg = (perspectiveVertical / 100) * 20
   if (perspectiveHorizontal !== 0) {
     transformParts.push(`rotateY(${rotateYDeg}deg)`)
   }

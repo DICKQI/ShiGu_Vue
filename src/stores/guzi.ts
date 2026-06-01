@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { getGoodsList, getGoodsDetail, getSimilarRandomGoodsList } from '@/api/goods'
 import type { GoodsListItem, GoodsDetail, GoodsSearchParams } from '@/api/types'
 import { debounce } from 'lodash-es'
@@ -18,6 +18,16 @@ export const useGuziStore = defineStore('guzi', () => {
     next: null as number | null,
     previous: null as number | null,
   })
+  const selectionMode = ref(false)
+  const selectedGoodsIds = ref<string[]>([])
+  const selectedGoodsById = ref<Record<string, GoodsListItem>>({})
+
+  const selectedGoodsCount = computed(() => selectedGoodsIds.value.length)
+  const selectedGoodsList = computed(() =>
+    selectedGoodsIds.value
+      .map((id) => selectedGoodsById.value[id])
+      .filter((goods): goods is GoodsListItem => Boolean(goods)),
+  )
 
   // 内部搜索函数（不带防抖）
   const _searchGuzi = async (params?: GoodsSearchParams, keepPage?: boolean) => {
@@ -100,6 +110,11 @@ export const useGuziStore = defineStore('guzi', () => {
 
       // 更新数据
       guziList.value = results
+      results.forEach((goods) => {
+        if (selectedGoodsById.value[goods.id]) {
+          selectedGoodsById.value[goods.id] = goods
+        }
+      })
       pagination.value = {
         count,
         page,
@@ -166,6 +181,41 @@ export const useGuziStore = defineStore('guzi', () => {
     _searchGuzi()
   }
 
+  function enterSelectionMode() {
+    selectionMode.value = true
+  }
+
+  function exitSelectionMode(clear = true) {
+    selectionMode.value = false
+    if (clear) {
+      clearGoodsSelection()
+    }
+  }
+
+  function toggleGoodsSelection(goods: GoodsListItem) {
+    if (selectedGoodsById.value[goods.id]) {
+      removeGoodsSelection(goods.id)
+      return
+    }
+
+    selectedGoodsIds.value.push(goods.id)
+    selectedGoodsById.value[goods.id] = goods
+  }
+
+  function removeGoodsSelection(id: string) {
+    selectedGoodsIds.value = selectedGoodsIds.value.filter((goodsId) => goodsId !== id)
+    delete selectedGoodsById.value[id]
+  }
+
+  function clearGoodsSelection() {
+    selectedGoodsIds.value = []
+    selectedGoodsById.value = {}
+  }
+
+  function isGoodsSelected(id: string) {
+    return Boolean(selectedGoodsById.value[id])
+  }
+
   return {
     guziList,
     loading,
@@ -173,6 +223,11 @@ export const useGuziStore = defineStore('guzi', () => {
     filters,
     viewMode,
     pagination,
+    selectionMode,
+    selectedGoodsIds,
+    selectedGoodsById,
+    selectedGoodsCount,
+    selectedGoodsList,
     searchGuzi,
     searchGuziImmediate,
     fetchGoodsDetail,
@@ -180,6 +235,11 @@ export const useGuziStore = defineStore('guzi', () => {
     setPage,
     setPageSize,
     setViewMode,
+    enterSelectionMode,
+    exitSelectionMode,
+    toggleGoodsSelection,
+    removeGoodsSelection,
+    clearGoodsSelection,
+    isGoodsSelected,
   }
 })
-

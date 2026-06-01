@@ -22,6 +22,22 @@
       <!-- 筛选面板 -->
       <FilterPanel />
 
+      <Transition name="selection-bar" appear>
+        <div v-if="guziStore.selectionMode" class="selection-status-bar">
+          <span>多选模式</span>
+          <strong>已选 {{ guziStore.selectedGoodsCount }} 个谷子</strong>
+          <span class="selection-hint">可继续搜索、筛选或翻页添加更多谷子</span>
+          <el-button
+            v-if="guziStore.selectedGoodsCount > 0"
+            text
+            class="selection-clear-btn"
+            @click="guziStore.clearGoodsSelection()"
+          >
+            清空
+          </el-button>
+        </div>
+      </Transition>
+
       <!-- 列表区域 -->
       <div class="list-section">
         <!-- 添加 Transition 组件包裹内容 -->
@@ -47,7 +63,10 @@
               v-for="goods in guziStore.guziList"
               :key="goods.id"
               :goods="goods"
+              :selectable="guziStore.selectionMode"
+              :selected="guziStore.isGoodsSelected(goods.id)"
               @click="handleCardClick"
+              @select="handleCardSelect"
               @location-click="handleLocationClick"
               @context-menu="handleCardContextMenu"
             />
@@ -88,6 +107,13 @@
 
       <!-- 详情抽屉 -->
       <GoodsDrawer v-model="drawerVisible" :goods-id="selectedGoodsId" />
+
+      <GoodsMultiDisplayDialog
+        v-model="multiDisplayVisible"
+        :goods-list="guziStore.selectedGoodsList"
+        @remove="guziStore.removeGoodsSelection"
+        @clear="guziStore.clearGoodsSelection"
+      />
 
       <!-- 右键菜单 -->
       <div
@@ -155,6 +181,7 @@ import SearchBar from '@/components/SearchBar.vue'
 import FilterPanel from '@/components/FilterPanel.vue'
 import GoodsCard from '@/components/GoodsCard.vue'
 import GoodsDrawer from '@/components/GoodsDrawer.vue'
+import GoodsMultiDisplayDialog from '@/components/GoodsMultiDisplayDialog.vue'
 import StatsDashboard from '@/components/StatsDashboard.vue'
 import ShowcaseManager from '@/components/ShowcaseManager.vue'
 import type { GoodsListItem } from '@/api/types'
@@ -168,6 +195,7 @@ const activeTab = ref<'showcase' | 'barn' | 'stats'>('barn')
 
 const drawerVisible = ref(false)
 const selectedGoodsId = ref<string>('')
+const multiDisplayVisible = ref(false)
 
 const contextMenuVisible = ref(false)
 const contextMenuX = ref(0)
@@ -226,11 +254,20 @@ const moveDisabledForward = computed(() => moveLoading.value || isFirstItemFirst
 const moveDisabledBackward = computed(() => moveLoading.value || isLastItemLastPage.value)
 
 const handleCardClick = (goods: GoodsListItem) => {
+  if (guziStore.selectionMode) {
+    guziStore.toggleGoodsSelection(goods)
+    return
+  }
   selectedGoodsId.value = goods.id
   drawerVisible.value = true
 }
 
+const handleCardSelect = (goods: GoodsListItem) => {
+  guziStore.toggleGoodsSelection(goods)
+}
+
 const handleCardContextMenu = (payload: { goods: GoodsListItem; x: number; y: number }) => {
+  if (guziStore.selectionMode) return
   contextMenuGoods.value = payload.goods
   contextMenuX.value = payload.x
   contextMenuY.value = payload.y
@@ -238,8 +275,47 @@ const handleCardContextMenu = (payload: { goods: GoodsListItem; x: number; y: nu
 }
 
 const handleLocationClick = (path: string) => {
+  if (guziStore.selectionMode) return
   // 跳转到位置管理页
   router.push({ name: 'Location', query: { highlight: path } })
+}
+
+const handleSelectionEnter = () => {
+  closeContextMenu()
+  drawerVisible.value = false
+  guziStore.enterSelectionMode()
+}
+
+const handleSelectionConfirm = () => {
+  closeContextMenu()
+  if (guziStore.selectedGoodsCount === 0) {
+    ElMessage.warning('请先选择要同屏展示的谷子')
+    return
+  }
+  multiDisplayVisible.value = true
+}
+
+const handleSelectionExit = async () => {
+  closeContextMenu()
+  multiDisplayVisible.value = false
+
+  if (guziStore.selectedGoodsCount > 0) {
+    try {
+      await ElMessageBox.confirm(
+        `当前已选择 ${guziStore.selectedGoodsCount} 个谷子，退出多选后将清空选择。`,
+        '退出多选模式',
+        {
+          confirmButtonText: '退出',
+          cancelButtonText: '继续选择',
+          type: 'warning',
+        },
+      )
+    } catch (error) {
+      return
+    }
+  }
+
+  guziStore.exitSelectionMode(true)
 }
 
 const handlePageChange = (page: number) => {
@@ -535,12 +611,18 @@ onMounted(() => {
 
   // 监听右下角“刷新”按钮事件，按当前 Tab 执行对应刷新
   window.addEventListener('cloud-showcase:refresh', handleShowcaseRefresh as EventListener)
+  window.addEventListener('cloud-showcase:selection-enter', handleSelectionEnter as EventListener)
+  window.addEventListener('cloud-showcase:selection-confirm', handleSelectionConfirm as EventListener)
+  window.addEventListener('cloud-showcase:selection-exit', handleSelectionExit as EventListener)
 })
 
 onUnmounted(() => {
   window.removeEventListener('scroll', checkScrollBottom)
   window.removeEventListener('resize', handleResize)
   window.removeEventListener('cloud-showcase:refresh', handleShowcaseRefresh as EventListener)
+  window.removeEventListener('cloud-showcase:selection-enter', handleSelectionEnter as EventListener)
+  window.removeEventListener('cloud-showcase:selection-confirm', handleSelectionConfirm as EventListener)
+  window.removeEventListener('cloud-showcase:selection-exit', handleSelectionExit as EventListener)
   if (statsRefreshCompleteHandler) {
     window.removeEventListener('cloud-showcase:stats-refresh-complete', statsRefreshCompleteHandler)
   }
@@ -574,6 +656,62 @@ watch(
 .list-section {
   margin-top: 24px;
   min-height: 400px; /* 给列表区域一个最小高度，防止切换时的闪烁塌陷 */
+}
+
+.selection-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 18px;
+  padding: 10px 14px;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 8px;
+  background: rgba(212, 175, 55, 0.08);
+  color: var(--text-dark);
+  font-size: 14px;
+  max-height: 72px;
+  overflow: hidden;
+  transform-origin: top center;
+}
+
+.selection-bar-enter-active,
+.selection-bar-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    max-height 0.24s ease,
+    margin 0.24s ease,
+    padding-top 0.24s ease,
+    padding-bottom 0.24s ease,
+    border-color 0.24s ease;
+}
+
+.selection-bar-enter-from,
+.selection-bar-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scaleY(0.96);
+  max-height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-color: transparent;
+}
+
+.selection-status-bar strong {
+  color: var(--primary-gold-dark);
+}
+
+.selection-hint {
+  color: var(--text-secondary, #909399);
+  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+}
+
+.selection-clear-btn {
+  color: var(--primary-gold-dark);
+  flex: none;
 }
 
 .stats-section {
@@ -634,6 +772,16 @@ watch(
   .goods-grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 12px;
+  }
+
+  .selection-status-bar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .selection-hint {
+    line-height: 1.4;
   }
 
   .cloud-showcase {
@@ -858,4 +1006,3 @@ watch(
   }
 }
 </style>
-

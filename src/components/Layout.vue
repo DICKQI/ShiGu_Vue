@@ -74,9 +74,16 @@
     <MobileBottomNav v-if="isMobile && !route.meta.hideBottomNav" />
 
     <!-- 悬浮按钮组（仅云展柜页面展示；统计看板隐藏刷新按钮） -->
-    <div v-if="showFab" class="fab-group" :class="{ 'fab-mobile': isMobile }">
+    <TransitionGroup
+      v-if="showFab"
+      name="fab-list"
+      tag="div"
+      class="fab-group"
+      :class="{ 'fab-mobile': isMobile }"
+    >
       <div
         v-if="showRefreshFab"
+        key="refresh"
         class="fab-btn refresh-fab"
         @click="handleRefresh"
         :class="{ loading: refreshLoading }"
@@ -90,17 +97,47 @@
           </el-icon>
         </Transition>
       </div>
-      <div v-if="showAddFab" class="fab-btn" @click="goToAdd">
+      <div v-if="showAddFab" key="add" class="fab-btn" @click="goToAdd">
         <el-icon><Plus /></el-icon>
       </div>
-    </div>
+      <div
+        v-if="showMultiSelectFab"
+        key="multi-select"
+        class="fab-btn selection-fab"
+        title="多选展示"
+        @click="enterSelectionMode"
+      >
+        <el-icon><Grid /></el-icon>
+      </div>
+      <div
+        v-if="showSelectionConfirmFab"
+        key="selection-confirm"
+        class="fab-btn selection-confirm-fab"
+        title="确认展示"
+        @click="confirmSelection"
+      >
+        <el-icon><Check /></el-icon>
+        <span v-if="guziStore.selectedGoodsCount > 0" class="fab-count">
+          {{ guziStore.selectedGoodsCount }}
+        </span>
+      </div>
+      <div
+        v-if="showSelectionExitFab"
+        key="selection-exit"
+        class="fab-btn selection-exit-fab"
+        title="退出多选"
+        @click="exitSelectionMode"
+      >
+        <el-icon><Close /></el-icon>
+      </div>
+    </TransitionGroup>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Grid, FolderOpened, Plus, Collection, Box, Refresh, Loading, Setting, Star } from '@element-plus/icons-vue'
+import { Grid, FolderOpened, Plus, Collection, Box, Refresh, Loading, Setting, Star, Check, Close } from '@element-plus/icons-vue'
 import { useGuziStore } from '@/stores/guzi'
 import { useAuthStore } from '@/stores/auth'
 import { Capacitor } from '@capacitor/core'
@@ -116,7 +153,7 @@ const refreshLoading = ref(false)
 const isNativePlatform = ref(Capacitor.isNativePlatform())
 const statusBarHeight = ref(0)
 const navbarRef = ref<HTMLElement | null>(null)
-const showcaseActiveTab = ref<'showcase' | 'barn' | 'stats' | null>(null)
+const showcaseActiveTab = ref<'showcase' | 'barn' | 'stats' | null>(route.path.startsWith('/showcase') ? 'barn' : null)
 
 const activeMenu = computed(() => {
   const path = route.path
@@ -146,13 +183,29 @@ const goToLogin = () => {
 
 // 仅在云展柜页面显示悬浮按钮
 const showFab = computed(() => route.path.startsWith('/showcase'))
+const showSelectionControls = computed(() => showFab.value && showcaseActiveTab.value === 'barn' && guziStore.selectionMode)
 // 统计看板 Tab 下隐藏刷新按钮
-const showRefreshFab = computed(() => showFab.value && showcaseActiveTab.value !== 'stats')
+const showRefreshFab = computed(() => showFab.value && showcaseActiveTab.value !== 'stats' && !showSelectionControls.value)
 // 仅在“谷仓” Tab 下显示“新增谷子”按钮
-const showAddFab = computed(() => showFab.value && showcaseActiveTab.value === 'barn')
+const showAddFab = computed(() => showFab.value && showcaseActiveTab.value === 'barn' && !showSelectionControls.value)
+const showMultiSelectFab = computed(() => showFab.value && showcaseActiveTab.value === 'barn' && !showSelectionControls.value)
+const showSelectionConfirmFab = computed(() => showSelectionControls.value)
+const showSelectionExitFab = computed(() => showSelectionControls.value)
 
 const goToAdd = () => {
   router.push('/goods/new')
+}
+
+const enterSelectionMode = () => {
+  window.dispatchEvent(new CustomEvent('cloud-showcase:selection-enter'))
+}
+
+const confirmSelection = () => {
+  window.dispatchEvent(new CustomEvent('cloud-showcase:selection-confirm'))
+}
+
+const exitSelectionMode = () => {
+  window.dispatchEvent(new CustomEvent('cloud-showcase:selection-exit'))
 }
 
 // 移动端为页面切换添加向上滑入动画，PC 端使用轻量淡入
@@ -472,6 +525,32 @@ onUnmounted(() => {
   border: none;
 }
 
+.fab-list-move,
+.fab-list-enter-active,
+.fab-list-leave-active {
+  transition:
+    opacity 0.22s ease,
+    transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 0.22s ease;
+}
+
+.fab-list-enter-from {
+  opacity: 0;
+  transform: translateY(18px) scale(0.72);
+  filter: blur(3px);
+}
+
+.fab-list-leave-to {
+  opacity: 0;
+  transform: translateY(10px) scale(0.72);
+  filter: blur(3px);
+}
+
+.fab-list-leave-active {
+  position: absolute;
+  right: 0;
+}
+
 .fab-btn:hover {
   transform: scale(1.1);
   box-shadow: 0 6px 20px rgba(212, 175, 55, 0.6);
@@ -502,6 +581,49 @@ onUnmounted(() => {
 .refresh-fab.loading {
   cursor: not-allowed;
   opacity: 0.8;
+}
+
+.selection-fab {
+  background: linear-gradient(135deg, #2f7d7e 0%, #38a3a5 100%);
+}
+
+.selection-fab:hover {
+  box-shadow: 0 6px 20px rgba(56, 163, 165, 0.45);
+}
+
+.selection-confirm-fab {
+  position: relative;
+  background: linear-gradient(135deg, #13a06f 0%, #20c997 100%);
+}
+
+.selection-confirm-fab:hover {
+  box-shadow: 0 6px 20px rgba(32, 201, 151, 0.45);
+}
+
+.selection-exit-fab {
+  background: linear-gradient(135deg, #5f6470 0%, #3f4552 100%);
+}
+
+.selection-exit-fab:hover {
+  box-shadow: 0 6px 20px rgba(63, 69, 82, 0.45);
+}
+
+.fab-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f56c6c;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
 }
 
 .refresh-fab .is-loading {
@@ -587,4 +709,3 @@ onUnmounted(() => {
   }
 }
 </style>
-

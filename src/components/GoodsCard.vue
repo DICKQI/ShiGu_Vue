@@ -1,6 +1,7 @@
 <template>
   <div
     class="goods-card"
+    :class="{ 'is-selectable': selectable, 'is-selected': selected }"
     @click="handleClick"
     @contextmenu.prevent="handleContextMenu"
     @touchstart.stop="handleTouchStart"
@@ -48,6 +49,15 @@
       <!-- 数量角标 -->
       <div v-if="goods.quantity > 1" class="quantity-badge">
         x{{ goods.quantity }}
+      </div>
+
+      <div
+        v-if="selectable"
+        class="selection-indicator"
+        :class="{ 'is-selected': selected }"
+        @click.stop="handleSelectClick"
+      >
+        <el-icon v-if="selected"><Check /></el-icon>
       </div>
 
       <!-- 更多按钮（某些页面会在外层自定义右上角操作区，避免重复显示） -->
@@ -100,13 +110,15 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { Picture, Location, CircleCheck, MoreFilled, Brush } from '@element-plus/icons-vue'
+import { Picture, Location, CircleCheck, MoreFilled, Brush, Check } from '@element-plus/icons-vue'
 import WatermarkImage from '@/components/WatermarkImage.vue'
 import type { GoodsListItem } from '@/api/types'
 
 interface Props {
   goods: GoodsListItem
   enableWatermark?: boolean
+  selectable?: boolean
+  selected?: boolean
   /**
    * 是否显示卡片右上角的“更多”按钮。
    * 默认显示；当外层页面已自定义右上角操作区时可关闭，避免冲突/重叠。
@@ -115,13 +127,18 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  selectable: false,
+  selected: false,
   showMenu: true,
 })
 
-const showMenu = computed(() => props.showMenu)
+const selectable = computed(() => props.selectable)
+const selected = computed(() => props.selected)
+const showMenu = computed(() => props.showMenu && !selectable.value)
 
 const emit = defineEmits<{
   click: [goods: GoodsListItem]
+  select: [goods: GoodsListItem]
   locationClick: [path: string]
   contextMenu: [{ goods: GoodsListItem; x: number; y: number }]
 }>()
@@ -151,20 +168,34 @@ const handleClick = () => {
     isLongPress.value = false
     return
   }
+  if (selectable.value) {
+    emit('select', props.goods)
+    return
+  }
   emit('click', props.goods)
 }
 
 const handleLocationClick = () => {
+  if (selectable.value) {
+    emit('select', props.goods)
+    return
+  }
   emit('locationClick', props.goods.location_path)
+}
+
+const handleSelectClick = () => {
+  emit('select', props.goods)
 }
 
 const handleMenuButtonClick = (event: MouseEvent) => {
   event.stopPropagation()
+  if (selectable.value) return
   emit('contextMenu', { goods: props.goods, x: event.clientX, y: event.clientY })
 }
 
 const handleContextMenu = (event: MouseEvent) => {
   event.preventDefault()
+  if (selectable.value) return
   emit('contextMenu', { goods: props.goods, x: event.clientX, y: event.clientY })
 }
 
@@ -176,6 +207,7 @@ const clearLongPressTimer = () => {
 }
 
 const handleTouchStart = (event: TouchEvent) => {
+  if (selectable.value) return
   clearLongPressTimer()
   const touch = event.touches[0]
   if (!touch) return
@@ -214,6 +246,28 @@ onBeforeUnmount(() => clearLongPressTimer())
   transform: translateY(-4px);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.06);
   border-color: var(--primary-gold);
+}
+
+.goods-card.is-selectable {
+  user-select: none;
+}
+
+.goods-card.is-selectable:hover {
+  transform: translateY(-2px);
+}
+
+.goods-card.is-selected {
+  border-color: var(--primary-gold);
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.22), 0 10px 22px rgba(0, 0, 0, 0.08);
+}
+
+.goods-card.is-selected .card-image-wrapper::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(212, 175, 55, 0.12);
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* 图片区域 */
@@ -281,6 +335,35 @@ onBeforeUnmount(() => clearLongPressTimer())
 }
 
 .goods-card:hover .menu-button { opacity: 1; }
+
+.selection-indicator {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  background: rgba(0, 0, 0, 0.28);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  transition: background-color 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+}
+
+.selection-indicator.is-selected {
+  background: var(--primary-gold);
+  border-color: #fff;
+  transform: scale(1.04);
+}
+
+.selection-indicator .el-icon {
+  font-size: 18px;
+  font-weight: 700;
+}
 
 /* 内容区 */
 .card-content {
@@ -397,4 +480,3 @@ onBeforeUnmount(() => clearLongPressTimer())
   .card-content { padding: 10px; }
 }
 </style>
-

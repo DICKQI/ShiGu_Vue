@@ -81,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Close, Picture } from '@element-plus/icons-vue'
 import type { GoodsListItem } from '@/api/types'
 
@@ -105,6 +105,9 @@ const densityOptions: Array<{ label: string; value: Density }> = [
   { label: '宫格', value: 'grid' },
 ]
 
+const viewportWidth = ref(typeof window === 'undefined' ? 1440 : window.innerWidth)
+const viewportHeight = ref(typeof window === 'undefined' ? 900 : window.innerHeight)
+
 const visible = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value),
@@ -121,9 +124,26 @@ const gridColumnCount = computed(() => {
   if (count <= 6) return 3
   return 4
 })
+const gridRowCount = computed(() => Math.max(1, Math.ceil(props.goodsList.length / gridColumnCount.value)))
+const gridItemSize = computed(() => {
+  const columns = gridColumnCount.value
+  const rowsToFit = Math.min(gridRowCount.value, 2)
+  const gap = 4
+  const horizontalPadding = 28
+  const verticalPadding = 24
+  const dialogWidth = Math.min(viewportWidth.value * 0.96, 1480)
+  const bodyHeight = Math.min(viewportHeight.value * 0.84, 900)
+  const widthLimit = (dialogWidth - horizontalPadding - gap * (columns - 1)) / columns
+  const heightLimit = (bodyHeight - verticalPadding - gap * (rowsToFit - 1)) / rowsToFit
+
+  return Math.max(120, Math.floor(Math.min(widthLimit, heightLimit)))
+})
 const gridStyle = computed(() => (
   isGridMode.value
-    ? { '--grid-columns': String(gridColumnCount.value) }
+    ? {
+        '--grid-columns': String(gridColumnCount.value),
+        '--grid-item-size': `${gridItemSize.value}px`,
+      }
     : undefined
 ))
 const previewEntries = computed(() => props.goodsList.filter((goods) => Boolean(goods.main_photo)))
@@ -133,6 +153,20 @@ const getPreviewIndex = (id: string) => {
   const index = previewEntries.value.findIndex((goods) => goods.id === id)
   return index >= 0 ? index : 0
 }
+
+const updateViewportSize = () => {
+  viewportWidth.value = window.innerWidth
+  viewportHeight.value = window.innerHeight
+}
+
+onMounted(() => {
+  updateViewportSize()
+  window.addEventListener('resize', updateViewportSize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateViewportSize)
+})
 </script>
 
 <style scoped>
@@ -259,8 +293,11 @@ const getPreviewIndex = (id: string) => {
 }
 
 .display-grid--grid {
-  grid-template-columns: repeat(var(--grid-columns, 4), minmax(0, 1fr));
+  grid-template-columns: repeat(var(--grid-columns, 4), minmax(0, var(--grid-item-size, 240px)));
+  grid-auto-rows: var(--grid-item-size, 240px);
   gap: 4px;
+  justify-content: center;
+  align-content: start;
   align-items: stretch;
 }
 
@@ -281,7 +318,7 @@ const getPreviewIndex = (id: string) => {
 
 .display-grid--grid .display-item {
   min-height: 0;
-  aspect-ratio: 1 / 1;
+  height: 100%;
   grid-template-rows: 1fr;
   border-radius: 3px;
   border: 0;
@@ -406,9 +443,13 @@ const getPreviewIndex = (id: string) => {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
 
-  .display-item,
-  .display-grid--grid .display-item {
+  .display-item {
     min-height: 230px;
+  }
+
+  .display-grid--grid {
+    grid-template-columns: repeat(var(--grid-columns, 2), minmax(0, var(--grid-item-size, 160px)));
+    grid-auto-rows: var(--grid-item-size, 160px);
   }
 }
 </style>

@@ -72,7 +72,7 @@
             v-model="localFilters.ip"
             placeholder="选择IP"
             clearable
-            @change="handleFilterChange"
+            @change="handleIpChange"
             style="width: 100%"
           >
             <el-option
@@ -92,8 +92,9 @@
             placeholder="选择角色"
             clearable
             filterable
+            :filter-method="handleCharacterFilter"
             :disabled="!localFilters.ip"
-            @change="handleFilterChange"
+            @change="handleCharacterChange"
             style="width: 100%"
           >
             <el-option
@@ -128,11 +129,12 @@
                 placeholder="选择主题"
                 clearable
                 filterable
-                @change="handleFilterChange"
+                :filter-method="handleThemeFilter"
+                @change="handleThemeChange"
                 style="width: 100%"
               >
                 <el-option
-                  v-for="theme in themeOptions"
+                  v-for="theme in filteredThemes"
                   :key="theme.id"
                   :label="theme.name"
                   :value="theme.id"
@@ -215,6 +217,7 @@ import { useGuziStore } from '@/stores/guzi'
 import { useLocationStore } from '@/stores/location'
 import { getIPList, getCharacterList, getCategoryTree, getThemeList } from '@/api/metadata'
 import type { GoodsSearchParams, IP, Character, Category, GoodsStatus, Theme } from '@/api/types'
+import { matchesTextOrPinyin } from '@/utils/pinyinSearch'
 
 // 从API获取的数据
 const ipOptions = ref<IP[]>([])
@@ -256,6 +259,8 @@ const localFilters = ref<GoodsSearchParams>({
 
 // 本地状态多选
 const selectedStatuses = ref<GoodsStatus[]>([])
+const characterFilterQuery = ref('')
+const themeFilterQuery = ref('')
 
 const locationTreeData = computed(() => locationStore.treeData)
 
@@ -317,7 +322,14 @@ const categoryTreeData = computed(() => {
 const filteredCharacters = computed(() => {
   // 如果选择了IP，只显示该IP下的角色；否则返回空数组（选择器会被禁用）
   if (!localFilters.value.ip) return []
-  return characters.value.filter((char) => char.ip.id === localFilters.value.ip)
+  const ipCharacters = characters.value.filter((char) => char.ip.id === localFilters.value.ip)
+  if (!characterFilterQuery.value.trim()) return ipCharacters
+  return ipCharacters.filter((char) => matchesTextOrPinyin(char.name, characterFilterQuery.value))
+})
+
+const filteredThemes = computed(() => {
+  if (!themeFilterQuery.value.trim()) return themeOptions.value
+  return themeOptions.value.filter((theme) => matchesTextOrPinyin(theme.name, themeFilterQuery.value))
 })
 
 const applyStatusToFilters = (filters: GoodsSearchParams) => {
@@ -333,12 +345,39 @@ const applyStatusToFilters = (filters: GoodsSearchParams) => {
   }
 }
 
-const handleFilterChange = () => {
-  // 如果IP改变，清空角色选择
-  if (localFilters.value.ip !== guziStore.filters.ip) {
-    localFilters.value.character = undefined
-  }
+const clearCharacterFilter = () => {
+  characterFilterQuery.value = ''
+}
 
+const clearThemeFilter = () => {
+  themeFilterQuery.value = ''
+}
+
+const handleCharacterFilter = (query: string) => {
+  characterFilterQuery.value = query
+}
+
+const handleThemeFilter = (query: string) => {
+  themeFilterQuery.value = query
+}
+
+const handleIpChange = () => {
+  localFilters.value.character = undefined
+  clearCharacterFilter()
+  handleFilterChange()
+}
+
+const handleCharacterChange = () => {
+  clearCharacterFilter()
+  handleFilterChange()
+}
+
+const handleThemeChange = () => {
+  clearThemeFilter()
+  handleFilterChange()
+}
+
+const handleFilterChange = () => {
   const filters: GoodsSearchParams = {
     ip: localFilters.value.ip || undefined,
     character: localFilters.value.character || undefined,
@@ -360,6 +399,8 @@ const handleStatusChange = () => {
 }
 
 const handleReset = () => {
+  clearCharacterFilter()
+  clearThemeFilter()
   localFilters.value = {
     ip: undefined,
     character: undefined,
@@ -384,6 +425,8 @@ const handleViewModeChange = (mode: 'standard' | 'similar') => {
 watch(
   () => guziStore.filters,
   (newFilters) => {
+    const previousIp = localFilters.value.ip
+    const previousTheme = localFilters.value.theme
     localFilters.value = {
       ip: newFilters.ip,
       character: newFilters.character,
@@ -403,6 +446,14 @@ watch(
       selectedStatuses.value = [newFilters.status]
     } else {
       selectedStatuses.value = []
+    }
+
+    if (previousIp !== newFilters.ip) {
+      clearCharacterFilter()
+    }
+
+    if (previousTheme !== newFilters.theme) {
+      clearThemeFilter()
     }
   },
   { deep: true },
@@ -905,8 +956,6 @@ onUnmounted(() => {})
 
 /* 输入类控件的高度/圆角已在上方统一变量中设置 */
 </style>
-
-
 
 
 

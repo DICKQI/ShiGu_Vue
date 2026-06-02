@@ -38,14 +38,14 @@
           </el-col>
           <el-col :xs="24" :sm="12">
             <el-form-item label="角色" prop="characters" class="is-required">
-              <el-select v-model="formData.characters" placeholder="选择角色（可多选）" filterable multiple :disabled="!formData.ip" style="width: 100%">
+              <el-select v-model="formData.characters" placeholder="选择角色（可多选）" filterable multiple :filter-method="handleCharacterFilter" :disabled="!formData.ip" @change="handleCharacterChange" style="width: 100%">
                 <el-option v-for="char in filteredCharacters" :key="char.id" :label="char.name" :value="char.id" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12">
             <el-form-item label="品类" prop="category" class="is-required">
-              <el-tree-select v-model="formData.category" :data="categoryTreeOptions" :props="{ label: 'name', value: 'id', children: 'children' }" placeholder="选择品类" style="width: 100%" clearable filterable check-strictly />
+              <el-tree-select v-model="formData.category" :data="categoryTreeOptions" :props="{ label: 'name', value: 'id', children: 'children' }" placeholder="选择品类" style="width: 100%" clearable filterable :filter-node-method="filterCategoryNode" check-strictly />
               <div v-if="selectedCategory" class="category-chip">
                 <span class="color-dot" v-if="selectedCategory.color_tag" :style="{ backgroundColor: selectedCategory.color_tag || '#a3a3a3' }"></span>
                 <span class="chip-text">{{ selectedCategory.path_name || selectedCategory.name }}</span>
@@ -54,8 +54,8 @@
           </el-col>
           <el-col :xs="24" :sm="12">
             <el-form-item label="主题">
-              <el-select v-model="formData.theme" placeholder="选择或创建主题" filterable allow-create default-first-option :reserve-keyword="true" @change="handleThemeChange" @create="handleThemeCreate" style="width: 100%" clearable>
-                <el-option v-for="theme in themeOptions" :key="theme.id" :label="theme.name" :value="theme.id" />
+              <el-select v-model="formData.theme" placeholder="选择或创建主题" filterable :allow-create="allowThemeCreate" default-first-option :reserve-keyword="true" :filter-method="handleThemeFilter" @change="handleThemeSelectChange" @create="handleThemeCreate" style="width: 100%" clearable>
+                <el-option v-for="theme in filteredThemeOptions" :key="theme.id" :label="theme.name" :value="theme.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -316,9 +316,11 @@ const goodsId = computed(() => {
 
 const metadata = useGoodsFormMetadata(formData)
 const {
-  ipOptions, characters, categoryOptions, themeOptions, filteredCharacters,
-  categoryTreeOptions, selectedCategory,
-  handleIpChange, handleThemeChange, handleThemeCreate, ensureThemeCreated, loadMetadata,
+  ipOptions, filteredCharacters, filteredThemeOptions,
+  allowThemeCreate, categoryTreeOptions, selectedCategory,
+  handleIpChange, handleCharacterFilter, handleCharacterChange, filterCategoryNode,
+  handleThemeFilter, handleThemeSelectChange, handleThemeCreate, ensureThemeCreated,
+  clearSearchQueries, loadMetadata,
 } = metadata
 
 const additionalPhotos = useAdditionalPhotos(goodsId)
@@ -580,6 +582,7 @@ const handleReset = async () => {
   try {
     await ElMessageBox.confirm('确定要重置表单吗？当前填写内容将恢复为进入页面时的状态（未保存的修改会丢失）。', '重置表单', { type: 'warning', confirmButtonText: '重置', cancelButtonText: '取消' })
     formRef.value?.resetFields()
+    clearSearchQueries()
   } catch { /* user cancelled */ }
 }
 

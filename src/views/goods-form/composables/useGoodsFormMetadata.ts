@@ -2,6 +2,7 @@ import { ref, computed, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getIPList, getCharacterList, getCategoryList, getThemeList, createTheme } from '@/api/metadata'
 import type { IP, Character, Category, Theme } from '@/api/types'
+import { matchesTextOrPinyin } from '@/utils/pinyinSearch'
 
 interface FormDataShape {
   ip: number | undefined
@@ -17,10 +18,14 @@ export function useGoodsFormMetadata(formData: Ref<FormDataShape>) {
   const categoryOptions = ref<Category[]>([])
   const allThemes = ref<Theme[]>([])
   const themeOptions = ref<Theme[]>([])
+  const characterFilterQuery = ref('')
+  const themeFilterQuery = ref('')
 
   const filteredCharacters = computed(() => {
     if (!formData.value.ip) return []
-    return characters.value.filter((char) => char.ip.id === formData.value.ip)
+    const ipCharacters = characters.value.filter((char) => char.ip.id === formData.value.ip)
+    if (!characterFilterQuery.value.trim()) return ipCharacters
+    return ipCharacters.filter((char) => matchesTextOrPinyin(char.name, characterFilterQuery.value))
   })
 
   const buildCategoryTree = (list: Category[]) => {
@@ -44,9 +49,58 @@ export function useGoodsFormMetadata(formData: Ref<FormDataShape>) {
 
   const categoryTreeOptions = computed(() => buildCategoryTree(categoryOptions.value))
   const selectedCategory = computed(() => categoryOptions.value.find((c) => c.id === formData.value.category))
+  const filteredThemeOptions = computed(() => {
+    if (!themeFilterQuery.value.trim()) return themeOptions.value
+    return themeOptions.value.filter((theme) => matchesTextOrPinyin(theme.name, themeFilterQuery.value))
+  })
+
+  const allowThemeCreate = computed(() => {
+    const query = themeFilterQuery.value.trim()
+    if (!query) return true
+    const hasExactTheme = allThemes.value.some((theme) => theme.name === query)
+    if (hasExactTheme) return false
+    const isPinyinShortcut = /^[a-z\s]+$/i.test(query)
+    return !isPinyinShortcut || filteredThemeOptions.value.length === 0
+  })
+
+  const clearCharacterFilter = () => {
+    characterFilterQuery.value = ''
+  }
+
+  const clearThemeFilter = () => {
+    themeFilterQuery.value = ''
+  }
+
+  const handleCharacterFilter = (query: string) => {
+    characterFilterQuery.value = query
+  }
+
+  const handleCharacterChange = () => {
+    clearCharacterFilter()
+  }
+
+  const filterCategoryNode = (query: string, data: Partial<Category>) => {
+    if (!query.trim()) return true
+    return matchesTextOrPinyin(data.name || '', query) || matchesTextOrPinyin(data.path_name || '', query)
+  }
+
+  const handleThemeFilter = (query: string) => {
+    themeFilterQuery.value = query
+  }
+
+  const handleThemeSelectChange = (value: number | string | null) => {
+    clearThemeFilter()
+    handleThemeChange(value)
+  }
+
+  const clearSearchQueries = () => {
+    clearCharacterFilter()
+    clearThemeFilter()
+  }
 
   const handleIpChange = () => {
     formData.value.characters = []
+    clearCharacterFilter()
   }
 
   // ── Theme management ──
@@ -76,6 +130,7 @@ export function useGoodsFormMetadata(formData: Ref<FormDataShape>) {
       ElMessage.warning('主题名称不能为空')
       formData.value.theme = null
       pendingThemeName.value = null
+      clearThemeFilter()
       return
     }
 
@@ -86,6 +141,7 @@ export function useGoodsFormMetadata(formData: Ref<FormDataShape>) {
       if (existingTheme) {
         formData.value.theme = existingTheme.id
         pendingThemeName.value = null
+        clearThemeFilter()
         ElMessage.info('该主题已存在，已自动选择')
         return
       }
@@ -95,6 +151,7 @@ export function useGoodsFormMetadata(formData: Ref<FormDataShape>) {
       themeOptions.value = allThemes.value
       formData.value.theme = newTheme.id
       pendingThemeName.value = null
+      clearThemeFilter()
       ElMessage.success('主题创建成功')
     } catch (err: any) {
       ElMessage.error('创建主题失败：' + (err.message || '未知错误'))
@@ -117,6 +174,7 @@ export function useGoodsFormMetadata(formData: Ref<FormDataShape>) {
         if (existingTheme) {
           formData.value.theme = existingTheme.id
           pendingThemeName.value = null
+          clearThemeFilter()
           return existingTheme.id
         }
 
@@ -125,6 +183,7 @@ export function useGoodsFormMetadata(formData: Ref<FormDataShape>) {
         themeOptions.value = allThemes.value
         formData.value.theme = newTheme.id
         pendingThemeName.value = null
+        clearThemeFilter()
         return newTheme.id
       } catch (err: any) {
         ElMessage.error('创建主题失败：' + (err.message || '未知错误'))
@@ -156,13 +215,21 @@ export function useGoodsFormMetadata(formData: Ref<FormDataShape>) {
     themeOptions,
     allThemes,
     filteredCharacters,
+    filteredThemeOptions,
+    allowThemeCreate,
     categoryTreeOptions,
     selectedCategory,
     pendingThemeName,
     handleIpChange,
+    handleCharacterFilter,
+    handleCharacterChange,
+    filterCategoryNode,
+    handleThemeFilter,
+    handleThemeSelectChange,
     handleThemeChange,
     handleThemeCreate,
     ensureThemeCreated,
+    clearSearchQueries,
     loadMetadata,
   }
 }
